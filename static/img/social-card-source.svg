@@ -1,11 +1,11 @@
 <svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#312E81"/>
-      <stop offset="1" stop-color="#4F46E5"/>
+      <stop offset="0" stop-color="#164E63"/>
+      <stop offset="1" stop-color="#0891B2"/>
     </linearGradient>
   </defs>
   <rect width="1200" height="630" fill="url(#bg)"/>
-  <text x="380" y="300" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="72" font-weight="700" fill="#FFFFFF">Rapid<tspan fill="#FBBF24">REST</tspan></text>
-  <text x="122" y="480" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="30" font-weight="400" fill="#E0E7FF">Rapid REST APIs. First-class server-rendered React.</text>
+  <text x="380" y="300" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="72" font-weight="700" fill="#FFFFFF">Rapid<tspan fill="#F0B429">REST</tspan></text>
+  <text x="122" y="480" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="30" font-weight="400" fill="#CFFAFE">Rapid REST APIs. First-class server-rendered React.</text>
 </svg>

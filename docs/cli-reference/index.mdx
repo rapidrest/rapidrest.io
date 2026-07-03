@@ -1,0 +1,25 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+# CLI Reference
+
+:::info[Coming soon]
+A full command reference is coming in the next round of docs.
+:::
+
+```bash
+npm install -g @rapidrest/cli
+
+rapidrest generate server my-api      # scaffold a new project
+rapidrest generate model Pet          # add a data model
+rapidrest generate route Pet --model  # add CRUD routes for it
+rapidrest generate job MetricsJob     # add a scheduled background job
+
+rapidrest dev                         # run locally, with in-memory databases
+rapidrest build                       # production build
+rapidrest start                       # run the production build
+```
+
+The CLI (installed as `rapidrest` or `rr`) is the primary way to scaffold and work with a RapidREST project. This section will document every `generate` subcommand and their flags in full.

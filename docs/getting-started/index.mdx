@@ -1,0 +1,26 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+# Getting Started
+
+:::info[Coming soon]
+This section is under active development. In the meantime, here's the short version.
+:::
+
+```bash
+npm install -g @rapidrest/cli
+rapidrest generate server my-api
+cd my-api && yarn install
+rapidrest dev
+```
+
+`rapidrest dev` spins up in-memory MongoDB/PostgreSQL/Redis instances automatically — no local database installation required to start building.
+
+This section will cover, in full:
+
+- Installing the CLI and scaffolding a new project
+- The generated project's folder structure (`src/config.ts`, `src/models/`, `src/routes/`, `app/`)
+- Running the dev server and making your first request
+- Building and running in production

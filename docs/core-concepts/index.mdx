@@ -1,0 +1,16 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+# Core Concepts
+
+:::info[Coming soon]
+This section is under active development.
+:::
+
+This section will cover the ideas that underpin everything else in RapidREST:
+
+- **Dependency injection** — `@Inject`, `@Config`, `@Logger`, `@Init`, `@Destroy`, and the `ObjectFactory` that wires it all together.
+- **Automatic discovery** — how `ClassLoader` finds every exported class in your source tree and registers it, so routes, models, and jobs just work without a central registration file.
+- **Configuration** — RapidREST uses [nconf](https://github.com/node-config/node-config) with colon-separated hierarchical keys (e.g. `datastores:mongo:host`) rather than nested JSON/YAML — a common point of confusion worth understanding early.

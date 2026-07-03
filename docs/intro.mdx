@@ -1,0 +1,38 @@
+---
+sidebar_position: 1
+sidebar_label: Introduction
+---
+
+# Introduction
+
+RapidREST is a TypeScript framework for building REST APIs fast, without giving up the option to render pages on the server. It gives you two things most frameworks make you choose between:
+
+- **A rapid, decorator-driven way to build REST APIs** — define a model, add a couple of decorators, and get a full set of CRUD endpoints, request validation, and OpenAPI documentation for free.
+- **First-class server-side-rendered React** — a file-convention `app/` directory (in the spirit of Next.js), with server-side data fetching wired directly into RapidREST's dependency injection, without bolting on a second framework.
+
+## Why RapidREST exists
+
+Building a typical Node.js backend today usually means stitching together a web framework, a validation layer, an ORM, an auth strategy, an OpenAPI generator, and — if you also need server-rendered pages — an entirely separate frontend framework and build pipeline. RapidREST bundles the pieces that almost every API needs, while staying out of your way for the pieces that don't.
+
+## How it's put together
+
+RapidREST is split into a small number of focused packages that build on each other:
+
+| Package | What it does |
+|---|---|
+| `@rapidrest/core` | Dependency injection (`@Inject`, `@Config`, `@Logger`), automatic class discovery, and shared utilities (JWT, notifications, telemetry). |
+| `@rapidrest/service-core` | The HTTP server itself, built on [uWebSockets.js](https://github.com/uNetworking/uWebSockets.js). Routing, models & persistence, auth & RBAC, background jobs, and automatic OpenAPI generation. |
+| `@rapidrest/react` | Server-side-rendered React pages, layered on top of `service-core`. |
+| `@rapidrest/cli` | Project scaffolding and the local dev workflow (`rapidrest generate ...`, `rapidrest dev`). |
+
+You'll typically never install `core` or `service-core` directly — the CLI wires them up for you.
+
+## How discovery works
+
+Most of what feels like "magic" in RapidREST comes down to one idea: **every class you export from your project's source tree is automatically discovered and registered** by a component called `ClassLoader`. Add a file under `src/routes/`, export a class annotated with `@Route`, and it's live — no manual registration step, no central router file to keep in sync. The same mechanism powers models, background jobs, and event listeners. This is covered in depth in [Core Concepts](/docs/core-concepts).
+
+## What's next
+
+- [Getting Started](/docs/getting-started) — install the CLI and scaffold your first server.
+- [Performance](/docs/performance) — how RapidREST compares to Express, Fastify, and Next.js under load.
+- [SSR React](/docs/ssr-react) — the flagship feature: server-rendered pages without a second framework.

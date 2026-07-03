@@ -1,0 +1,19 @@
+.section {
+  padding: 4rem 0;
+  background: var(--ifm-color-emphasis-100);
+}
+
+.header {
+  max-width: 640px;
+  margin: 0 auto 2rem;
+  text-align: center;
+}
+
+.codeWrap {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.codeWrap :global(.tabs) {
+  border-bottom: 1px solid var(--ifm-color-emphasis-300);
+}

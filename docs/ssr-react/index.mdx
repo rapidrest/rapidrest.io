@@ -1,0 +1,36 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+# SSR React
+
+:::info[Coming soon]
+Full guides for `@rapidrest/react` — including the app directory convention, data fetching, hydration, and production caching — are coming in the next round of docs.
+:::
+
+`@rapidrest/react` renders React pages on the server using a file-convention `app/` directory, similar in spirit to Next.js, but wired directly into RapidREST's own server and dependency injection — no second framework or separate build server required.
+
+```tsx
+// app/pets.tsx
+export async function fetchProps() {
+  return {pets: await fetch('/api/pets').then((r) => r.json())};
+}
+
+export default function PetsPage({pets}: {pets: Pet[]}) {
+  return (
+    <ul>
+      {pets.map((pet) => (
+        <li key={pet.id}>{pet.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+This section will cover:
+
+- The `app/` directory convention (`_layout`, `_404`, `_500`, and page files)
+- Server-side data fetching with `fetchProps`
+- Optional client-side hydration
+- Local dev with live reload, and production builds with response caching

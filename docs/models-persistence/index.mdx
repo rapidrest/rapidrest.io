@@ -1,0 +1,31 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+# Models & Persistence
+
+:::info[Coming soon]
+This section is under active development.
+:::
+
+```ts
+import {BaseMongoEntity, Entity, Column, DataStore} from '@rapidrest/service-core';
+
+@DataStore('mongo')
+@Entity()
+export class Pet extends BaseMongoEntity {
+  @Column()
+  name!: string;
+
+  @Column()
+  species!: string;
+}
+```
+
+This section will cover:
+
+- Defining entities with `@Entity`, `@Column`, `@PrimaryColumn`, `@Index`, `@Unique`
+- Choosing a datastore with `@DataStore` — MongoDB, PostgreSQL/SQLite (via TypeORM), or Redis
+- The base entity classes (`BaseEntity`, `SimpleEntity`, `BaseMongoEntity`, `RecoverableBaseEntity`)
+- Caching query results with `@Cache`

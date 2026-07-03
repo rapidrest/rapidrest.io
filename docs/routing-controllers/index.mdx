@@ -1,0 +1,29 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+# Routing & Controllers
+
+:::info[Coming soon]
+This section is under active development.
+:::
+
+```ts
+import {Route, Get, Param} from '@rapidrest/service-core';
+
+@Route('/pets')
+export class PetRoute {
+  @Get('/:id')
+  async getPet(@Param('id') id: string) {
+    // ...
+  }
+}
+```
+
+This section will cover:
+
+- Defining routes with `@Route` and the HTTP method decorators (`@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`, `@Head`, `@Options`, `@WebSocket`)
+- Reading requests with `@Param`, `@Query`, `@Header`, `@Body`, `@Request`, `@Response`, `@User`, `@AuthResult`
+- Middleware and lifecycle hooks with `@Before` / `@After`
+- Request validation with `@Validate`

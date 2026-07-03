@@ -1,0 +1,23 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+# Auto CRUD Routes
+
+:::info[Coming soon]
+This section is under active development.
+:::
+
+Given a model, `ModelRoute` generates a full set of REST endpoints for it — no hand-written handlers required:
+
+```ts
+import {ModelRoute, Model, Route} from '@rapidrest/service-core';
+import {Pet} from '../models/Pet';
+
+@Model(Pet)
+@Route('/pets')
+export class PetRoute extends ModelRoute<Pet> {}
+```
+
+This single class gives you `Count`, `Create`, `Find`, `FindById`, `Update`, `UpdateProperty`, `Delete`, and `Truncate` endpoints for `Pet`, automatically documented in the generated OpenAPI spec. This section will cover the full endpoint set, pagination/filtering conventions, and how to override individual endpoints when the defaults aren't enough.

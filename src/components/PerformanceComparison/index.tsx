@@ -23,12 +23,9 @@ export default function PerformanceComparison(): ReactNode {
     <section className={styles.section}>
       <div className="container">
         <div className={styles.header}>
-          <Heading as="h2">Fast where it counts</Heading>
+          <Heading as="h2">RapidREST is incredibly fast</Heading>
           <p>
-            RapidREST leads on every endpoint bound by framework overhead, and is
-            neck-and-neck with Express and Fastify on the endpoints bound by
-            password hashing instead — see the full breakdown for why that's the
-            honest way to read it.
+            RapidREST delivers best-in-class performance out of the box for common workloads compared to other popular frameworks.
           </p>
         </div>
         <div className={styles.chart} role="img" aria-label="Requests per second on the get_pet endpoint: RapidREST 9,396, Fastify 8,263, Express 7,565, Next.js 2,056">
@@ -46,7 +43,7 @@ export default function PerformanceComparison(): ReactNode {
           ))}
         </div>
         <p className={styles.caption}>
-          Requests/sec on <code>get_pet</code>, k6 load test, 3-run average.{' '}
+          Requests per second on single record database read test <code>get_pet</code>.<br/>
           <Link to="/docs/performance">Full methodology &amp; more endpoints →</Link>
         </p>
       </div>

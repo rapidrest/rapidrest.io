@@ -5,7 +5,7 @@ import {
   BoltIcon,
   DecoratorIcon,
   DatabaseIcon,
-  ReactIcon,
+  CacheIcon,
   PlugIcon,
   ShieldIcon,
 } from './icons';
@@ -18,12 +18,12 @@ type FeatureItem = {
 
 const FeatureList: FeatureItem[] = [
   {
-    title: 'Built for throughput',
+    title: 'Built for speed',
     Icon: BoltIcon,
     description: (
       <>
-        Runs on <a href="https://github.com/uNetworking/uWebSockets.js">uWebSockets.js</a>
-        {' '}instead of Express, so the framework stays out of the way under load.
+        Runs on the high-performance native HTTP library <a href="https://github.com/uNetworking/uWebSockets.js">uWebSockets.js</a>
+        {' '} so the framework stays out of the way under load.
       </>
     ),
   },
@@ -32,48 +32,46 @@ const FeatureList: FeatureItem[] = [
     Icon: DecoratorIcon,
     description: (
       <>
-        Export a class from anywhere in <code>src/</code> and it's discovered and
-        wired up automatically — no central router or registration file to maintain.
+        Automatically inject dependencies and wire API endpoints with decorators in code — no central app/router or registration files to maintain.
       </>
     ),
   },
   {
-    title: 'CRUD & OpenAPI, generated',
+    title: 'Database Support',
     Icon: DatabaseIcon,
     description: (
       <>
-        Annotate a model and get Create/Find/Update/Delete endpoints and a live{' '}
-        <code>/openapi.json</code> spec for free.
+        Whether you prefer MongoDB or SQL, the built-in ORM layer and CRUD endpoints eliminates the boilerplate needed to build data-driven APIs and apps.
       </>
     ),
   },
   {
-    title: 'First-class SSR React',
-    Icon: ReactIcon,
-    description: (
-      <>
-        A file-convention <code>app/</code> directory renders React on the server,
-        with data fetching wired into the same dependency injection as your API.
-      </>
-    ),
-  },
-  {
-    title: 'Zero-setup local dev',
-    Icon: PlugIcon,
-    description: (
-      <>
-        <code>rapidrest dev</code> spins up in-memory MongoDB, PostgreSQL, and Redis
-        automatically — no local database installation required.
-      </>
-    ),
-  },
-  {
-    title: 'Auth & RBAC, built in',
+    title: 'Auth & RBAC',
     Icon: ShieldIcon,
     description: (
       <>
-        JWT auth and role/record-level access control ship with the framework —
+        Security first principles with auth and a powerful RBAC/ACL system for per-URL/class/document access control built-in —
         no separate library to bolt on.
+      </>
+    ),
+  },
+  {
+    title: 'OpenAPI Docs',
+    Icon: PlugIcon,
+    description: (
+      <>
+        Automatically generates OpenAPI documentation from your code and serves the spec via
+        common endpoints <code>/openapi.json</code>, <code>/openapi.yaml</code>
+      </>
+    ),
+  },
+  {
+    title: 'Cache System',
+    Icon: CacheIcon,
+    description: (
+      <>
+        The Redis based built-in caching system provides automatic caching of queries, documents, and server rendered React
+        pages. Simply add <code>@Cache</code> to your model and you're done!
       </>
     ),
   },

@@ -1,0 +1,94 @@
+---
+sidebar_position: 2
+sidebar_label: Authentication
+---
+
+# Authentication
+
+## `@Auth(strategies, require?)`
+
+Controls which auth strategies apply to a route or handler:
+
+```ts
+@Auth(['jwt'])
+@Get('/token')
+async whoAmI(@User user?: any) {
+  return user;
+}
+```
+
+If you don't apply `@Auth` at all, every endpoint is still opportunistically checked against the `"jwt"` strategy by default — but it isn't *required* unless `require` is `true` (the default when `@Auth` is applied is also `true`), or the endpoint has a `@RequiresRole` or ACL check that implies it.
+
+## JWT (the default strategy)
+
+`JWTStrategy` looks for a token in three places, in this order — the last one found wins:
+
+1. **Query parameter** (`auth_token`) — only if `allowQueryParam` is enabled, since passing tokens in URLs is discouraged by default
+2. **Authorization header** — matching `jwt` or `bearer` schemes, case-insensitive
+3. **Cookie** (`jwt` by default; signed cookies if `cookieSecure` is set)
+
+```ts
+class JWTStrategyOptions {
+  headerKey = 'authorization';
+  headerScheme = '(jwt|bearer)';
+  cookieName = 'jwt';
+  cookieSecure = false;
+  queryKey = 'auth_token';
+  allowQueryParam = false;
+}
+```
+
+Configure the secret and token options under the `auth` config key (see [Configuration](/docs/core-concepts/configuration)):
+
+```ts
+conf.defaults({
+  auth: {
+    strategy: 'auth.JWTStrategy',
+    secret: 'change-me-in-production',
+    options: {
+      expiresIn: '1 hour',
+      audience: 'my-api.example.com',
+      issuer: 'api.example.com',
+    },
+  },
+});
+```
+
+## Basic auth + issuing a JWT (a real login flow)
+
+Basic auth is typically used for exactly one endpoint — logging in — which then issues a JWT for every subsequent request:
+
+```ts
+import {AuthMiddleware, BasicStrategy, BasicStrategyOptions, JWTUtils} from '@rapidrest/service-core';
+import {ObjectFactory, ObjectDecorators} from '@rapidrest/core';
+const {Inject, Config, Init} = ObjectDecorators;
+
+export class AuthRoute {
+  @Inject(AuthMiddleware) private authMiddleware?: AuthMiddleware;
+  @Inject(ObjectFactory) private objectFactory?: ObjectFactory;
+  @Config('auth') private jwtConfig?: any;
+
+  @Init
+  private async initialize() {
+    const options = new BasicStrategyOptions();
+    options.verify = async (name: string, password: string) => {
+      const user = await this.userService.findByName(name);
+      if (!user || !(await verifyPassword(user.password, password))) {
+        throw new Error('Invalid name or password');
+      }
+      return user;
+    };
+    const strategy = await this.objectFactory.newInstance(BasicStrategy, {name: 'default', args: [options]});
+    this.authMiddleware.register(strategy.name, strategy);
+  }
+
+  @Auth(['basic'])
+  @Get('/login')
+  async login(@User user: any) {
+    const token = await JWTUtils.createToken(this.jwtConfig, user);
+    return {token};
+  }
+}
+```
+
+The client sends `Authorization: Basic <base64(name:password)>` once to `/login`, gets a token back, then sends `Authorization: Bearer <token>` on every subsequent request.

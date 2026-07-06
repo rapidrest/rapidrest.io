@@ -1,0 +1,58 @@
+---
+sidebar_position: 2
+sidebar_label: Defining Routes
+---
+
+# Defining Routes
+
+## `@Route(paths)`
+
+A class decorator that mounts a class as a route at one or more base paths:
+
+```ts
+import {RouteDecorators} from '@rapidrest/service-core';
+const {Route} = RouteDecorators;
+
+@Route('/pets')
+export class PetRoute {}
+```
+
+`paths` accepts a single string or an array of strings if a route should respond at more than one base path.
+
+## HTTP method decorators
+
+Each handler method is decorated with the HTTP method(s) it should respond to:
+
+```ts
+const {Get, Post, Put, Patch, Delete, Head, Options, WebSocket} = RouteDecorators;
+
+@Route('/pets')
+export class PetRoute {
+  @Get('/:id')
+  async getPet() {
+    /* ... */
+  }
+
+  @Post()
+  async createPet() {
+    /* ... */
+  }
+}
+```
+
+Each decorator takes an optional sub-path, appended to the class's `@Route` base path — omit it to handle the base path itself (`@Get()` on `@Route('/pets')` handles `GET /pets`). You can stack more than one HTTP-method decorator on the same handler if it should respond to multiple methods identically.
+
+`@WebSocket(path?)` upgrades the connection instead of returning an HTTP response — see the parameter decorators below for `@Socket`.
+
+## Handler return values
+
+A handler's return value becomes the JSON response body. Async handlers work as expected:
+
+```ts
+@Get('/:id')
+async getPet(@Param('id') id: string): Promise<Pet | null> {
+  return this.petService.findById(id);
+}
+```
+
+Throwing inside a handler (or a `@Before`/`@Validate` step) results in an error response — see [Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation) for where in the pipeline that happens.

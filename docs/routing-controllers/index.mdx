@@ -5,25 +5,8 @@ sidebar_label: Overview
 
 # Routing & Controllers
 
-:::info[Coming soon]
-This section is under active development.
-:::
+Routes in RapidREST are plain classes decorated with `@Route` and one or more HTTP-method decorators. There's no separate router file — a route class is discovered and registered the moment it's exported anywhere under `src/` (see [Auto-Discovery](/docs/core-concepts/auto-discovery)).
 
-```ts
-import {Route, Get, Param} from '@rapidrest/service-core';
-
-@Route('/pets')
-export class PetRoute {
-  @Get('/:id')
-  async getPet(@Param('id') id: string) {
-    // ...
-  }
-}
-```
-
-This section will cover:
-
-- Defining routes with `@Route` and the HTTP method decorators (`@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`, `@Head`, `@Options`, `@WebSocket`)
-- Reading requests with `@Param`, `@Query`, `@Header`, `@Body`, `@Request`, `@Response`, `@User`, `@AuthResult`
-- Middleware and lifecycle hooks with `@Before` / `@After`
-- Request validation with `@Validate`
+- **[Defining Routes](/docs/routing-controllers/defining-routes)** — `@Route`, the HTTP method decorators, and how handlers get called.
+- **[Request Parameters](/docs/routing-controllers/request-parameters)** — pulling data out of the request with `@Param`, `@Query`, `@Header`, `@Body`, and friends.
+- **[Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation)** — `@Before`/`@After` middleware chains, `@Validate`, and `@ContentType`.

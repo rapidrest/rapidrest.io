@@ -5,26 +5,7 @@ sidebar_label: Overview
 
 # Auth & RBAC
 
-:::info[Coming soon]
-This section is under active development.
-:::
+RapidREST ships authentication and role/record-level access control built in — no separate library to bolt on.
 
-```ts
-@Route('/pets')
-@Protect('pets')
-export class PetRoute extends ModelRoute<Pet> {
-  @Auth(['jwt'])
-  @RequiresRole('admin')
-  @Delete('/:id')
-  async deletePet(@Param('id') id: string) {
-    // ...
-  }
-}
-```
-
-This section will cover:
-
-- Authentication strategies — `JWTStrategy` (the default) and `BasicStrategy`, or writing your own
-- Requiring auth per-route with `@Auth`
-- Role-based access control with `@RequiresRole`
-- Resource-level access control lists with `@Protect` and the `AccessControlList` model
+- **[Authentication](/docs/auth-rbac/authentication)** — the JWT and Basic auth strategies, requiring auth on a route, and a real login flow.
+- **[Authorization & RBAC](/docs/auth-rbac/authorization-rbac)** — role checks with `@RequiresRole`, and fine-grained access control lists with `@Protect`.

@@ -5,21 +5,16 @@ sidebar_label: Overview
 
 # CLI Reference
 
-:::info[Coming soon]
-A full command reference is coming in the next round of docs.
-:::
+The `@rapidrest/cli` package installs a single binary under two names — `rapidrest` and the shorter `rr` — that scaffolds projects and manages the local dev workflow.
 
 ```bash
 npm install -g @rapidrest/cli
-
-rapidrest generate server my-api      # scaffold a new project
-rapidrest generate model Pet          # add a data model
-rapidrest generate route Pet --model  # add CRUD routes for it
-rapidrest generate job MetricsJob     # add a scheduled background job
-
-rapidrest dev                         # run locally, with in-memory databases
-rapidrest build                       # production build
-rapidrest start                       # run the production build
 ```
 
-The CLI (installed as `rapidrest` or `rr`) is the primary way to scaffold and work with a RapidREST project. This section will document every `generate` subcommand and their flags in full.
+- **[Generate Commands](/docs/cli-reference/generate-commands)** — `generate server`, `generate model`, `generate route`, `generate job`.
+- **[Add-ons](/docs/cli-reference/addons)** — `generate docker`, `generate k8s`, `generate react`, `generate react-page`.
+- **[Dev Workflow](/docs/cli-reference/dev-workflow)** — `dev`, `start`, `build`.
+
+:::note[Flags]
+Every flag below is documented in its long form (`--flag-name`). A handful of commands also support a real single-character short flag, called out explicitly where it exists — don't assume every flag has one.
+:::

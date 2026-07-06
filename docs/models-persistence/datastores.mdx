@@ -1,0 +1,56 @@
+---
+sidebar_position: 3
+sidebar_label: Datastores & Connections
+---
+
+# Datastores & Connections
+
+## `@DataStore(name)`
+
+Every entity must declare which configured datastore it belongs to:
+
+```ts
+@DataStore('mongo')
+export class Pet extends BaseMongoEntity {}
+```
+
+`name` refers to a key under the `datastores` section of your [configuration](/docs/core-concepts/configuration):
+
+```ts
+conf.defaults({
+  datastores: {
+    mongo: {type: 'mongodb', host: 'localhost', database: 'my_api'},
+  },
+});
+```
+
+MongoDB, PostgreSQL, and SQLite are supported for entity storage (SQL datastores go through TypeORM under the hood); Redis is used separately for caching (see [Base Entities & Caching](/docs/models-persistence/base-entities)).
+
+:::note[Required]
+Forgetting `@DataStore(...)` on an entity fails fast at startup with an explicit error naming the offending class, rather than a confusing runtime failure later.
+:::
+
+## Direct repository and connection injection
+
+Most of the time you won't need this — [Auto CRUD Routes](/docs/auto-crud-routes) and the base entity classes handle datastore access for you. But you can inject a repository or connection directly into a service when you need to:
+
+```ts
+import {DatabaseDecorators} from '@rapidrest/service-core';
+const {Repository, MongoRepository, RedisConnection} = DatabaseDecorators;
+
+export class PetService {
+  @MongoRepository(Pet)
+  private repo!: MongoRepository<Pet>;
+}
+```
+
+```ts
+import type {Redis} from 'ioredis';
+
+export class SessionService {
+  @RedisConnection('cache')
+  private redis?: Redis;
+}
+```
+
+`@Repository` injects a TypeORM `Repository` for SQL-backed entities; `@MongoRepository` injects a MongoDB-flavored equivalent; `@RedisConnection(name)` injects the named `ioredis` connection directly, most commonly used for the connection named `"cache"`.

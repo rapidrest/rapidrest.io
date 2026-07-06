@@ -5,27 +5,8 @@ sidebar_label: Overview
 
 # Models & Persistence
 
-:::info[Coming soon]
-This section is under active development.
-:::
+Models are plain classes annotated with persistence decorators — the same class works whether it's backed by MongoDB, a SQL database (via TypeORM), or Redis.
 
-```ts
-import {BaseMongoEntity, Entity, Column, DataStore} from '@rapidrest/service-core';
-
-@DataStore('mongo')
-@Entity()
-export class Pet extends BaseMongoEntity {
-  @Column()
-  name!: string;
-
-  @Column()
-  species!: string;
-}
-```
-
-This section will cover:
-
-- Defining entities with `@Entity`, `@Column`, `@PrimaryColumn`, `@Index`, `@Unique`
-- Choosing a datastore with `@DataStore` — MongoDB, PostgreSQL/SQLite (via TypeORM), or Redis
-- The base entity classes (`BaseEntity`, `SimpleEntity`, `BaseMongoEntity`, `RecoverableBaseEntity`)
-- Caching query results with `@Cache`
+- **[Entities & Columns](/docs/models-persistence/entities-columns)** — `@Entity`, `@Column`, `@PrimaryColumn`, `@Index`, `@Unique`.
+- **[Datastores & Connections](/docs/models-persistence/datastores)** — `@DataStore`, connecting to MongoDB/SQL/Redis, and direct repository/connection injection.
+- **[Base Entities & Caching](/docs/models-persistence/base-entities)** — the base entity classes to extend, plus `@Cache`, `@TrackChanges`, and `@ChildEntity`.

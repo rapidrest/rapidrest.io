@@ -1,0 +1,50 @@
+---
+sidebar_position: 4
+sidebar_label: Dev Workflow
+---
+
+# Dev Workflow
+
+## `rapidrest dev`
+
+Runs the project locally with hot reload.
+
+```bash
+rapidrest dev
+rapidrest dev --inspect   # attach a debugger on localhost:9229
+rapidrest dev --docker    # assume databases are already running elsewhere
+```
+
+| Flag | Description |
+|---|---|
+| `--inspect` | Enables the Node inspector on port 9229 |
+| `-d`, `--docker` | Skips starting in-memory database servers (use when your datastores are already running, e.g. via Docker Compose) |
+
+By default, `rapidrest dev` reads `src/config.ts` to see which datastores are configured, starts an in-memory instance of each (no local install needed — see [Getting Started](/docs/getting-started)), and runs your server via `tsx --watch`. If the project has React configured, it also runs `vite build --watch` alongside it. Everything is cleaned up on <kbd>Ctrl</kbd>+<kbd>C</kbd>.
+
+## `rapidrest start`
+
+Builds and starts the project as it would run in production.
+
+```bash
+rapidrest start
+rapidrest start --no-build   # skip the build step
+rapidrest start --docker     # assume databases are already running elsewhere
+```
+
+| Flag | Description |
+|---|---|
+| `--no-build` | Skip the build step |
+| `-d`, `--docker` | Skips starting in-memory database servers |
+
+## `rapidrest build`
+
+```bash
+rapidrest build
+```
+
+Runs the project's `build` script via the detected package manager — equivalent to `yarn build` or `npm run build` from the project root. Takes no flags.
+
+:::note[`rapidrest dev` vs. `rapidreact dev`]
+If your project was scaffolded with `rapidrest generate server`, use `rapidrest dev` day-to-day — it already runs the Vite watcher for you when the React feature is configured. `rapidreact` (from `@rapidrest/react` directly, covered in [SSR React → Dev Mode](/docs/ssr-react/dev-mode)) is a lower-level tool for driving just the SSR dev workflow, useful if you're integrating `@rapidrest/react` outside of a CLI-scaffolded project.
+:::

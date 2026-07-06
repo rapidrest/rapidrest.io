@@ -1,0 +1,80 @@
+---
+sidebar_position: 2
+sidebar_label: Generate Commands
+---
+
+# Generate Commands
+
+## `rapidrest generate server NAME`
+
+Scaffolds a brand-new project.
+
+```bash
+rapidrest generate server my-api
+rapidrest generate server my-api --output-dir ~/projects/my-api
+```
+
+| Flag | Description |
+|---|---|
+| `--output-dir <path>` | Directory to write into. Defaults to `./<NAME>` |
+| `--force` | Overwrite existing files |
+
+Everything else is interactive: project description, author (auto-filled from Git config when available), package manager (`yarn`/`npm`), databases (MongoDB and Redis checked by default; PostgreSQL and SQLite also available), additional features (React, Docker — checked by default, Kubernetes/Helm), and source control (GitHub, GitLab, Git, Perforce, Subversion, or none).
+
+## `rapidrest generate model NAME`
+
+Adds a data model class.
+
+```bash
+rapidrest generate model Product
+rapidrest generate model Product --datastore mongo --cache 120 --protect
+```
+
+| Flag | Description |
+|---|---|
+| `--output-dir <path>` | Defaults to `./src/models` |
+| `--author <name>` | |
+| `--description <text>` | |
+| `--datastore <name>` | The configured datastore this model binds to |
+| `--cache [ttl]` | Enables `@Cache`. Bare `--cache` defaults to a TTL of `60` |
+| `-p`, `--protect` | Enables RBAC protection on the model. Interactively defaults to **on** |
+| `--force` | Overwrite existing files |
+
+If you configure a brand-new datastore while adding a model, and Docker or Helm add-ons already exist in the project, you'll be prompted to regenerate them so the new datastore is reflected.
+
+## `rapidrest generate route NAME`
+
+Adds a route class.
+
+```bash
+rapidrest generate route ProductRoute
+rapidrest generate route ProductRoute --model Product --protect
+```
+
+| Flag | Description |
+|---|---|
+| `--output-dir <path>` | Defaults to `./src/routes` |
+| `--author <name>` | |
+| `--description <text>` | |
+| `--path <route-path>` | Base path, e.g. `/api/v1/products` |
+| `--model <name>` | Bind to a model — generates a `CRUDRoute` (see [Auto CRUD Routes](/docs/auto-crud-routes)) |
+| `--no-model` | Skip all prompts about associating a model |
+| `-p`, `--protect` | Enables RBAC protection. Interactively defaults to **off** (opposite of `generate model`) |
+| `-f`, `--force` | Overwrite existing files |
+
+## `rapidrest generate job NAME`
+
+Adds a background job.
+
+```bash
+rapidrest generate job MetricsCollector
+rapidrest generate job MetricsCollector --schedule "*/5 * * * *"
+```
+
+| Flag | Description |
+|---|---|
+| `--output-dir <path>` | Defaults to `./src/jobs` |
+| `--author <name>` | |
+| `--description <text>` | |
+| `--schedule <cron>` | Crontab-style schedule |
+| `--force` | Overwrite existing files |

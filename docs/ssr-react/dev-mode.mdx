@@ -1,0 +1,46 @@
+---
+sidebar_position: 5
+sidebar_label: Dev Mode
+---
+
+# Dev Mode
+
+## Starting the dev server
+
+```bash
+npx rapidreact dev
+```
+
+This runs two processes in parallel, sharing your terminal's output:
+
+- **Server** — restarts on every change under `src/` or `app/`. Uses `nodemon` if it's installed (as an optional peer dependency), otherwise falls back to plain `tsx --watch`.
+- **Client bundle watcher** — `vite build --watch`, rebuilding hydration bundles on every `app/` change. Only relevant if you're using `hydrate` on a route.
+
+If either process exits with a non-zero code, the other is shut down too.
+
+By default `rapidreact dev` looks for a server entry file in this order: `src/server.ts`, `src/server.tsx`, `src/index.ts`, `src/index.tsx`. Pass one explicitly if yours doesn't match:
+
+```bash
+npx rapidreact dev src/server.ts
+```
+
+## Live reload, without a separate dev server
+
+There's no Vite dev server running here — RapidREST's own server provides live reload directly, over a small Server-Sent-Events endpoint:
+
+1. The browser opens a persistent connection to `<route-prefix>/__rapidrest__/reload` (e.g. `/app/__rapidrest__/reload` for a route mounted at `/app/*`).
+2. When `vite build --watch` finishes a rebuild and writes a new manifest, RapidREST notices (via a debounced file watch) and pushes a reload event over that connection.
+3. The browser reloads the page.
+4. If the *server* restarts instead (a source change under `src/`), the SSE connection simply drops. The injected client script detects this and polls until the server responds again, then reloads.
+
+This gives full-page-refresh-on-change without the complexity of Vite's own dev-server/HMR pipeline — appropriate for server-rendered pages, where a full reload is usually what you want anyway.
+
+## If you'd rather run it by hand
+
+```bash
+# Terminal 1 — server
+npx tsx --watch src/server.ts
+
+# Terminal 2 — only needed if any route uses hydrate
+npx vite build --watch
+```

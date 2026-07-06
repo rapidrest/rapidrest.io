@@ -1,0 +1,81 @@
+---
+sidebar_position: 4
+sidebar_label: Configuration
+---
+
+# Configuration
+
+RapidREST configuration is built directly on [nconf](https://github.com/node-config/node-config), set up in `src/config.ts`. There's no separate RapidREST-specific config format — you're looking at plain nconf, with one thing worth calling out up front.
+
+:::note[The one gotcha]
+nconf uses **colons** (`:`) as its hierarchy separator, not dots. `config.get("auth.secret")` returns `undefined`. Always use `config.get("auth:secret")`.
+:::
+
+## A real config file
+
+```ts
+// src/config.ts
+import nconf from 'nconf';
+
+const conf = nconf
+  .argv()
+  .env({separator: '__', parseValues: true});
+
+conf.defaults({
+  service_name: 'my-api',
+  auth: {
+    strategy: 'auth.JWTStrategy',
+    secret: 'change-me-in-production',
+    options: {
+      expiresIn: '1 hour',
+      audience: 'my-api.example.com',
+      issuer: 'api.example.com',
+    },
+  },
+  class_loader: {
+    ignore: [/server\..*/, /config\..*/],
+  },
+  cors: {origin: ['http://localhost:3000']},
+  datastores: {
+    mongo: {type: 'mongodb', host: 'localhost', database: 'my_api'},
+  },
+  logger: {level: 'info'},
+  rbac: {enabled: true},
+  trusted_roles: ['admin'],
+});
+
+export default conf;
+```
+
+Because `.env()` is configured with `separator: '__'`, you can override any nested key via environment variables using double underscores in place of colons — for example `AUTH__SECRET=prod-secret` overrides `auth:secret`.
+
+## Reading config values
+
+Anywhere in your own code:
+
+```ts
+config.get('datastores');
+config.get('rbac:enabled');
+config.get('auth:socketTimeout');
+```
+
+Inside a class managed by the dependency injection container, use `@Config` instead of importing the config object directly — see [Dependency Injection](/docs/core-concepts/dependency-injection):
+
+```ts
+@Config('trusted_roles', ['admin'])
+protected trustedRoles: string[] = ['admin'];
+```
+
+## Common top-level keys
+
+| Key | Purpose |
+|---|---|
+| `datastores` | MongoDB/PostgreSQL/SQLite/Redis connection definitions, keyed by datastore name (referenced from `@DataStore('name')`) |
+| `auth` | Default auth strategy, JWT secret/options |
+| `rbac:enabled` | Turns the RBAC/ACL permission system on or off globally |
+| `trusted_roles` | Roles that bypass ACL permission checks entirely |
+| `class_loader:ignore` | Regexes for files to exclude from auto-discovery |
+| `cors` | CORS origin configuration |
+| `logger:level` | Winston log level |
+
+You'll see most of these referenced again in [Models & Persistence](/docs/models-persistence) and [Auth & RBAC](/docs/auth-rbac) as they come up.

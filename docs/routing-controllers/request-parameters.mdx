@@ -1,0 +1,51 @@
+---
+sidebar_position: 3
+sidebar_label: Request Parameters
+---
+
+# Request Parameters
+
+Handler arguments are populated by parameter decorators — you don't reach into a raw request object and pull fields out by hand.
+
+```ts
+const {Param, Query, Header, Request, Response, Socket, User, AuthResult} = RouteDecorators;
+```
+
+| Decorator | Resolves to |
+|---|---|
+| `@Param(name?)` | `req.params[name]`, or the whole `params` object if `name` is omitted |
+| `@Query(name?)` | `req.query[name]`, or the whole `query` object if `name` is omitted |
+| `@Header(name)` | `req.headers[name]` |
+| `@Request` | the whole `HttpRequest` object (no parentheses) |
+| `@Response` | the whole `HttpResponse` object (no parentheses) |
+| `@Socket` | the underlying WebSocket, for `@WebSocket` handlers (no parentheses) |
+| `@User` | the authenticated user (`req.auth?.user`), if any (no parentheses) |
+| `@AuthResult` | the full auth result object (no parentheses) |
+
+```ts
+@Get('/:id')
+async getPet(@Param('id') id: string, @Query() query: any, @User user?: JWTUser) {
+  return this.petService.findById(id, {query, user});
+}
+```
+
+## The request body
+
+Any handler argument that **isn't** decorated automatically receives the parsed request body:
+
+```ts
+@Post()
+async createPet(pet: Pet) {
+  // `pet` is the parsed JSON body — no decorator needed
+  return this.petService.create(pet);
+}
+```
+
+## WebSocket example
+
+```ts
+@WebSocket('/connect')
+onConnect(@Query('message') message: string, @Socket ws: WebSocket, @User user?: any) {
+  ws.on('message', (msg) => ws.send(`echo ${message ?? ''} ${msg}`));
+}
+```

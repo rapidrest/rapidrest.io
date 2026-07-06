@@ -1,0 +1,101 @@
+---
+sidebar_position: 4
+sidebar_label: Base Entities & Caching
+---
+
+# Base Entities & Caching
+
+## Base entity classes
+
+Extend one of these instead of writing identifier/timestamp/versioning fields by hand:
+
+| Class | Adds |
+|---|---|
+| `SimpleEntity` | just `uid` (a UUID primary key) |
+| `BaseEntity` | `uid`, `dateCreated`, `dateModified`, `version` (for optimistic locking) |
+| `SimpleMongoEntity` | `SimpleEntity` + a MongoDB `_id` column |
+| `BaseMongoEntity` | `BaseEntity` + a MongoDB `_id` column |
+| `RecoverableBaseEntity` | `BaseEntity` + a `deleted` soft-delete flag |
+| `RecoverableBaseMongoEntity` | `RecoverableBaseEntity` + a MongoDB `_id` column |
+
+A typical MongoDB-backed entity:
+
+```ts
+import {BaseMongoEntity, Entity, Column, DataStore} from '@rapidrest/service-core';
+
+@Entity()
+@DataStore('mongo')
+export class Pet extends BaseMongoEntity {
+  @Column()
+  name: string = '';
+
+  @Column()
+  species: string = '';
+
+  constructor(other?: Partial<Pet>) {
+    super(other);
+    Object.assign(this, other);
+  }
+}
+```
+
+Use a `RecoverableBase*Entity` when you want deletes to be reversible (records are flagged `deleted: true` rather than removed), and `BaseEntity`'s built-in `version` field gives you optimistic-locking updates for free through [Auto CRUD Routes](/docs/auto-crud-routes).
+
+## `@Cache(ttl?)`
+
+Caches query results for an entity in Redis:
+
+```ts
+@Cache()          // default TTL: 30 seconds
+@DataStore('mongo')
+export class Pet extends BaseMongoEntity {}
+
+@Cache(120)        // custom TTL, in seconds
+@DataStore('mongo')
+export class Category extends BaseMongoEntity {}
+```
+
+Caching only takes effect when a Redis connection named `"cache"` is configured — without one, `@Cache` is silently a no-op rather than an error.
+
+## `@TrackChanges(versions?)`
+
+Keeps historical versions of a record every time it's updated:
+
+```ts
+@TrackChanges()      // keeps every version (default: -1)
+@DataStore('mongo')
+export class VersionedUser extends RecoverableBaseMongoEntity {}
+
+@TrackChanges(5)      // keeps only the last 5 versions
+export class AuditedRecord extends BaseMongoEntity {}
+```
+
+## `@ChildEntity()`
+
+Lets multiple entity classes share a single collection/table, discriminated by type — useful for modeling an inheritance hierarchy without a separate collection per subclass:
+
+```ts
+@Entity()
+@DataStore('mongo')
+export class User extends BaseMongoEntity {
+  @Column() name: string = '';
+}
+
+@ChildEntity()
+export class Player extends User {
+  @Reference(Item)
+  items?: string[];
+}
+```
+
+`@Reference(EntityClass)` marks a property as referencing another entity type by identifier, rather than embedding it directly.
+
+## `@Shard(config?)`
+
+MongoDB-only: configures sharding for a collection (defaults to sharding on `uid`):
+
+```ts
+@Shard()
+@DataStore('mongo')
+export class Event extends BaseMongoEntity {}
+```

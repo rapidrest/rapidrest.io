@@ -1,0 +1,115 @@
+---
+sidebar_position: 2
+sidebar_label: Dependency Injection
+---
+
+# Dependency Injection
+
+Every service, route, and model in RapidREST is managed by a single `ObjectFactory`. It creates instances, resolves their dependencies, and runs lifecycle hooks — all driven by property and method decorators from `@rapidrest/core`.
+
+```ts
+import {ObjectDecorators} from '@rapidrest/core';
+const {Inject, Config, Logger, Init, Destroy} = ObjectDecorators;
+```
+
+## `@Inject(type, options?)`
+
+Injects an instance of another class into a property.
+
+```ts
+export class PetRoute {
+  @Inject(PetService)
+  private petService?: PetService;
+}
+```
+
+`type` can be the class itself, or a fully-qualified string name — useful for breaking circular imports between two classes that depend on each other:
+
+```ts
+export class CircularClassA {
+  @Inject('CircularClassB')
+  public dep?: CircularClassB;
+}
+```
+
+An optional second argument controls how the instance is constructed:
+
+```ts
+interface InstanceOptions {
+  args?: any[];        // constructor arguments
+  name?: string;       // a named instance, instead of the default singleton
+  initialize?: boolean; // whether to run @Init hooks (default true)
+}
+```
+
+```ts
+@Inject(RepoUtils, {name: User.name, args: [User]})
+protected userUtils?: RepoUtils<User>;
+```
+
+Without a `name`, `@Inject` resolves to a shared singleton instance of that class — the same instance is reused everywhere it's injected. Passing a `name` creates (or looks up) a distinct named instance instead, which is how RapidREST gets a separate `RepoUtils` per entity type from the same underlying class.
+
+## `@Config(path?, defaultValue?)`
+
+Injects a value from the application's nconf configuration (see [Configuration](/docs/core-concepts/configuration)).
+
+```ts
+@Config('auth')
+private authConfig: any;
+
+@Config('trusted_roles', ['admin'])
+protected trustedRoles: string[] = ['admin'];
+
+@Config()
+protected wholeConfig?: any; // no path — injects the entire config object
+```
+
+If `path` is provided and nothing is found there, and no `defaultValue` was given, initialization **throws** — a missing required config value fails loudly at startup rather than surfacing as a confusing `undefined` later.
+
+## `@Logger`
+
+Injects the shared Winston logger instance. No arguments, no parentheses:
+
+```ts
+@Logger
+protected logger: any;
+```
+
+## `@Init`
+
+Marks a method to run automatically after a class's dependencies have been injected — this is where you do setup that depends on `@Inject`/`@Config` values already being populated.
+
+```ts
+export class PetRoute {
+  @Inject(PetService)
+  private petService?: PetService;
+
+  @Init
+  private async initialize() {
+    // this.petService is guaranteed to be populated here
+  }
+}
+```
+
+`@Init` methods may be `async`; RapidREST waits for them to resolve before the instance is considered ready.
+
+## `@Destroy`
+
+The counterpart to `@Init` — marks a method to run during teardown (e.g. in tests, or graceful shutdown).
+
+```ts
+@Destroy
+public async destroy(): Promise<void> {
+  this.connection = undefined;
+}
+```
+
+## How it fits together
+
+You rarely construct these classes with `new` yourself. Instead:
+
+1. RapidREST's `ClassLoader` discovers every exported class under your source tree (see [Auto-Discovery](/docs/core-concepts/auto-discovery)).
+2. Each discovered class is registered with the `ObjectFactory`.
+3. When a route, model, or another service is instantiated, the `ObjectFactory` walks its `@Inject`/`@Config`/`@Logger` properties, resolves them, and finally runs any `@Init` methods.
+
+This means a plain service class with no decorators at all — like a `PetService` that wraps some business logic — is automatically available for injection anywhere in your project, as long as it's exported from a file somewhere under `src/`.

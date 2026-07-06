@@ -1,0 +1,75 @@
+---
+sidebar_position: 3
+sidebar_label: Add-ons
+---
+
+# Add-ons
+
+## `rapidrest generate docker`
+
+Adds a `Dockerfile` and `docker-compose.yml`, configured for whichever datastores your project already has set up.
+
+```bash
+rapidrest generate docker
+docker-compose up
+```
+
+| Flag | Description |
+|---|---|
+| `--output-dir <path>` | Project directory to add to. Defaults to the current directory |
+| `-f`, `--force` | Overwrite existing files |
+
+Safe to re-run with `--force` whenever your project's datastores change — it regenerates the output from the current project state rather than patching the existing files.
+
+## `rapidrest generate k8s`
+
+Adds a Helm chart under `helm/`.
+
+```bash
+rapidrest generate k8s
+```
+
+| Flag | Description |
+|---|---|
+| `--output-dir <path>` | Project directory to add to. Defaults to the current directory |
+| `-f`, `--force` | Overwrite existing files |
+
+Same idempotent-regeneration behavior as `generate docker`.
+
+## `rapidrest generate react NAME`
+
+Adds [SSR React](/docs/ssr-react) support to an existing project.
+
+```bash
+rapidrest generate react app
+rapidrest generate react app --path /dashboard --hydrate
+```
+
+| Flag | Description |
+|---|---|
+| `--output-dir <path>` | Project directory to add to. Defaults to the current directory |
+| `--author <name>` | |
+| `--path <base-path>` | Base path the app routes to. Defaults to `/<NAME>` |
+| `--hydrate` | Enables client-side hydration |
+| `-f`, `--force` | Overwrite existing files |
+
+## `rapidrest generate react-page APP NAME`
+
+Adds a page to an existing React app.
+
+```bash
+rapidrest generate react-page app Dashboard
+rapidrest generate react-page app Dashboard --service
+
+# NAME can include a subpath
+rapidrest generate react-page app my/path/page --service
+```
+
+| Flag | Description |
+|---|---|
+| `--output-dir <path>` | Project directory to add to. Defaults to the current directory |
+| `--author <name>` | |
+| `-s`, `--service` | Also generate a companion service class for server-side data fetching (see [Data Fetching](/docs/ssr-react/data-fetching)) |
+| `-f`, `--force` | Overwrite existing files |
+
+`NAME` may include a subpath (e.g. `my/path/page`) — each segment is PascalCased to derive the generated component/service name (`my/path/page` → `MyPathPage`).

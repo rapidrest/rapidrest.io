@@ -1,26 +1,102 @@
 ---
 sidebar_position: 1
-sidebar_label: Overview
+sidebar_label: Getting Started
 ---
 
 # Getting Started
 
-:::info[Coming soon]
-This section is under active development. In the meantime, here's the short version.
+This walks through installing the CLI, scaffolding a project, and running it locally — no database installation required.
+
+:::note[Requirements]
+RapidREST requires **Node.js 24 or later**.
 :::
+
+## Install the CLI
 
 ```bash
 npm install -g @rapidrest/cli
+```
+
+This installs the `rapidrest` command (also available as the shorter `rr` alias — both invoke the exact same binary, use whichever you prefer).
+
+## Scaffold a project
+
+```bash
 rapidrest generate server my-api
-cd my-api && yarn install
+```
+
+This walks you through an interactive prompt:
+
+| Prompt | What it controls |
+|---|---|
+| Project description | Free-text description written into `package.json` |
+| Author | Auto-filled from your Git config when available |
+| Package manager | `yarn` or `npm` |
+| Databases | `MongoDB` and `Redis` are checked by default; `PostgreSQL` and `SQLite` are also available. Redis is recommended since it backs the `@Cache` decorator |
+| Additional features | `React` (server-rendered pages), `Docker` (checked by default), `Kubernetes (Helm)` |
+| Source control | `GitHub`, `GitLab`, `Git`, `Perforce`, `Subversion`, or none |
+
+You can also skip straight to a non-interactive run for the parts you already know:
+
+```bash
+rapidrest generate server my-api --output-dir ~/projects/my-api
+```
+
+## Install dependencies
+
+```bash
+cd my-api
+yarn install
+```
+
+## Run it
+
+```bash
 rapidrest dev
 ```
 
-`rapidrest dev` spins up in-memory MongoDB/PostgreSQL/Redis instances automatically — no local database installation required to start building.
+`rapidrest dev` reads `src/config.ts` to see which datastores your project is configured for, then **automatically starts an in-memory instance of each one** (MongoDB, PostgreSQL, and/or Redis) — there's nothing to install or run separately for local development. It then starts your server via `tsx --watch`, restarting on every source change. If you selected the React feature, it also runs `vite build --watch` alongside it. Everything is cleaned up when you hit <kbd>Ctrl</kbd>+<kbd>C</kbd>.
 
-This section will cover, in full:
+By default the server listens on port `3000`. Confirm it's up:
 
-- Installing the CLI and scaffolding a new project
-- The generated project's folder structure (`src/config.ts`, `src/models/`, `src/routes/`, `app/`)
-- Running the dev server and making your first request
-- Building and running in production
+```bash
+curl http://localhost:3000/status
+```
+
+## Project layout
+
+A freshly generated project looks roughly like this:
+
+```text
+my-api/
+├── src/
+│   ├── config.ts       # nconf-based configuration (see Core Concepts)
+│   ├── server.ts       # server entry point
+│   ├── models/         # entity classes (@Entity, @DataStore, ...)
+│   ├── routes/         # route classes (@Route, @Get, ...)
+│   └── jobs/           # background jobs, if generated
+├── apps/
+│   └── app/            # SSR React pages, only if the React feature was selected
+├── test/
+├── docker-compose.yml  # only if the Docker feature was selected
+├── helm/               # only if the Kubernetes feature was selected
+└── package.json
+```
+
+Every class you export anywhere under `src/` is automatically discovered and wired up — there's no central file where routes or models get registered. See [Core Concepts](/docs/core-concepts) for how that works.
+
+## Add a model and CRUD routes
+
+```bash
+rapidrest generate model Pet --datastore mongo
+rapidrest generate route PetRoute --model Pet
+```
+
+This gives you a full set of CRUD endpoints for `Pet` — see [Auto CRUD Routes](/docs/auto-crud-routes) for exactly what gets generated.
+
+## Next steps
+
+- [Core Concepts](/docs/core-concepts) — dependency injection, auto-discovery, and configuration
+- [Routing & Controllers](/docs/routing-controllers) — writing your own endpoints
+- [SSR React](/docs/ssr-react) — server-rendered pages in the same project
+- [CLI Reference](/docs/cli-reference) — every `generate` command in detail

@@ -1,0 +1,96 @@
+---
+sidebar_position: 2
+sidebar_label: Entities & Columns
+---
+
+# Entities & Columns
+
+```ts
+import {Entity, Column, PrimaryColumn, Index, Unique, DataStore} from '@rapidrest/service-core';
+```
+
+## `@Entity(options?)`
+
+Marks a class as a persistable entity.
+
+```ts
+@Entity({collation: {locale: 'en', strength: 2}})
+@DataStore('mongo')
+export class Pet extends BaseMongoEntity {
+  @Column()
+  name: string = '';
+}
+```
+
+`options.name` overrides the collection/table name (defaults to the snake_cased class name); `options.collation` sets a MongoDB collation.
+
+## `@Column(options?)`
+
+Marks a property as a persisted column/field.
+
+```ts
+export interface ColumnOptions {
+  name?: string;       // override the stored field name
+  nullable?: boolean;
+  primary?: boolean;
+  isObjectId?: boolean; // MongoDB ObjectId fields, e.g. `_id`
+}
+```
+
+```ts
+@Column({isObjectId: true})
+@Nullable
+_id?: any;
+```
+
+## `@PrimaryColumn(options?)`
+
+Shorthand for `@Column({...options, primary: true})` — used for identifier fields:
+
+```ts
+@Identifier
+@Index('uid', {unique: true})
+@PrimaryColumn()
+uid: string = uuid.v4();
+```
+
+## `@Index` and `@Unique`
+
+`@Index` has three forms depending on whether you're indexing a single property or a class-level compound index:
+
+```ts
+// Property-level
+@Index()                            // unnamed single-field index
+@Index('myIndexName')               // named
+@Index({unique: true})              // unnamed, unique
+
+// Class-level compound index
+@Index(['firstName', 'lastName'])
+@Index('fullName', ['firstName', 'lastName'], {unique: true})
+```
+
+`IndexOptions` also accepts `sparse`, `background`, and `expireAfterSeconds` (MongoDB-specific, e.g. for TTL indexes).
+
+`@Unique` is shorthand for an index with `{unique: true}`, in the same property-level or class-level forms:
+
+```ts
+@Unique('email')
+```
+
+## A complete example
+
+```ts
+import {BaseMongoEntity, Entity, Column, DataStore, Identifier, Index} from '@rapidrest/service-core';
+
+@Entity()
+@DataStore('mongo')
+export class Pet extends BaseMongoEntity {
+  @Identifier
+  @Index()
+  @Column()
+  name: string = '';
+
+  @Column()
+  species: string = '';
+}
+```

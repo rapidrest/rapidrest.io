@@ -1,0 +1,88 @@
+---
+sidebar_position: 3
+sidebar_label: App Directory Convention
+---
+
+# App Directory Convention
+
+All React UI code lives under a single app directory (`apps/app` by default — see [Getting Started](/docs/ssr-react/getting-started) for how to change it).
+
+```text
+apps/app/
+├── _layout.tsx        ← global HTML wrapper (required)
+├── _404.tsx           ← 404 page (optional)
+├── _500.tsx           ← 500 page (optional)
+├── index.tsx          ← route: GET /
+├── pets.tsx           ← route: GET /pets
+└── auth/
+    └── login/
+        └── index.tsx  ← route: GET /auth/login
+```
+
+## Special files
+
+**`_layout.tsx`** — required. Wraps every page. Must export a default component accepting `children`:
+
+```tsx
+export default function Layout({children}: PropsWithChildren) {
+  return (
+    <html>
+      <head><meta charSet="utf-8" /><title>My App</title></head>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+**`_404.tsx`** — optional. Rendered, with a real HTTP 404 status, when no page file matches the request path. Without one, a bare `<h1>404 Not Found</h1>` is returned instead.
+
+**`_500.tsx`** — optional. Rendered, with a real HTTP 500 status, when an unhandled exception occurs during rendering. Receives the thrown value as an `error` prop. Without one, a bare `<h1>500 Internal Server Error</h1>` is returned instead.
+
+:::note[Underscore-prefixed files aren't a hard server-side exclusion]
+Files starting with `_` are skipped when Vite scans for client hydration bundle entries — but the server itself doesn't refuse to render them if requested directly by path. Don't rely on the leading underscore alone to keep a file unreachable; it's a naming convention for "not a page," not an access control mechanism.
+:::
+
+## Page files
+
+Every other `.tsx`, `.jsx`, or `.js` file is a page. It exports a default component, and optionally an async `fetchProps` function — see [Data Fetching](/docs/ssr-react/data-fetching).
+
+```tsx
+// apps/app/pets.tsx
+interface Props {
+  pets: string[];
+}
+
+export default function PetsPage({pets}: Props) {
+  return (
+    <ul>
+      {pets.map((p) => <li key={p}>{p}</li>)}
+    </ul>
+  );
+}
+```
+
+## URL-to-file resolution
+
+A request path is resolved by trying these suffixes in order, stopping at the first match:
+
+```text
+<path>.tsx  →  <path>/index.tsx  →  <path>.jsx  →  <path>/index.jsx  →  <path>.js  →  <path>/index.js
+```
+
+`.tsx` is tried first (for development, executed directly by `tsx`); `.js` is the last fallback (the production, `tsc`-compiled form). This means the exact same `appDir` configuration works in both development and production without changes.
+
+## The index convention
+
+A directory's `index.tsx` serves the path *without* the `index` segment:
+
+```text
+apps/app/auth/login/index.tsx  →  GET /auth/login
+apps/app/auth/login.tsx        →  GET /auth/login   (equivalent)
+```
+
+Prefer the `index.tsx` form once a route needs more than one file in the same directory — non-`index` files inside a subdirectory are not routed automatically, so they're safe to use as private sub-components:
+
+```text
+apps/app/pets/PetCard.tsx   ← NOT routed — import it from pets/index.tsx
+apps/app/pets/index.tsx     ← routed as GET /pets
+```

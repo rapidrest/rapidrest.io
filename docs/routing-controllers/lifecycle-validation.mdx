@@ -1,0 +1,63 @@
+---
+sidebar_position: 4
+sidebar_label: Lifecycle & Validation
+---
+
+# Lifecycle & Validation
+
+Every request to a decorated handler runs through a fixed pipeline before your handler code executes, and again afterward before the response is sent:
+
+```text
+auth strategies → required roles → ACL permission check → @Validate → @Before → handler → @After
+```
+
+Authentication, role checks, and ACL permissions are covered in [Auth & RBAC](/docs/auth-rbac) — this page covers the four decorators you use directly on a handler.
+
+## `@Validate(func)`
+
+Runs a validation function before the handler. Throw to reject the request:
+
+```ts
+@Post()
+@Validate('validateCreate')
+async createPet(pet: Pet) {
+  return this.petService.create(pet);
+}
+
+private validateCreate(pet: Pet) {
+  if (!pet.name) throw new Error('name is required');
+}
+```
+
+`func` can be a function reference or the string name of a method on the same class.
+
+## `@Before(func)` / `@After(func)`
+
+Run one or more functions immediately before or after the handler. Both accept a single function/name or an array of them:
+
+```ts
+@Get('/:id')
+@After('cleanPII')
+async findById(@Param('id') id: string, @User user?: any) {
+  return super.findById(id);
+}
+
+private cleanPII(pet: Pet, @User user?: any) {
+  if (!user) pet.ownerContact = undefined;
+  return pet;
+}
+```
+
+This is the standard pattern for post-processing a response — for example, stripping fields a caller isn't authorized to see, or adding computed fields — without duplicating the whole handler.
+
+## `@ContentType(type)`
+
+Overrides the response `content-type` header (JSON is the default):
+
+```ts
+@Get()
+@ContentType('text/html')
+getHtml(): string {
+  return '<h1>Hello</h1>';
+}
+```

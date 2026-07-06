@@ -1,0 +1,85 @@
+---
+sidebar_position: 2
+sidebar_label: Getting Started
+---
+
+# Getting Started
+
+## Install
+
+```bash
+yarn add @rapidrest/react
+```
+
+`@rapidrest/react` requires `@rapidrest/core`, `@rapidrest/service-core`, React 19, and React DOM 19 as peer dependencies. `vite`, `@vitejs/plugin-react`, and `tsx` are optional peers, only needed if you use client-side hydration or the dev CLI.
+
+If you generated your project with `rapidrest generate server` and selected the React feature, all of this is already wired up — skip to [App Directory Convention](/docs/ssr-react/app-convention).
+
+## Minimal setup by hand
+
+**1. Create the app directory** (the default is `apps/app`):
+
+```text
+apps/app/
+├── _layout.tsx    ← required HTML wrapper
+└── index.tsx      ← page: GET /
+```
+
+**2. Write the layout**
+
+```tsx
+// apps/app/_layout.tsx
+import type {PropsWithChildren} from 'react';
+
+export default function Layout({children}: PropsWithChildren) {
+  return (
+    <html>
+      <head><title>My App</title></head>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+**3. Write a page**
+
+```tsx
+// apps/app/index.tsx
+export default function HomePage() {
+  return <h1>Hello from RapidREST React!</h1>;
+}
+```
+
+**4. Mount the route**
+
+```ts
+// src/AppRouter.ts
+import {RouteDecorators} from '@rapidrest/service-core';
+import {ReactRoute} from '@rapidrest/react';
+
+const {Route} = RouteDecorators;
+
+@Route('/app/*')
+export class AppRouter extends ReactRoute {}
+```
+
+A named prefix like `/app/*` (rather than a bare `/*`) is important: RapidREST also registers a static-file handler at `/*`, and the last-registered wildcard wins — so a named prefix keeps your pages from being shadowed by it.
+
+**5. Run it**
+
+```bash
+npx rapidreact dev
+```
+
+The page at `apps/app/index.tsx` is now served at `/app/`. See [Dev Mode](/docs/ssr-react/dev-mode) for what this command actually runs.
+
+:::note[Changing the app directory]
+The app directory isn't configured via nconf — override the `appDir` property on your route subclass instead:
+
+```ts
+@Route('/app/*')
+export class AppRouter extends ReactRoute {
+  protected override readonly appDir = 'apps/app';
+}
+```
+:::

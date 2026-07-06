@@ -1,0 +1,73 @@
+---
+sidebar_position: 4
+sidebar_label: Data Fetching
+---
+
+# Data Fetching
+
+A page gets its props from up to three sources, merged together on every request:
+
+```text
+props = { user, userUid, ...pageProps, ...serviceProps, ...routeProps }
+```
+
+Later sources win on overlapping keys — a route-class override can always override a service, which can always override the page itself. `user`/`userUid` come from the authenticated request, if any, before either of the sources below run.
+
+## Page-level `fetchProps`
+
+The simplest option: export an async `fetchProps` function from the page file itself.
+
+```tsx
+// apps/app/pets.tsx
+import type {HttpRequest} from '@rapidrest/service-core';
+
+export async function fetchProps(req: HttpRequest) {
+  return {pets: await fetch('/api/pets').then((r) => r.json())};
+}
+
+export default function PetsPage({pets}: {pets: string[]}) {
+  return (
+    <ul>
+      {pets.map((p) => <li key={p}>{p}</li>)}
+    </ul>
+  );
+}
+```
+
+This is enough for most pages, and keeps the data-fetching code next to the component that uses it.
+
+## Injecting server-side services with `@ReactService`
+
+For data that needs RapidREST's own dependency injection — a database-backed service, a cache client, anything you'd normally `@Inject` into a route — register a service class against a specific page path with `@ReactService`:
+
+```ts
+// src/services/PetService.ts
+import {ReactDecorators} from '@rapidrest/react';
+import type {HttpRequest} from '@rapidrest/service-core';
+
+const {ReactService} = ReactDecorators;
+
+@ReactService('/app/pets')
+export class PetService {
+  async fetchProps(req: HttpRequest) {
+    return {pets: await this.petRepo.findAll()};
+  }
+}
+```
+
+Because this is a plain class discovered by [auto-discovery](/docs/core-concepts/auto-discovery), you can `@Inject` a repository, another service, or config into it exactly as you would in a route class. RapidREST instantiates it once and calls its `fetchProps(req)` for every request to the matching path, merging the result in after the page's own `fetchProps`.
+
+## Overriding at the route-class level
+
+The route class mounting your app (the one extending `ReactRoute`) can also override `fetchProps` directly — this is the last, most authoritative layer, and a good place for cross-cutting data every page needs:
+
+```ts
+@Route('/app/*')
+export class AppRouter extends ReactRoute {
+  protected override async fetchProps(req: HttpRequest) {
+    return {featureFlags: await this.flagsService.getAll()};
+  }
+}
+```
+
+Return `{}` for paths you don't want to affect, so page- and service-level props for those paths pass through untouched.

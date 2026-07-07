@@ -5,16 +5,42 @@ sidebar_label: Introduction
 
 # Introduction
 
-RapidREST is a TypeScript framework for building REST APIs fast, without giving up the option to render pages on the server. It gives you two things most frameworks make you choose between:
+RapidREST is a low-code TypeScript framework for building data-driven REST APIs and apps fast. It is battle-tested and has been meticulously designed
+to deliver industry leading performance without sacrificing code quality or speed of development. RapidREST provides the critical features needed to
+ship production-ready backend services and server-side-rendered (SSR) React that the modern web demands:
 
-- **A rapid, decorator-driven way to build REST APIs** — define a model, add a couple of decorators, and get a full set of CRUD endpoints, request validation, and OpenAPI documentation for free.
-- **First-class server-side-rendered React** — a file-convention `app/` directory (in the spirit of Next.js), with server-side data fetching wired directly into RapidREST's dependency injection, without bolting on a second framework.
+- **Decorator-driven REST APIs** — create a class and decorate it with <code>@Route</code>, then add functions decorated with HTTP verbs
+(e.g. <code>@Get</code>, <code>@Post</code>) for the endpoints. RapidREST automatically detects and wires everything
+- **Persistence framework** — provides an easy to use decorator-driven API for data persistence across NoSQL and SQL databases. Combined
+with the built-in `CRUDRoute` and `ModelRoute` base classes, RapidREST offers an ultra low-code solution for rapidly building data-driven REST APIs
+and web apps
+- **Integrated cache system** — the Redis-based caching system automatically caches search queries, documents and server rendered React pages with fully configurable TTLs
+- **Built-in RBAC / ACL auth** — safeguard access to data by defining an Access Control List per URL path, class type or documents using the built-in
+Roles Based Access Control authorization system
+- **Background jobs and services** — execute background jobs and services on a pre-defined crontab-style schedule or interval by creating a class that
+extends <code>BackgroundService</code>
+- **Integrated Prometheus metrics** — Prometheus metrics is pre-integrated with the framework and automatically exposed via the <code>/metrics</code>
+endpoint
+- **Automated OpenAPI docs** — the framework automatically builds a complete OpenAPI specification based on the code and exposes it via the
+<code>/openapi.json</code> and <code>/openapi.yaml</code> endpoints
+- **Server-side-rendered React** — deliver server-side-rendered (SSR) React for static and interactive apps with seamless integration to the entire
+backend framework using a <code>@ReactService</code> decorated class
 
-## Why RapidREST exists
+## History
 
-Building a typical Node.js backend today usually means stitching together a web framework, a validation layer, an ORM, an auth strategy, an OpenAPI generator, and — if you also need server-rendered pages — an entirely separate frontend framework and build pipeline. RapidREST bundles the pieces that almost every API needs, while staying out of your way for the pieces that don't.
+In late 2018, Jean-Philippe Steinmetz co-founded the award-winning Game Backend as a Service platform AcceleratXR. The mission of AcceleratXR was to
+build a democratized backend technology platform that was low-code, easy to learn, and yet powerful enough to be used at massive scale (serving
+millions of daily active users). In time the AcceleratXR platform became a hit with the indie game developer community, powering popular games like
+Armajet. A couple years later, in 2020, the team at AcceleratXR decided to release the framework that the platform was built upon as an open source
+project called Composer.js under the MIT license.
 
-## How it's put together
+Staying true to its ancestry, RapidREST is the evolution of the very framework that made AcceleratXR successful. It is a fully featured low-code
+framework, built for high performance and massive scale, that makes it easy for any developer to rapidly build RESTful API services. Most frameworks
+offer only a simple HTTP router and frontend toolkit. RapidREST offers a batteries included solution that includes HTTP router, database management and 
+persistence layer, integrated caching, Roles Based Access Control, server-side rendering for React and more. It's never been easier to develop modern
+REST API services and web apps in a single unified codebase.
+
+## RapidREST Libraries
 
 RapidREST is split into a small number of focused packages that build on each other:
 

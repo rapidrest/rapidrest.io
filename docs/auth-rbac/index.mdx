@@ -3,9 +3,12 @@ sidebar_position: 1
 sidebar_label: Overview
 ---
 
-# Auth & RBAC
+# Authentication & Authorization
 
-RapidREST ships authentication and role/record-level access control built in — no separate library to bolt on.
+RapidREST's included auth system combines JWT-based authentication with a powerful Roles Based Access Control (RBAC) authorization system. The RBAC
+system has two levels of control; simple role checks per endpoint or fine-grained Access Control Lists per resource.
 
-- **[Authentication](/docs/auth-rbac/authentication)** — the JWT and Basic auth strategies, requiring auth on a route, and a real login flow.
-- **[Authorization & RBAC](/docs/auth-rbac/authorization-rbac)** — role checks with `@RequiresRole`, and fine-grained access control lists with `@Protect`.
+## What's Next
+
+- **[Authentication](/docs/auth-rbac/authentication)**
+- **[Authorization & RBAC](/docs/auth-rbac/authorization)**

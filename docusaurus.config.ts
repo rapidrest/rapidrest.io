@@ -12,6 +12,15 @@ const config: Config = {
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
+    faster: {
+      // The rspack bundler (auto-enabled by v4's "faster by default") currently panics
+      // on `yarn start` with a "ModuleGraphModule ... cssExtractHmr.js not found" crash.
+      // Fall back to webpack for bundling until that's fixed upstream; keep the other
+      // faster-mode swaps (SWC, lightningcss, etc.) enabled. rspackPersistentCache
+      // requires rspackBundler, so it must be disabled too.
+      rspackBundler: false,
+      rspackPersistentCache: false,
+    },
   },
 
   // Set the production url of your site here

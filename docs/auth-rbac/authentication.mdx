@@ -5,19 +5,47 @@ sidebar_label: Authentication
 
 # Authentication
 
-## `@Auth(strategies, require?)`
+RapidREST offers built-in authentication support using Passport.js inspired strategies. The framework offers the following strategies out-of-the-box:
 
-Controls which auth strategies apply to a route or handler:
+- **BasicStrategy** (<code>basic</code>) - Implements the HTTP <code>Basic</code> protocol for simple username and password authentication.
+- **JWTStrategy** (<code>jwt</code>) - Implements the JSON Web Token (JWT) protocol for secure, portable, inter-service authentication.
+
+## Setting up the default strategy
+
+The framework allows for a single strategy to be designated as the global default. The global default strategy is used to optionally authenticate
+every request that is handled by the server. Typically, this is a token based strategy such as <code>JWTStrategy</code>. RapidREST projects that
+have been scaffolded using the CLI are pre-configured to use the <code>JWTStrategy</code> by default.
+
+The global default strategy can be changed by modifying the <code>auth.strategy</code> coonfig key (see [Configuration](/docs/core-concepts/configuration)).
 
 ```ts
-@Auth(['jwt'])
-@Get('/token')
-async whoAmI(@User user?: any) {
-  return user;
+// src/config.ts
+auth: {
+  // The default authentication strategy to use
+  strategy: "auth.JWTStrategy",
 }
 ```
 
-If you don't apply `@Auth` at all, every endpoint is still opportunistically checked against the `"jwt"` strategy by default — but it isn't *required* unless `require` is `true` (the default when `@Auth` is applied is also `true`), or the endpoint has a `@RequiresRole` or ACL check that implies it.
+## Requiring auth for API endpoints
+
+While the framework automatically performs authentication for every request processed, auth is optional. If no auth header is provided by a client
+request, the API endpoint will still execute. When it is desired to require auth for a given endpoint the <code>@Auth()</code> decorator is used.
+
+The <code>@Auth</code> decorator takes a single argument of type <code>Array</code> with a list of auth strategies to use when attempting to
+authenticate the request. At least one strategy needs to succeed in order for the request to be considered authenticated.
+
+For example, take for example the API endpoint <code>GET /api/path</code>, you may require auth using the global default <code>JWTStrategy</code>
+strategy by decoratoring the endpoint function with <code>@Auth</code> as shown below.
+
+```ts
+@Auth["jwt"]
+@Get()
+public endpointFunc() {
+  // ...
+}
+```
+
+# Built-in Auth Strategies
 
 ## JWT (the default strategy)
 

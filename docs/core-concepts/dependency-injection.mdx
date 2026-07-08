@@ -1,108 +1,42 @@
 ---
-sidebar_position: 2
+sidebar_position: 3
 sidebar_label: Dependency Injection
 ---
 
 # Dependency Injection
 
-Every service, route, and model in RapidREST is managed by a single `ObjectFactory`. It creates instances, resolves their dependencies, and runs lifecycle hooks — all driven by property and method decorators from `@rapidrest/core`.
+Every exported data model, job, route, and service in RapidREST is automatically detected by the `ClassLoader` and instances managed by
+`ObjectFactory`. The `ObjectFactory` creates class instances, resolves their dependencies, and runs lifecycle hooks — all driven by property and
+method decorators from the `@rapidrest/core` library.
 
-```ts
-import {ObjectDecorators} from '@rapidrest/core';
-const {Inject, Config, Logger, Init, Destroy} = ObjectDecorators;
-```
+# `ObjectFactory`
 
-## `@Inject(type, options?)`
+Once the `ClassLoader` has scanned and imported all classes in the project source they are registered with the `ObjectFactory` by their fully
+qualified name. The `ObjectFactory` manages instances of each class and controls each object's lifecycle, including instantiation and destruction.
 
-Injects an instance of another class into a property.
+Objects can be instantiated by either calling the `newInstance` function or by reference from another class using the `@Inject` decorator. In either
+case, `newInstance` or `@Inject` accepts either the actual type to instantiate or the fully qualified name of the class. During object instantiation,
+the `ObjectFactory` automatically injects class dependencies for each variable that has been decorated with one of the framework's injection
+decorators. After instantiation, the `ObjectFactory` will then call all functions that have been decorated with `@Init` so that the object may
+perform post-construction initialization.
 
-```ts
-export class PetRoute {
-  @Inject(PetService)
-  private petService?: PetService;
-}
-```
+The supported injection decorators are:
 
-`type` can be the class itself, or a fully-qualified string name — useful for breaking circular imports between two classes that depend on each other:
+- `@Inject` - Provides generic dependency injection for any registered class type
+- `@Config` - Injects the value of the config key at the specified path (e.g. `auth:strategy`)
+- `@Logger` - Injects the application logger utility (e.g. Winston)
+- `@Repository` - Injects the SQL-compatible datastore repository of the given name
+- `@MongoRepository` - Injects the Mongo-compatible datastore repository of the given name
+- `@RedisConnection` - Injects the Redis datastore connection of the given name
 
-```ts
-export class CircularClassA {
-  @Inject('CircularClassB')
-  public dep?: CircularClassB;
-}
-```
+A reference to each object that has been constructed by the `ObjectFactory` is stored in an internal map by a unique instance name. This makes it
+easy to support singleton instances for a given class. When using `@Inject`, the default unique instance is always `default` unless explicitly
+overridden by setting the `name` option. Note that this means every class with the same injected dependency type will get the same class instance
+injected by default.
 
-An optional second argument controls how the instance is constructed:
-
-```ts
-interface InstanceOptions {
-  args?: any[];        // constructor arguments
-  name?: string;       // a named instance, instead of the default singleton
-  initialize?: boolean; // whether to run @Init hooks (default true)
-}
-```
-
-```ts
-@Inject(RepoUtils, {name: User.name, args: [User]})
-protected userUtils?: RepoUtils<User>;
-```
-
-Without a `name`, `@Inject` resolves to a shared singleton instance of that class — the same instance is reused everywhere it's injected. Passing a `name` creates (or looks up) a distinct named instance instead, which is how RapidREST gets a separate `RepoUtils` per entity type from the same underlying class.
-
-## `@Config(path?, defaultValue?)`
-
-Injects a value from the application's nconf configuration (see [Configuration](/docs/core-concepts/configuration)).
-
-```ts
-@Config('auth')
-private authConfig: any;
-
-@Config('trusted_roles', ['admin'])
-protected trustedRoles: string[] = ['admin'];
-
-@Config()
-protected wholeConfig?: any; // no path — injects the entire config object
-```
-
-If `path` is provided and nothing is found there, and no `defaultValue` was given, initialization **throws** — a missing required config value fails loudly at startup rather than surfacing as a confusing `undefined` later.
-
-## `@Logger`
-
-Injects the shared Winston logger instance. No arguments, no parentheses:
-
-```ts
-@Logger
-protected logger: any;
-```
-
-## `@Init`
-
-Marks a method to run automatically after a class's dependencies have been injected — this is where you do setup that depends on `@Inject`/`@Config` values already being populated.
-
-```ts
-export class PetRoute {
-  @Inject(PetService)
-  private petService?: PetService;
-
-  @Init
-  private async initialize() {
-    // this.petService is guaranteed to be populated here
-  }
-}
-```
-
-`@Init` methods may be `async`; RapidREST waits for them to resolve before the instance is considered ready.
-
-## `@Destroy`
-
-The counterpart to `@Init` — marks a method to run during teardown (e.g. in tests, or graceful shutdown).
-
-```ts
-@Destroy
-public async destroy(): Promise<void> {
-  this.connection = undefined;
-}
-```
+Instances can be destroyed by calling the `destroy` function on the `ObjectFactory`. When an instance is destroyed it is removed from the internal
+map and any function marked with `@Destroy` is called in order to perform any cleanup. Note that calling `destroy` yourself can cause undefined
+behavior if the application is still running.
 
 ## How it fits together
 

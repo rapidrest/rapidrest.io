@@ -1,15 +1,18 @@
 ---
-sidebar_position: 3
+sidebar_position: 2
 sidebar_label: Auto-Discovery
 ---
 
 # Auto-Discovery
 
-There's no central file where you register routes, models, or jobs in RapidREST. Instead, every class you export anywhere under your server's source directory is found and registered automatically at startup, by a component called `ClassLoader`.
+Unlike most other frameworks, there is no central file where you register routes, models, or jobs in RapidREST. Nor is there a required file system
+convention for how to organize your code. Instead, every class you export anywhere under your server's source directory is found and registered
+automatically at startup, by the `ClassLoader`.
 
 ## How it works
 
-When the server starts, it recursively scans the project's source directory (`.ts`/`.tsx`/`.js` files, configurable), imports every module it finds, and registers each exported class — default or named — with the dependency injection container (the `ObjectFactory`).
+When the server starts, it recursively scans the project's source directory (`.ts`/`.tsx`/`.js` files, configurable), imports every module it finds,
+and registers each exported class — default or named — with the dependency injection container (the [ObjectFactory](/docs/core-concepts/dependency-injection)).
 
 ```text
 src/

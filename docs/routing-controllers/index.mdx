@@ -5,7 +5,9 @@ sidebar_label: Overview
 
 # Routing & Controllers
 
-Routes in RapidREST are plain classes decorated with `@Route` and one or more HTTP-method decorators. There's no separate router file — a route class is discovered and registered the moment it's exported anywhere under `src/` (see [Auto-Discovery](/docs/core-concepts/auto-discovery)).
+Routes in RapidREST are plain classes decorated with `@Route` and one or more methods that have been decoratored with at least one desired
+HTTP-method (e.g. `@Get`, `@Post`, `@Put`). There's no separate router file — a route class is discovered and registered the moment it's exported
+anywhere under `src/` (see [Auto-Discovery](/docs/core-concepts/auto-discovery)).
 
 - **[Defining Routes](/docs/routing-controllers/defining-routes)** — `@Route`, the HTTP method decorators, and how handlers get called.
 - **[Request Parameters](/docs/routing-controllers/request-parameters)** — pulling data out of the request with `@Param`, `@Query`, `@Header`, `@Body`, and friends.

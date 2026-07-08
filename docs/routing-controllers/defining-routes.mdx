@@ -7,7 +7,7 @@ sidebar_label: Defining Routes
 
 ## `@Route(paths)`
 
-A class decorator that mounts a class as a route at one or more base paths:
+Using the `@Route()` decorator at the class level mounts that class as a route handler at one or more base paths:
 
 ```ts
 import {RouteDecorators} from '@rapidrest/service-core';
@@ -17,7 +17,16 @@ const {Route} = RouteDecorators;
 export class PetRoute {}
 ```
 
-`paths` accepts a single string or an array of strings if a route should respond at more than one base path.
+The argument `paths` accepts a single string or an array of strings. RapidREST will then route all HTTP requests to any configured base path
+to this class's handlers.
+
+```ts
+import {RouteDecorators} from '@rapidrest/service-core';
+const {Route} = RouteDecorators;
+
+@Route(['/pet','/pets','/companions'])
+export class PetRoute {}
+```
 
 ## HTTP method decorators
 

@@ -23,9 +23,9 @@ const config: Config = {
     },
   },
 
-  // Set the production url of your site here
-  // TODO: confirm final hosting target (custom domain vs GitHub Pages vs Vercel/Netlify)
-  url: 'https://rapidrest.io',
+  // Hosted on GitHub Pages at the custom domain rapidrest.dev (see static/CNAME
+  // and .github/workflows/deploy.yml).
+  url: 'https://rapidrest.dev',
   baseUrl: '/',
 
   // GitHub org/repo used for deployment + edit links

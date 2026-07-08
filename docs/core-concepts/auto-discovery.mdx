@@ -30,7 +30,7 @@ A class's registered name (its "fully-qualified name") is derived from its file 
 
 - **Adding a route is just adding a file.** Export a class annotated with `@Route`, and it's live on the next server start — no router file to edit.
 - **Plain service classes are injectable for free.** A class with no RapidREST decorators at all — just business logic — can still be `@Inject`-ed anywhere, because discovery doesn't care whether a class "looks like" a route or model.
-- **File location matters, not naming convention.** Discovery is purely based on "is this file under the scanned directory and does it export a class," not on filename suffixes like `*.route.ts`.
+- **Neither file location or naming convention matter.** Discovery is purely based on "is this file under the scanned directory and does it export a class," not on filename suffixes like `*.route.ts`, or sub-folder placement like `routes`.
 
 ## Excluding files
 

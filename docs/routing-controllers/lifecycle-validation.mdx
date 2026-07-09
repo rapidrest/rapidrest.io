@@ -5,17 +5,17 @@ sidebar_label: Lifecycle & Validation
 
 # Lifecycle & Validation
 
-Every request to a decorated handler runs through a fixed pipeline before your handler code executes, and again afterward before the response is sent:
+Every HTTP request in RapidREST runs through a fixed pipeline before your handler code executes, and again afterward before the response is sent:
 
 ```text
-auth strategies → required roles → ACL permission check → @Validate → @Before → handler → @After
+auth strategies → @RequireRole → ACL permission check → @Validate → @Before → handler → @After
 ```
 
-Authentication, role checks, and ACL permissions are covered in [Auth & RBAC](/docs/auth-rbac) — this page covers the four decorators you use directly on a handler.
+Authentication, role checks, and ACL permissions are covered in [Auth & RBAC](/docs/auth-rbac).
 
 ## `@Validate(func)`
 
-Runs a validation function before the handler. Throw to reject the request:
+Runs a validation function before the handler. Throw to reject the request and a proper `400` error message will be returned to the client.
 
 ```ts
 @Post()

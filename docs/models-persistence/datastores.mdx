@@ -10,6 +10,9 @@ sidebar_label: Datastores & Connections
 Every entity must declare which configured datastore it belongs to:
 
 ```ts
+import { PersistenceDecorators } from '@rapidrest/service-core';
+const { DataStore } = PersistenceDecorators;
+
 @DataStore('mongo')
 export class Pet extends BaseMongoEntity {}
 ```
@@ -35,8 +38,8 @@ Forgetting `@DataStore(...)` on an entity fails fast at startup with an explicit
 Most of the time you won't need this — [Auto CRUD Routes](/docs/auto-crud-routes) and the base entity classes handle datastore access for you. But you can inject a repository or connection directly into a service when you need to:
 
 ```ts
-import {DatabaseDecorators} from '@rapidrest/service-core';
-const {Repository, MongoRepository, RedisConnection} = DatabaseDecorators;
+import { DatabaseDecorators } from '@rapidrest/service-core';
+const { Repository, MongoRepository, RedisConnection } = DatabaseDecorators;
 
 export class PetService {
   @MongoRepository(Pet)
@@ -45,7 +48,9 @@ export class PetService {
 ```
 
 ```ts
+import { DatabaseDecorators } from '@rapidrest/service-core';
 import type {Redis} from 'ioredis';
+const { Repository, MongoRepository, RedisConnection } = DatabaseDecorators;
 
 export class SessionService {
   @RedisConnection('cache')
@@ -54,3 +59,21 @@ export class SessionService {
 ```
 
 `@Repository` injects a TypeORM `Repository` for SQL-backed entities; `@MongoRepository` injects a MongoDB-flavored equivalent; `@RedisConnection(name)` injects the named `ioredis` connection directly, most commonly used for the connection named `"cache"`.
+
+## `RepoUtils`
+
+More commonly when you need to access a persisted entity from the datastore you will use `RepoUtils`. The `RepoUtils` utility class offers
+common functionality for working with a SQL and NoSQL databases.
+
+It is easy to inject `RepoUtils` into any managed class instance using the `@Inject` decorator (shown below).
+
+```ts
+import { ObjectDecorators } from '@rapidrest/core';
+import { RepoUtils } from '@rapidrest/service-core';
+const { Inject } = ObjectDecorators;
+
+export class PetService {
+  @Inject(RepoUtils, { name Pet.name, args: [Pet] })
+  private petUtils?: RepoUtils<Pet>;
+}
+```

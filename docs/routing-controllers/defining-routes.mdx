@@ -5,9 +5,13 @@ sidebar_label: Defining Routes
 
 # Defining Routes
 
-## `@Route(paths)`
+## The Route Class (using `@Route`)
 
-Using the `@Route()` decorator at the class level mounts that class as a route handler at one or more base paths:
+In RapidREST, the `@Route()` decorator is used at the class level to identify a set of HTTP request handlers at a given base path. In other frameworks,
+the `@Route` class is equivalent to an app router. The `@Route` decorator takes a single `paths` argument which can be a single `string` or an
+`Array<string>` that includes each base path that the class' methods will respond to.
+
+The following is an example of a route class.
 
 ```ts
 import {RouteDecorators} from '@rapidrest/service-core';
@@ -17,41 +21,94 @@ const {Route} = RouteDecorators;
 export class PetRoute {}
 ```
 
-The argument `paths` accepts a single string or an array of strings. RapidREST will then route all HTTP requests to any configured base path
-to this class's handlers.
+It should be noted that the the underlying HTTP engine does not yet have any bound request handlers for the `/pets` path. There must be at least
+one HTTP method function in a route class for the framework to register the endpoint.
+
+Below is an example of a route class that has multiple base paths configured. When multiple paths are configured, the framework automatically
+registers each HTTP request handler function for each of the desired base paths.
 
 ```ts
-import {RouteDecorators} from '@rapidrest/service-core';
+import { RouteDecorators } from '@rapidrest/service-core';
 const {Route} = RouteDecorators;
 
 @Route(['/pet','/pets','/companions'])
 export class PetRoute {}
 ```
 
-## HTTP method decorators
+## HTTP Handler Functions
 
-Each handler method is decorated with the HTTP method(s) it should respond to:
+As mentioned above, RapidREST does not bind a route until a HTTP handler function is defined in a route class. To define an HTTP handler function
+it is as easy as decorator any function with the HTTP method (or verb) desired for a given endpoint.
+
+Let's update our previous example to add a basic `Get()` handler function.
 
 ```ts
-const {Get, Post, Put, Patch, Delete, Head, Options, WebSocket} = RouteDecorators;
+import { RouteDecorators } from '@rapidrest/service-core';
+const { Get } = RouteDecorators;
 
 @Route('/pets')
 export class PetRoute {
-  @Get('/:id')
-  async getPet() {
-    /* ... */
-  }
-
-  @Post()
-  async createPet() {
+  @Get()
+  async findPets() {
     /* ... */
   }
 }
 ```
 
-Each decorator takes an optional sub-path, appended to the class's `@Route` base path — omit it to handle the base path itself (`@Get()` on `@Route('/pets')` handles `GET /pets`). You can stack more than one HTTP-method decorator on the same handler if it should respond to multiple methods identically.
+Now that there exists a handler function in the `PetRoute` class the framework will automatically register and bind the HTTP route `GET /pets` to
+the `PetRoute.findPets()` function. Each HTTP method decorator takes an optional sub-path, which is appended to the class's `@Route` base path
+(shown below).
 
-`@WebSocket(path?)` upgrades the connection instead of returning an HTTP response — see the parameter decorators below for `@Socket`.
+```ts
+import { RouteDecorators } from '@rapidrest/service-core';
+const { Get } = RouteDecorators;
+
+@Route('/pets')
+export class PetRoute {
+  @Get()
+  async findPets() {
+    /* ... */
+  }
+
+  @Get('/:id')
+  async findPet() {
+    /* ... */
+  }
+}
+```
+
+You also can stack more than one HTTP-method decorator on the same handler if it should respond to multiple methods identically (shown below).
+
+```ts
+import { RouteDecorators } from '@rapidrest/service-core';
+const { Post, Put } = RouteDecorators;
+
+@Route('/pets')
+export class PetRoute {
+  @Post()
+  @Put()
+  async createOrUpdate(obj: Pet) {
+    /* ... */
+  }
+}
+```
+
+### HTTP Method Decorators
+
+The following table shows all HTTP methods that RapidREST provides a built-in decorator for.
+
+| HTTP Method | Decorator |
+|---|---|
+| `DELETE` | @Delete(path: string)` |
+| `GET` | @Get(path: string)` |
+| `HEAD` | @Head(path: string)` |
+| `OPTIONS` | @Options(path: string)` |
+| `PATCH` | @Patch(path: string)` |
+| `POST` | @Post(path: string)` |
+| `PUT` | @Put(path: string)` |
+
+Alternatively, the `@Method(method: string | string[], path: string)` decorator can be used for other HTTP methods that do not have their own
+decorator or if you'd like to register multiple methods at once.
 
 ## Handler return values
 
@@ -65,3 +122,21 @@ async getPet(@Param('id') id: string): Promise<Pet | null> {
 ```
 
 Throwing inside a handler (or a `@Before`/`@Validate` step) results in an error response — see [Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation) for where in the pipeline that happens.
+
+## WebSocket Support
+
+RapidREST also supports WebSockets via the `@WebSocket(path?)` decorator. This decorator performs automatic upgrades of the connection instead
+of returning an HTTP response.
+
+```ts
+import { RouteDecorators } from '@rapidrest/service-core';
+const { Socket, WebSocket } = RouteDecorators;
+
+@Route('/connect')
+export class PetRoute {
+  @WebSocket()
+  async upgrade(@Socket socket: any) {
+    /* ... */
+  }
+}
+```

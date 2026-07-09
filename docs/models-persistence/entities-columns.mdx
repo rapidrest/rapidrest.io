@@ -5,13 +5,24 @@ sidebar_label: Entities & Columns
 
 # Entities & Columns
 
-```ts
-import {Entity, Column, PrimaryColumn, Index, Unique, DataStore} from '@rapidrest/service-core';
-```
-
 ## `@Entity(options?)`
 
 Marks a class as a persistable entity.
+
+```ts
+@Entity({collation: {locale: 'en', strength: 2}})
+export class Pet extends BaseMongoEntity {
+  @Column()
+  name: string = '';
+}
+```
+
+`options.name` overrides the collection/table name (defaults to the snake_cased class name); `options.collation` sets a MongoDB collation.
+
+## `@DataStore(name)`
+
+Indicates which datastore that entities of this class will be stored in. Note that the `name` argument must correspond to a configured
+entry of the same name in the `datastores` list in the server configuration (covered in the next section: [Datastores & Connections](/docs/models-persistence/datastores)).
 
 ```ts
 @Entity({collation: {locale: 'en', strength: 2}})
@@ -21,8 +32,6 @@ export class Pet extends BaseMongoEntity {
   name: string = '';
 }
 ```
-
-`options.name` overrides the collection/table name (defaults to the snake_cased class name); `options.collation` sets a MongoDB collation.
 
 ## `@Column(options?)`
 

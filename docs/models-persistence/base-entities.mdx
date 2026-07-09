@@ -21,7 +21,7 @@ Extend one of these instead of writing identifier/timestamp/versioning fields by
 A typical MongoDB-backed entity:
 
 ```ts
-import {BaseMongoEntity, Entity, Column, DataStore} from '@rapidrest/service-core';
+import { BaseMongoEntity, Entity, Column, DataStore } from '@rapidrest/service-core';
 
 @Entity()
 @DataStore('mongo')
@@ -39,7 +39,8 @@ export class Pet extends BaseMongoEntity {
 }
 ```
 
-Use a `RecoverableBase*Entity` when you want deletes to be reversible (records are flagged `deleted: true` rather than removed), and `BaseEntity`'s built-in `version` field gives you optimistic-locking updates for free through [Auto CRUD Routes](/docs/auto-crud-routes).
+Use `RecoverableBaseEntity` when you want deletes to be reversible (records are flagged `deleted: true` rather than removed), and `BaseEntity`'s
+built-in `version` field gives you optimistic-locking updates for free through [Auto CRUD Routes](/docs/auto-crud-routes).
 
 ## `@Cache(ttl?)`
 
@@ -72,7 +73,8 @@ export class AuditedRecord extends BaseMongoEntity {}
 
 ## `@ChildEntity()`
 
-Lets multiple entity classes share a single collection/table, discriminated by type — useful for modeling an inheritance hierarchy without a separate collection per subclass:
+Lets multiple entity classes share a single collection/table, discriminated by type — useful for modeling an inheritance hierarchy without a
+separate collection per subclass:
 
 ```ts
 @Entity()

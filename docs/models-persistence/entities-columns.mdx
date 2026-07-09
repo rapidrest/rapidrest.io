@@ -89,7 +89,9 @@ uid: string = uuid.v4();
 ## A complete example
 
 ```ts
-import {BaseMongoEntity, Entity, Column, DataStore, Identifier, Index} from '@rapidrest/service-core';
+import {BaseMongoEntity, PersistenceDecorators, ModelDecorators} from '@rapidrest/service-core';
+const {Entity, Column, Index} = PersistenceDecorators;
+const {DataStore, Identifier} = ModelDecorators;
 
 @Entity()
 @DataStore('mongo')

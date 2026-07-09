@@ -38,7 +38,7 @@ For example, take for example the API endpoint `GET /api/path`, you may require 
 strategy by decoratoring the endpoint function with `@Auth` as shown below.
 
 ```ts
-@Auth["jwt"]
+@Auth(['jwt'])
 @Get()
 public endpointFunc() {
   // ...
@@ -87,8 +87,8 @@ conf.defaults({
 Basic auth is typically used for exactly one endpoint — logging in — which then issues a JWT for every subsequent request:
 
 ```ts
-import {AuthMiddleware, BasicStrategy, BasicStrategyOptions, JWTUtils} from '@rapidrest/service-core';
-import {ObjectFactory, ObjectDecorators} from '@rapidrest/core';
+import {AuthMiddleware, BasicStrategy, BasicStrategyOptions} from '@rapidrest/service-core';
+import {ObjectFactory, ObjectDecorators, JWTUtils} from '@rapidrest/core';
 const {Inject, Config, Init} = ObjectDecorators;
 
 export class AuthRoute {

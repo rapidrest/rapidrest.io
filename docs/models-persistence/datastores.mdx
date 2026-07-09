@@ -73,7 +73,7 @@ import { RepoUtils } from '@rapidrest/service-core';
 const { Inject } = ObjectDecorators;
 
 export class PetService {
-  @Inject(RepoUtils, { name Pet.name, args: [Pet] })
+  @Inject(RepoUtils, { name: Pet.name, args: [Pet] })
   private petUtils?: RepoUtils<Pet>;
 }
 ```

@@ -1,0 +1,97 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+RapidREST includes a built-in scheduler for running code outside the request/response cycle — metrics collection, cleanup tasks, digest emails, anything that needs to run on an interval or once at startup. As with routes and models, there's no central place where jobs get registered: extend the base class, export it, and RapidREST takes care of the rest.
+
+# `BackgroundService`
+
+The following is the abstract base class that every background job extends.
+
+```ts
+export abstract class BackgroundService {
+  public abstract get schedule(): string | undefined;
+  public abstract run(): Promise<void> | void;
+  public abstract start(): Promise<void> | void;
+  public abstract stop(): Promise<void> | void;
+}
+```
+
+| Member | What it's for |
+|---|---|
+| `schedule` | A cron expression (via [node-schedule](https://github.com/node-schedule/node-schedule)) describing how often `run()` fires. Returning `undefined` means "run once" — see below. |
+| `run()` | The work itself. Called on every scheduled tick (or exactly once, for `undefined`-schedule services). |
+| `start()` | Called once, before scheduling begins — set up any state `run()` will need. |
+| `stop()` | Called on shutdown (or immediately after a one-time `run()` completes) — release whatever `start()` acquired. |
+
+The following is a real background service, adapted from the [Petstore](https://github.com/rapidrest/petstore_example) example — it collects Prometheus metrics once a minute:
+
+```ts
+import {BackgroundService} from '@rapidrest/service-core';
+import * as prom from 'prom-client';
+
+export default class MetricsCollector extends BackgroundService {
+  private registry: prom.Registry;
+
+  constructor() {
+    super();
+    this.registry = prom.register;
+  }
+
+  public get schedule(): string | undefined {
+    return '* * * * *'; // every minute
+  }
+
+  public run(): void {
+    // collect and record metrics into this.registry
+  }
+
+  public async start(): Promise<void> {
+    // no setup needed here
+  }
+
+  public async stop(): Promise<void> {
+    // no cleanup needed here
+  }
+}
+```
+
+## Scheduled vs. run-once services
+
+Whether a service runs on a schedule or just once at startup depends entirely on what its `schedule` getter returns:
+
+- **Returns a cron string** (e.g. `"*/5 * * * *"` for every 5 minutes) — the service is scheduled with `node-schedule` and `run()` fires on every tick, for the lifetime of the server.
+- **Returns `undefined`** — `run()` fires exactly once, immediately after `start()`, and the service is then stopped and torn down automatically. Use this for one-time startup work rather than a recurring job.
+
+# Auto-discovery and startup
+
+Background services are found the same way everything else in RapidREST is — see [Auto-Discovery](/docs/core-concepts/auto-discovery). At startup, the server scans every exported class under `src/` and hands any class whose prototype chain includes `BackgroundService` to a `BackgroundServiceManager`, which instantiates it (running the usual `@Inject`/`@Config` dependency injection first), calls `start()`, and either schedules `run()` on the configured cron expression or runs it once and stops the service.
+
+There's no manual registration step — export a class extending `BackgroundService` anywhere under `src/`, and it's live on the next server start.
+
+## Controlling services manually
+
+Most of the time, `BackgroundServiceManager` handles everything for you automatically. When you do need direct control — say, triggering a job on demand from an admin endpoint — inject the manager and use `start`/`stop`/`getService`:
+
+```ts
+import {ObjectDecorators} from '@rapidrest/core';
+import {BackgroundServiceManager} from '@rapidrest/service-core';
+const {Inject} = ObjectDecorators;
+
+export class AdminRoute {
+  @Inject(BackgroundServiceManager) private serviceManager?: BackgroundServiceManager;
+
+  async triggerMetricsCollection() {
+    await this.serviceManager?.start('MetricsCollector');
+  }
+}
+```
+
+# Scaffolding a job with the CLI
+
+```bash
+rapidrest generate job MetricsCollector --schedule "*/5 * * * *"
+```
+
+This generates a `BackgroundService` subclass under `src/jobs/` with the `schedule` getter pre-filled from `--schedule`, plus a matching test file. See [CLI Reference → Generate Commands](/docs/cli-reference/generate-commands) for the full flag list.

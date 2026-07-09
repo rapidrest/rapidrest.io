@@ -21,7 +21,9 @@ Extend one of these instead of writing identifier/timestamp/versioning fields by
 A typical MongoDB-backed entity:
 
 ```ts
-import { BaseMongoEntity, Entity, Column, DataStore } from '@rapidrest/service-core';
+import { BaseMongoEntity, PersistenceDecorators, ModelDecorators } from '@rapidrest/service-core';
+const { Entity, Column } = PersistenceDecorators;
+const { DataStore } = ModelDecorators;
 
 @Entity()
 @DataStore('mongo')

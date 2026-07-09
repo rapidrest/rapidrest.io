@@ -1,0 +1,84 @@
+---
+sidebar_position: 5
+sidebar_label: Alerts
+---
+
+# Alerts
+
+`AlertUtils` sends structured, priority-leveled incident alerts to an external monitoring service — the PagerDuty/Opsgenie style of alert, meant for your team's attention, not your end users'. It's a separate concern from [Notifications](/docs/events-notifications/notifications) (which push messages to connected users) and [Messaging](/docs/events-notifications/messaging) (which sends templated email/Slack/SMS) — this is specifically for "something is wrong and someone needs to look at it."
+
+## Constructing it
+
+`AlertUtils` takes its configuration directly in the constructor rather than through `@Config`, so build it explicitly through the `ObjectFactory`:
+
+```ts
+import {ObjectDecorators} from '@rapidrest/core';
+import {AlertUtils} from '@rapidrest/core';
+const {Inject, Config} = ObjectDecorators;
+
+export class MonitoringService {
+  @Inject(ObjectFactory) private objectFactory?: ObjectFactory;
+  @Config('alerts:auth') private alertAuth?: string;
+  @Config('alerts:serviceUrl') private alertServiceUrl?: string;
+
+  private alerts?: AlertUtils;
+
+  @Init
+  private async init() {
+    this.alerts = await this.objectFactory?.newInstance(AlertUtils, {
+      args: [{auth: this.alertAuth, serviceUrl: this.alertServiceUrl}],
+    });
+  }
+}
+```
+
+`serviceUrl` is the base URL of an alerting API compatible with this shape — Opsgenie's alerts API is the reference implementation. `auth` is sent as the `Authorization` header on every request.
+
+## Sending an alert
+
+```ts
+import {AlertPriority} from '@rapidrest/core';
+
+const id = await this.alerts?.send({
+  alias: 'pet-service-down',
+  message: 'PetService health check failing',
+  description: 'PetService has failed its last {{count}} health checks in a row.',
+  priority: AlertPriority.Severe,
+  source: 'pet-service',
+  tags: ['pets', 'health-check'],
+}, {count: 5});
+```
+
+`send` returns the created alert's id on success, or `null` if it failed. `alias` is what the alerting service uses to de-duplicate — sending another alert with the same `alias` while one is still open typically updates it rather than creating a duplicate, though the exact behavior depends on your alerting provider.
+
+The `message`/`description`/`note` fields are each compiled as Handlebars templates against the second argument (`vars`), the same way `MessagingUtils` templates are — so `{{count}}` above gets filled in from `{count: 5}`.
+
+### Priority levels
+
+| `AlertPriority` | Value | Meaning |
+|---|---|---|
+| `Critical` | `P1` | Affects critical operating functionality or infrastructure. |
+| `Severe` | `P2` | Affects key systems with major impact on end-user experience. |
+| `Important` | `P3` | Affects basic systems, may create a poor end-user experience. |
+| `Warning` | `P4` | No material effect on end-user experience yet, but could escalate. |
+| `Notice` | `P5` | No material effect on end-user experience and no potential to escalate. |
+
+## Closing, retrieving, and attachments
+
+```ts
+await this.alerts?.close(alertId, {note: 'Resolved by restarting the service.'});
+const alert = await this.alerts?.get(alertId);
+```
+
+`send` also accepts a third argument for file attachments, either uploaded individually or bundled into a single zip:
+
+```ts
+await this.alerts?.send(alert, {}, {
+  files: [{filename: 'stack-trace.txt', contentType: 'text/plain', data: buffer}],
+  zip: false,
+});
+```
+
+:::note[Field length limits]
+`AlertUtils` truncates `alias`, `description`, `message`, `note`, `source`, and `tags` to fixed maximum lengths before sending — matching the most restrictive limits among common alerting providers (Opsgenie, at time of writing) — so a long description won't cause the request itself to fail.
+:::

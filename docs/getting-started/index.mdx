@@ -80,10 +80,23 @@ my-api/
 ├── test/
 ├── docker-compose.yml  # only if the Docker feature was selected
 ├── helm/               # only if the Kubernetes feature was selected
+├── tsconfig.json       # extends @rapidrest/service-core/tsconfig
 └── package.json
 ```
 
 Every class you export anywhere under `src/` is automatically discovered and wired up — there's no central file where routes or models get registered. See [Core Concepts](/docs/core-concepts) for how that works.
+
+:::note[tsconfig.json]
+RapidREST's decorators require `experimentalDecorators` and `emitDecoratorMetadata`. Rather than setting these by hand, extend the framework's base config:
+
+```json
+{
+  "extends": "@rapidrest/service-core/tsconfig",
+  "compilerOptions": {"rootDir": ".", "outDir": "dist"},
+  "include": ["src"]
+}
+```
+:::
 
 ## Add a model and CRUD routes
 

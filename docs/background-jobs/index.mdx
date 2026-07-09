@@ -57,6 +57,35 @@ export default class MetricsCollector extends BackgroundService {
 }
 ```
 
+## Injecting config, a logger, or anything else
+
+`BackgroundService` doesn't hand you `config` or `logger` automatically — a job is a normal dependency-injected class, so pull in whatever it needs the usual way (see [Dependency Injection](/docs/core-concepts/dependency-injection)):
+
+```ts
+import {BackgroundService} from '@rapidrest/service-core';
+import {ObjectDecorators} from '@rapidrest/core';
+const {Config, Logger} = ObjectDecorators;
+
+export default class CleanupJob extends BackgroundService {
+  @Config('cleanup:schedule', '0 * * * *')
+  private cronSchedule!: string;
+
+  @Logger
+  private logger: any;
+
+  public get schedule(): string | undefined {
+    return this.cronSchedule;
+  }
+
+  public run(): void {
+    this.logger.info('Running cleanup...');
+  }
+
+  public async start(): Promise<void> {}
+  public async stop(): Promise<void> {}
+}
+```
+
 ## Scheduled vs. run-once services
 
 Whether a service runs on a schedule or just once at startup depends entirely on what its `schedule` getter returns:

@@ -1,0 +1,171 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+RapidREST projects are tested with [Vitest](https://vitest.dev/), against a real (if ephemeral) running `Server` instance rather than mocked request/response objects — a test makes an actual HTTP or WebSocket call and asserts on the real response. `@rapidrest/service-core/test` provides two supertest-style helpers, `request` and `requestws`, to make that convenient.
+
+# Setup
+
+RapidREST's decorators (`@Route`, `@Get`, `@Entity`, ...) rely on `experimentalDecorators` and `emitDecoratorMetadata`. Your project's `tsconfig.json` needs those enabled for `tsc` and your editor; extend the framework's base config rather than setting them by hand:
+
+```json
+// tsconfig.json
+{
+  "extends": "@rapidrest/service-core/tsconfig",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist"
+  },
+  "include": ["src"]
+}
+```
+
+That covers `tsc` and your editor, but **Vitest doesn't invoke `tsc`** — it uses its own transform pipeline, which doesn't apply `tsconfig.json`'s decorator settings on its own. Wire in the [`unplugin-swc`](https://github.com/danielpza/unplugin-swc) plugin so decorators compile the same way under test as they do everywhere else:
+
+```ts
+// vitest.config.ts
+import {defineConfig} from 'vitest/config';
+import swc from 'unplugin-swc';
+
+export default defineConfig({
+  plugins: [
+    swc.vite({
+      jsc: {
+        parser: {syntax: 'typescript', decorators: true},
+        transform: {decoratorMetadata: true, legacyDecorator: true},
+        target: 'es2020',
+      },
+    }),
+  ],
+  test: {
+    globals: true,
+    environment: 'node',
+    include: ['test/**/*.test.ts'],
+  },
+});
+```
+
+If your project was scaffolded with `rapidrest generate server`, `unplugin-swc` is already a dependency — this config is the piece that actually puts it to work.
+
+# Testing HTTP routes
+
+`request(app)` returns a chainable, [supertest](https://github.com/ladjs/supertest)-compatible builder. It accepts either a running `Server` instance or a raw port number.
+
+```ts
+import {Server, ObjectFactory} from '@rapidrest/service-core';
+import {request} from '@rapidrest/service-core/test';
+import {Logger} from '@rapidrest/core';
+
+describe('PetRoute', () => {
+  const logger = Logger();
+  const objectFactory = new ObjectFactory(config, logger);
+  const server = new Server(config, './src', logger, objectFactory);
+
+  beforeAll(async () => {
+    await server.start();
+  });
+
+  afterAll(async () => {
+    await server.stop();
+    await objectFactory.destroy();
+  });
+
+  it('creates a pet', async () => {
+    const result = await request(server.getApplication())
+      .post('/pets')
+      .set('Authorization', 'jwt ' + adminToken)
+      .send({name: 'Rex', species: 'Dog'});
+
+    expect(result.status).toBe(200);
+    expect(result.body.name).toBe('Rex');
+  });
+
+  it('finds a pet by id', async () => {
+    const result = await request(server.getApplication()).get('/pets/' + petId);
+
+    expect(result.status).toBe(200);
+    expect(result.body.name).toBe('Rex');
+  });
+});
+```
+
+`.get`/`.post`/`.put`/`.patch`/`.delete`/`.head`/`.options` each start a chain; `.set(header, value)` adds a header, `.send(body)` attaches a JSON body (the `content-type` header is set automatically for plain objects). Awaiting the chain resolves to a response object:
+
+| Field | What it is |
+|---|---|
+| `status` / `statusCode` | The HTTP status code. |
+| `body` | The response body, parsed as JSON if possible, otherwise the raw string. |
+| `text` | The raw response body, always as a string. |
+| `type` | The MIME type from the `content-type` header, without the charset. |
+| `headers` | The full response headers. |
+| `ok` | `true` for any `2xx` status. |
+
+## Authenticated requests
+
+Build a JWT the same way the server would verify one, using the project's own auth config, and set it as the `Authorization` header:
+
+```ts
+import {JWTUtils} from '@rapidrest/core';
+
+const token = JWTUtils.createTokenSync(config.get('auth'), {uid: 'test-user'});
+
+const result = await request(server.getApplication())
+  .get('/pets/me')
+  .set('Authorization', 'jwt ' + token);
+```
+
+# Testing WebSocket routes
+
+`requestws(app)` mirrors [superwstest](https://github.com/kroeder/superwstest)'s fluent, action-queue style: chain `sendText`/`sendJson`/`expectText`/`expectJson`/`close`, then await the whole chain.
+
+```ts
+import {requestws} from '@rapidrest/service-core/test';
+
+it('echoes a message', async () => {
+  await requestws(server.getApplication())
+    .ws('/connect')
+    .sendText('hello')
+    .expectText('echo hello')
+    .close();
+});
+```
+
+Each queued action runs in order once the connection opens; the chain resolves once every action has completed, or rejects on the first mismatch (or after a 10-second timeout with no response).
+
+# Testing background jobs
+
+A [background job](/docs/background-jobs) is a plain class — there's no HTTP surface to hit, so test it by instantiating and calling its lifecycle methods directly rather than going through `request`:
+
+```ts
+import {MetricsCollector} from '../src/jobs/MetricsCollector.js';
+
+it('runs without error', async () => {
+  const job = new MetricsCollector();
+  await job.start();
+  await job.run();
+  await job.stop();
+});
+```
+
+# In-memory datastores
+
+For tests that touch a real datastore, use an in-memory server instead of a shared test database — [`mongodb-memory-server`](https://github.com/typegoose/mongodb-memory-server) is what `rapidrest dev` itself uses for local development (see [Getting Started](/docs/getting-started)), and it works the same way in tests:
+
+```ts
+import {MongoMemoryServer} from 'mongodb-memory-server';
+
+const mongod = new MongoMemoryServer();
+
+beforeAll(async () => {
+  await mongod.start();
+  await server.start();
+});
+
+afterAll(async () => {
+  await server.stop();
+  await mongod.stop();
+});
+```
+
+Point `datastores:mongo:port` in your test config at the port `mongod` starts on, so the server under test connects to the ephemeral instance rather than a real one.

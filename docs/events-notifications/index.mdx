@@ -1,0 +1,15 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+# Events & Notifications
+
+RapidREST has several related but distinct systems for reacting to things that happen outside the normal request/response cycle, and for reaching people (or other services) when something needs their attention:
+
+- **[Events](/docs/events-notifications/events)** — `@EventListener`, `@OnEvent`, and the Redis-backed event bus for cross-service communication.
+- **[Notifications](/docs/events-notifications/notifications)** — `NotificationUtils`, for pushing real-time messages to specific connected users.
+- **[Messaging](/docs/events-notifications/messaging)** — `MessagingUtils`, for templated email, Slack, and SMS.
+- **[Alerts](/docs/events-notifications/alerts)** — `AlertUtils`, for PagerDuty/Opsgenie-style incident alerts aimed at your team, not your users.
+
+Events and notifications are often used together — an event fires, and a notification goes out because of it — but all four solve different problems, so it's worth understanding them separately.

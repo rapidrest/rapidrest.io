@@ -1,0 +1,83 @@
+---
+sidebar_position: 2
+sidebar_label: Events
+---
+
+# Events
+
+The event system lets any class listen for named events published on a Redis pub/sub channel, without knowing who published them or how many other listeners exist.
+
+## Listening with `@OnEvent`
+
+Decorate a method with `@OnEvent(type?)` to have it called whenever a matching event arrives:
+
+```ts
+import {EventDecorators} from '@rapidrest/service-core';
+import type {Event} from '@rapidrest/core';
+const {EventListener, OnEvent} = EventDecorators;
+
+@EventListener()
+export class PetEventHandler {
+  @OnEvent('pet.created')
+  onPetCreated(evt: Event) {
+    // ...
+  }
+
+  @OnEvent(['pet.updated', 'pet.deleted'])
+  onPetChanged(evt: Event) {
+    // ...
+  }
+
+  @OnEvent()
+  onAnyEvent(evt: Event) {
+    // called for every event received, regardless of type
+  }
+}
+```
+
+| Decorator | What it does |
+|---|---|
+| `@EventListener()` | Class decorator. Marks a class (which must have a no-argument constructor) to be automatically instantiated and registered as an event listener at startup. |
+| `@OnEvent(type?)` | Method decorator. `type` can be a single event type, an array of types, or omitted entirely to receive every event. Types are matched as case-insensitive regular expressions, not exact strings. |
+
+As with routes and models, there's no manual registration step for a class decorated with `@EventListener()` — export it anywhere under `src/` and it's picked up automatically (see [Auto-Discovery](/docs/core-concepts/auto-discovery)).
+
+## Configuring the event bus
+
+Events flow over a Redis connection named `events`, and `EventListenerManager` subscribes to whichever channels you list under `events:channels`:
+
+```ts
+conf.defaults({
+  datastores: {
+    events: {type: 'redis', host: 'localhost', port: 6379},
+  },
+  events: {
+    channels: ['pets'],
+  },
+});
+```
+
+The event system only starts if a datastore named `events` is configured — if it isn't, `@OnEvent` handlers are simply never registered, with no error.
+
+## Publishing an event
+
+There isn't a dedicated "publish an event" helper — an event is just a JSON message with a `type` field, published to one of the configured channels over the same `events` Redis connection:
+
+```ts
+import {DatabaseDecorators} from '@rapidrest/service-core';
+import type {Redis} from 'ioredis';
+const {RedisConnection} = DatabaseDecorators;
+
+export class PetService {
+  @RedisConnection('events')
+  private redis?: Redis;
+
+  async create(pet: Pet) {
+    const created = await this.repo.create(pet);
+    void this.redis?.publish('pets', JSON.stringify({type: 'pet.created', data: created}));
+    return created;
+  }
+}
+```
+
+Any listener subscribed to the `pets` channel with a matching `@OnEvent` type receives it — the channel is just the transport; dispatch to handlers is based on the event's `type` field, not which channel it arrived on.

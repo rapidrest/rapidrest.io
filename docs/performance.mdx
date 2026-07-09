@@ -5,15 +5,21 @@ sidebar_label: Performance
 
 # Performance
 
-RapidREST is built on [uWebSockets.js](https://github.com/uNetworking/uWebSockets.js) rather than Express, specifically to keep the framework's own overhead low. Below is a load test comparing a RapidREST server against equivalent Express, Fastify, and Next.js servers implementing the same [Petstore](https://github.com/rapidrest/petstore_example)-style CRUD API.
+RapidREST is built on [uWebSockets.js](https://github.com/uNetworking/uWebSockets.js) rather than Express, specifically to keep the framework's own
+overhead low. Below is a series of load tests comparing RapidREST against equivalent Express, Fastify, and Next.js servers implementing the
+same [Petstore](https://github.com/rapidrest/petstore_example)-style CRUD API.
 
 :::note[Methodology]
-[k6](https://k6.io/) load test, 3 runs averaged per endpoint, identical CRUD workload (create/find pets, create/find users, login, health check) implemented natively in each framework. RapidREST's results include its built-in response caching and RBAC checks enabled — i.e. these are "batteries included" numbers, not a stripped-down comparison.
+
+[k6](https://k6.io/) load test, 3 runs averaged per endpoint, identical CRUD workload (create/find pets, create/find users, login, health check)
+implemented natively in each framework. RapidREST's results include its built-in response caching and RBAC checks enabled — i.e. these are "batteries
+included" numbers, not a stripped-down comparison.
 :::
 
 ## Requests per second
 
-Higher is better. RapidREST leads on every endpoint where framework overhead is the bottleneck, and is essentially tied with Express and Fastify on the two endpoints that are dominated by password-hashing cost rather than HTTP handling — which is exactly what you'd expect from an honest benchmark.
+Higher is better. RapidREST leads on every endpoint where framework overhead is the bottleneck, and is essentially tied with Express and Fastify on
+the two endpoints that are dominated by password-hashing cost rather than HTTP handling — which is exactly what you'd expect from an honest benchmark.
 
 | Endpoint | RapidREST | Express | Fastify | Next.js |
 |---|---:|---:|---:|---:|
@@ -28,12 +34,18 @@ Higher is better. RapidREST leads on every endpoint where framework overhead is 
 | `create_user` | 74.0 | 73.3 | 73.3 | 73.0 |
 | `login` | 74.3 | 73.3 | 74.7 | 73.7 |
 
-*(req/sec, higher is better; `create_user` and `login` are bottlenecked by bcrypt password hashing, not the HTTP framework — throughput is deliberately similar across all four.)*
+*(req/sec, higher is better; `create_user` and `login` are bottlenecked by bcrypt password hashing, not the HTTP framework — throughput is deliberately
+similar across all four.)*
 
 ## Why Next.js trails here
 
-This isn't really an apples-to-apples "which is the faster HTTP framework" comparison for the Next.js numbers — a Next.js route handler in this test is doing a full server-side page render per request, which is inherently more work than returning JSON. It's included because RapidREST's SSR React pages are a first-class feature too, and this shows the cost of choosing to render server-side isn't unusually high relative to a mainstream SSR framework.
+This isn't really an apples-to-apples "which is the faster HTTP framework" comparison for the Next.js numbers — a Next.js route handler in this test
+is doing a full server-side page render per request, which is inherently more work than returning JSON. It's included because RapidREST's SSR React
+pages are a first-class feature too, and this shows the cost of choosing to render server-side isn't unusually high relative to a mainstream SSR
+framework.
 
 ## Try it yourself
 
-The benchmark suite lives alongside the [service-core](https://github.com/rapidrest/service-core) repository. If your workload looks different from the Petstore example, we'd rather you measure it yourself than take our word for it.
+The benchmark suite lives in the [petstore_example](https://github.com/rapidrest/petstore_example) repository in the `k6-tests` folder. There exists
+a separate branch for each of the frameworks tested (`main` for RapidREST, `express` for Express, `fastify` for Fastify, and `nextjs` for Next.js).
+If your workload looks different from the Petstore example, we'd rather you measure it yourself than take our word for it.

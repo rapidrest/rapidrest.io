@@ -39,6 +39,48 @@ const config: Config = {
     locales: ['en'],
   },
 
+  // API reference docs are generated from the `core` and `service-core` sibling
+  // repos' TypeScript source (checked out alongside this repo — see
+  // .github/workflows/deploy.yml for how CI gets them). Run `yarn generate-typedoc`
+  // (or `yarn start`/`yarn build`, which do it for you) to (re)generate.
+  // `react` is intentionally not included yet — its API is still in flux.
+  plugins: [
+    [
+      'docusaurus-plugin-typedoc',
+      {
+        id: 'api-core',
+        entryPoints: ['../core/src/index.ts'],
+        tsconfig: '../core/tsconfig.json',
+        out: './docs/api/core',
+        readme: './api-readme/core.md',
+        sidebar: {autoConfiguration: true, pretty: true},
+        // `@author Name <email>` JSDoc tags render as a bare `<email@domain>`,
+        // which MDX's JSX-aware parser tries to read as a tag and fails on the
+        // `@`. The tag isn't useful in the reference itself (same author on
+        // every file), so drop it rather than fight MDX escaping.
+        excludeTags: ['@author'],
+        sanitizeComments: true,
+      },
+    ],
+    [
+      'docusaurus-plugin-typedoc',
+      {
+        id: 'api-service-core',
+        entryPoints: ['../service-core/src/index.ts'],
+        tsconfig: '../service-core/tsconfig.json',
+        out: './docs/api/service-core',
+        readme: './api-readme/service-core.md',
+        sidebar: {autoConfiguration: true, pretty: true},
+        // `@author Name <email>` JSDoc tags render as a bare `<email@domain>`,
+        // which MDX's JSX-aware parser tries to read as a tag and fails on the
+        // `@`. The tag isn't useful in the reference itself (same author on
+        // every file), so drop it rather than fight MDX escaping.
+        excludeTags: ['@author'],
+        sanitizeComments: true,
+      },
+    ],
+  ],
+
   presets: [
     [
       'classic',
@@ -82,6 +124,12 @@ const config: Config = {
           sidebarId: 'docsSidebar',
           position: 'left',
           label: 'Docs',
+        },
+        {
+          type: 'docSidebar',
+          sidebarId: 'apiSidebar',
+          position: 'left',
+          label: 'API Reference',
         },
         {to: '/blog', label: 'Blog', position: 'left'},
         {

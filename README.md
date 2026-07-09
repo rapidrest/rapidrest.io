@@ -4,6 +4,15 @@ The documentation and marketing website for [RapidREST](https://github.com/rapid
 
 ## Installation
 
+The **API Reference** section generates its docs directly from `@rapidrest/core` and `@rapidrest/service-core`'s TypeScript source (see [`docusaurus.config.ts`](docusaurus.config.ts)), so those two repos need to be checked out as siblings of this one first:
+
+```bash
+cd ..
+git clone https://github.com/rapidrest/core.git
+git clone https://github.com/rapidrest/service-core.git
+cd rapidrest.io
+```
+
 ```bash
 yarn install
 ```

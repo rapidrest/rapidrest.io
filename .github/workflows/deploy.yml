@@ -20,8 +20,28 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout rapidrest.io
         uses: actions/checkout@v4
+        with:
+          path: rapidrest.io
+
+      # The API Reference section (docusaurus-plugin-typedoc, see
+      # docusaurus.config.ts) generates docs directly from these packages'
+      # TypeScript source, so it needs them checked out as siblings of
+      # rapidrest.io — matching the layout expected locally. Add another
+      # checkout here (and a matching devDependency/plugin entry in
+      # docusaurus.config.ts) when @rapidrest/react's API is ready to include.
+      - name: Checkout core
+        uses: actions/checkout@v4
+        with:
+          repository: rapidrest/core
+          path: core
+
+      - name: Checkout service-core
+        uses: actions/checkout@v4
+        with:
+          repository: rapidrest/service-core
+          path: service-core
 
       - name: Enable Corepack (for Yarn Berry)
         run: corepack enable
@@ -31,17 +51,20 @@ jobs:
         with:
           node-version: 24
           cache: yarn
+          cache-dependency-path: rapidrest.io/yarn.lock
 
       - name: Install dependencies
+        working-directory: rapidrest.io
         run: yarn install --immutable
 
       - name: Build
+        working-directory: rapidrest.io
         run: yarn build
 
       - name: Upload build artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: build
+          path: rapidrest.io/build
 
   deploy:
     needs: build

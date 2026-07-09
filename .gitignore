@@ -17,6 +17,11 @@
 .docusaurus
 .cache-loader
 
+# Generated API reference (docusaurus-plugin-typedoc — see docusaurus.config.ts
+# and `yarn generate-typedoc`). Regenerated from source on every build/start.
+/docs/api/core/
+/docs/api/service-core/
+
 # Misc
 .DS_Store
 .env.local

@@ -10,8 +10,9 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "docusaurus start",
-    "build": "docusaurus build",
+    "generate-typedoc": "docusaurus generate-typedoc",
+    "start": "yarn generate-typedoc && docusaurus start",
+    "build": "yarn generate-typedoc && docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",
@@ -35,6 +36,10 @@
     "@docusaurus/tsconfig": "3.10.1",
     "@docusaurus/types": "3.10.1",
     "@types/react": "^19.0.0",
+    "docusaurus-plugin-typedoc": "^1.4.2",
+    "typedoc": "^0.28.20",
+    "typedoc-docusaurus-theme": "^1.4.0",
+    "typedoc-plugin-markdown": "^4.9.0",
     "typescript": "~6.0.2"
   },
   "browserslist": {

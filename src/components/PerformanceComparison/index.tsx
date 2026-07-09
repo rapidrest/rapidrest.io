@@ -43,7 +43,7 @@ export default function PerformanceComparison(): ReactNode {
           ))}
         </div>
         <p className={styles.caption}>
-          Requests per second on single record database read test <code>get_pet</code>.<br/>
+          Requests per second on single record database read test `get_pet`.<br/>
           <Link to="/docs/performance">Full methodology &amp; more endpoints →</Link>
         </p>
       </div>

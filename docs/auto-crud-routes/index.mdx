@@ -82,14 +82,14 @@ additional decorators it implements.
 | HTTP Verb+Path | Calls Function | Addtl. Decorators |
 |---|---|---|
 | `HEAD /<path>` | `doCount` | `none` |
-| `POST /<path>` | `doCreate` | <code>@Validate("validateCreate")</code> |
+| `POST /<path>` | `doCreate` | `@Validate("validateCreate")` |
 | `DELETE /<path/:id` | `doDelete` | `none` |
 | `HEAD /<path>/:id` | `doExists` | `none` |
 | `GET /<path>` | `doFind` | `none` |
 | `GET /<path>/:id` | `doFindById` | `none` |
 | `DELETE /<path>` | `doTruncate` | `none` |
-| `PUT /<path>` | `doBulkUpdate` | <code>@Validate("validateUpdateBulk")</code> |
-| `PUT /<path>/:id` | `doUpdate` | <code>@Validate("validateUpdate")</code> |
+| `PUT /<path>` | `doBulkUpdate` | `@Validate("validateUpdateBulk")` |
+| `PUT /<path>/:id` | `doUpdate` | `@Validate("validateUpdate")` |
 | `PUT /<path>/:id/:property` | `doUpdateProperty` | `none` |
 
 Note that while none of the above endpoints implements authorization explicitly, the user's action will be verified against the class and/or document

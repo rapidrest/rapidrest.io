@@ -61,7 +61,7 @@ const FeatureList: FeatureItem[] = [
     description: (
       <>
         Automatically generates OpenAPI documentation from your code and serves the spec via
-        common endpoints <code>/openapi.json</code>, <code>/openapi.yaml</code>
+        common endpoints `/openapi.json`, `/openapi.yaml`
       </>
     ),
   },
@@ -71,7 +71,7 @@ const FeatureList: FeatureItem[] = [
     description: (
       <>
         The Redis based built-in caching system provides automatic caching of queries, documents, and server rendered React
-        pages. Simply add <code>@Cache</code> to your model and you're done!
+        pages. Simply add `@Cache` to your model and you're done!
       </>
     ),
   },

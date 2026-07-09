@@ -8,7 +8,7 @@ sidebar_label: Authorization
 The RapidREST's authorization system is a [Roles Based Access Control](https://en.wikipedia.org/wiki/Role-based_access_control) (mRBAC) system
 allowing two primary methods for access protection.
 
-- Declared list of roles per endpoint (using <code>@RequiresRole</code>)
+- Declared list of roles per endpoint (using `@RequiresRole`)
 - [Access Control List](https://en.wikipedia.org/wiki/Access-control_list) (ACL)
 
 ## `@RequiresRole`
@@ -25,26 +25,26 @@ async deletePet(@Param('id') id: string) {
 
 Requests from a user without a matching role are rejected before the handler runs.
 
-## Access Control Lists & <code>@Protect</code>
+## Access Control Lists & `@Protect`
 
 When more fine-grained control is desired an [Access Control List](https://en.wikipedia.org/wiki/Access-control_list) (ACL) can be used. ACLs protect
 resources with an Inheritance based list of mapped permissions to user IDs and roles. Each ACL contains a unique identifier of the resource to protect,
-a list of <code>ACLRecord</code> entries detailing the list of permissions for each associated role and/or user <code>uid</code> and an optional
-<code>parent</code> association when inheritance is desired.
+a list of `ACLRecord` entries detailing the list of permissions for each associated role and/or user `uid` and an optional
+`parent` association when inheritance is desired.
 
 Protected resources include:
 
 - **URL paths** - Protect individual API endpoints by URL pattern (supports regex)
-- **Class types** - Protect entire classes of data types (e.g. <code>User</code> or <code>Pet</code>)
+- **Class types** - Protect entire classes of data types (e.g. `User` or `Pet`)
 - **Documents** - Protect individual documents or records
 
-To designate a resource as protected simply add the <code>@Protect</code> decorator to one of the following:
+To designate a resource as protected simply add the `@Protect` decorator to one of the following:
 
-- **Route Class** - Add the <code>@Protect</code> decorator to the route class to protect all endpoints for the base route path.
-- **Endpoint Function** - Add the <code>@Protect</code> decorator to a single endpoint function to protect a specific REST API endpoint.
-- **Class Type** - Add the <code>@Protect</code> decorator to a class definition to protect an entire class and its documents.
+- **Route Class** - Add the `@Protect` decorator to the route class to protect all endpoints for the base route path.
+- **Endpoint Function** - Add the `@Protect` decorator to a single endpoint function to protect a specific REST API endpoint.
+- **Class Type** - Add the `@Protect` decorator to a class definition to protect an entire class and its documents.
 
-The following is an example of how to define an initial ACL for the class <code>Pet</code>. The permissions granted are strictly read-only.
+The following is an example of how to define an initial ACL for the class `Pet`. The permissions granted are strictly read-only.
 
 ```ts
 @Protect(
@@ -76,9 +76,9 @@ export class Pet extends BaseMongoEntity {
 // ...
 ```
 
-The above example only creates a single ACL for the entire class of <code>Pet</code>. Thus, any documents stored in the database will use this ACL.
-When it is desired to have an ACL per document of a given class, passing in <code>true</code> as the second argument to <code>@Protect</code> will
-enable document-level ACL protection. This is shown in the example for the class <code>User</code> below.
+The above example only creates a single ACL for the entire class of `Pet`. Thus, any documents stored in the database will use this ACL.
+When it is desired to have an ACL per document of a given class, passing in `true` as the second argument to `@Protect` will
+enable document-level ACL protection. This is shown in the example for the class `User` below.
 
 ```ts
 @Protect(
@@ -111,28 +111,28 @@ export class User extends BaseMongoEntity {
 // ...
 ```
 
-In the above example for <code>User</code> the only permission granted is for unauthenticated users to be able to create new users (e.g. register a
+In the above example for `User` the only permission granted is for unauthenticated users to be able to create new users (e.g. register a
 new account). When document-level permission is used, the user creating the document takes full ownership in the associated ACL. As a result, the
 above ACL would deny all access for existing user accounts to all others, except for the user itself.
 
 ## Permission Mapping
 
-When using the built-in <code>CRUDRoute</code> or <code>ModelRoute</code> base classes for build REST APIs in RapidREST, each permission
-(<code>ACLAction</code>) in the ACL maps to a single REST API action. The following tables describes each of those mappings.
+When using the built-in `CRUDRoute` or `ModelRoute` base classes for build REST APIs in RapidREST, each permission
+(`ACLAction`) in the ACL maps to a single REST API action. The following tables describes each of those mappings.
 
 | Function | HTTP Verb/Path | Permission | Scope |
 |---|---|---|---|
-| create | <code>POST /</code> | <code>ACLAction.CREATE</code> | Class |
-| delete | <code>DELETE /:id</code> | <code>ACLAction.DELETE</code> | Document |
-| exists | <code>HEAD /:id</code> | <code>ACLAction.READ</code> | Class |
-| find | <code>GET /</code> | <code>ACLAction.READ</code> | Class |
-| findById | <code>GET /:id</code> | <code>ACLAction.READ</code> | Document |
-| truncate | <code>DELETE /</code> | <code>ACLAction.DELETE</code> | Class |
-| update | <code>PUT /:id</code> | <code>ACLAction.UPDATE</code> | Document |
-| updateBulk | <code>PUT /</code> | <code>ACLAction.UPDATE</code> | Class |
-| updateProperty | <code>PUT /:id/:property</code> | <code>ACLAction.UPDATE</code> | Document |
+| create | `POST /` | `ACLAction.CREATE` | Class |
+| delete | `DELETE /:id` | `ACLAction.DELETE` | Document |
+| exists | `HEAD /:id` | `ACLAction.READ` | Class |
+| find | `GET /` | `ACLAction.READ` | Class |
+| findById | `GET /:id` | `ACLAction.READ` | Document |
+| truncate | `DELETE /` | `ACLAction.DELETE` | Class |
+| update | `PUT /:id` | `ACLAction.UPDATE` | Document |
+| updateBulk | `PUT /` | `ACLAction.UPDATE` | Class |
+| updateProperty | `PUT /:id/:property` | `ACLAction.UPDATE` | Document |
 
-Optionally, you can always perform custom ACL permission checks using the <code>ACLUtils</code> utility from within your code.
+Optionally, you can always perform custom ACL permission checks using the `ACLUtils` utility from within your code.
 
 ```ts
 @Inject(ACLUtils)

@@ -53,6 +53,17 @@ jobs:
           cache: yarn
           cache-dependency-path: rapidrest.io/yarn.lock
 
+      # TypeDoc needs each package's own node_modules present to resolve its
+      # types (ioredis, mongodb, winston, etc.) — install alongside the main
+      # site's dependencies, not just checkout the source.
+      - name: Install core dependencies
+        working-directory: core
+        run: yarn install --immutable
+
+      - name: Install service-core dependencies
+        working-directory: service-core
+        run: yarn install --immutable
+
       - name: Install dependencies
         working-directory: rapidrest.io
         run: yarn install --immutable

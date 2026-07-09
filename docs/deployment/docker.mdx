@@ -1,0 +1,73 @@
+---
+sidebar_position: 2
+sidebar_label: Docker
+---
+
+# Docker
+
+```bash
+rapidrest generate docker
+```
+
+This adds a multi-stage `Dockerfile`, a `docker-compose.yml`, and two Compose override files (`docker-compose.debug.yml`, `docker-compose.profile.yml`) to your project — regenerating them from your project's current datastores is always safe, so re-run it with `--force` any time you add or remove one (see [CLI Reference → Add-ons](/docs/cli-reference/addons)).
+
+## The image
+
+The `Dockerfile` builds in two stages: a `builder` stage that installs dependencies and runs `rapidreact build` (a no-op if your project doesn't use [SSR React](/docs/ssr-react)), and a `runner` stage that copies over just the compiled output and `node_modules`. The final image:
+
+- Exposes port `3000` (the app) and `9229` (the Node inspector, for attaching a debugger).
+- Runs `rapidrest start --docker` as its entrypoint — the `--docker` flag skips RapidREST's usual in-memory database bootstrap, since real datastores are provided by Compose (see [Dev Workflow](/docs/cli-reference/dev-workflow)).
+- Has a built-in `HEALTHCHECK` polling `/` every 10 seconds.
+
+## Compose and datastores
+
+`docker-compose.yml` wires each configured datastore as an environment variable, and adds a container for it automatically. This is a real, unedited example from the [Petstore](https://github.com/rapidrest/petstore_example) reference app, which uses MongoDB plus three separate Redis-backed datastores (cache, events, logs):
+
+```yaml
+services:
+  server:
+    build:
+      context: .
+    ports:
+      - '3000:3000'
+      - '9229:9229'
+    environment:
+      - datastores__acl__url=mongodb://mongo
+      - datastores__cache__type=redis
+      - datastores__cache__url=redis://redis
+      - datastores__events__type=redis
+      - datastores__events__url=redis://redis
+      - datastores__logs__type=redis
+      - datastores__logs__url=redis://redis
+      - datastores__mongo__url=mongodb://mongo
+      - NODE_ENV=dev
+    links:
+      - redis
+      - mongo
+  redis:
+    image: redis
+  mongo:
+    image: mongo
+```
+
+Each `datastores__<name>__<key>` variable overrides the matching `datastores:<name>:<key>` config path, exactly as described in [Configuration](/docs/core-concepts/configuration) — Docker Compose's environment block is just another way of setting the same nconf keys, nothing Docker-specific to learn.
+
+```bash
+docker compose up
+```
+
+## Debugging inside the container
+
+`docker-compose.debug.yml` overrides the server's command to `dev --docker` and bind-mounts `./src` and `./app` into the container, so source changes trigger a reload without rebuilding the image:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.debug.yml up
+```
+
+## CPU profiling
+
+`docker-compose.profile.yml` runs the server through a wrapper script that starts Node with `--cpu-prof`, and saves the resulting `.cpuprofile` file to a mounted `./profiles` directory on shutdown — load it into Chrome DevTools' profiler afterward:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.profile.yml up
+```

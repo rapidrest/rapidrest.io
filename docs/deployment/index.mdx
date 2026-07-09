@@ -1,0 +1,17 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+# Deployment
+
+The RapidREST [cli](/docs/cli-reference/) can generate two different deployment paths. Both wire up your project's datastores as environment variables using the same
+colon-to-double-underscore convention `.env()` uses in [Configuration](/docs/core-concepts/configuration) — `datastores__mongo__url`, not a separate
+deployment-specific config format.
+
+- **[Docker](/docs/deployment/docker)** — a multi-stage `Dockerfile` and Compose setup, including debug and CPU-profiling variants.
+- **[Kubernetes (Helm)](/docs/deployment/kubernetes)** — a Helm chart with optional MongoDB/Redis subcharts, Gateway API routing, and auto-generated
+secrets.
+
+Both can be added to an existing project with the CLI — see [CLI Reference → Add-ons](/docs/cli-reference/addons) using `rapidrest generate docker` and
+`rapidrest generate k8s`.

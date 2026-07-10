@@ -52,7 +52,7 @@ public endpointFunc() {
 `JWTStrategy` looks for a token in three places, in this order. The last one found wins:
 
 1. **Query parameter** (`auth_token`): only if `allowQueryParam` is enabled, since passing tokens in URLs is discouraged by default
-2. **Authorization header**: matching `jwt` or `bearer` schemes, case-insensitive
+2. **Authorization header** - matching `jwt` or `bearer` schemes, case-insensitive
 3. **Cookie** (`jwt` by default; signed cookies if `cookieSecure` is set)
 
 ```ts

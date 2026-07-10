@@ -45,8 +45,8 @@ The site is hosted on GitHub Pages at the custom domain **rapidrest.dev**. Deplo
 
 One-time repo setup (already done for this repo, documented here in case it's ever needed again — e.g. after a repo transfer):
 
-1. **Settings → Pages → Build and deployment → Source**: set to **GitHub Actions** (not "Deploy from a branch").
-2. **Settings → Pages → Custom domain**: enter `rapidrest.dev`. GitHub will verify DNS and provision an HTTPS certificate; check **Enforce HTTPS** once it's available.
+1. **Settings → Pages → Build and deployment → Source** - set to **GitHub Actions** (not "Deploy from a branch").
+2. **Settings → Pages → Custom domain** - enter `rapidrest.dev`. GitHub will verify DNS and provision an HTTPS certificate; check **Enforce HTTPS** once it's available.
 3. At the domain registrar for `rapidrest.dev`, add:
    - `A` records for the apex domain pointing to GitHub Pages' IPs: `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`
    - (optional) `AAAA` records for IPv6: `2606:50c0:8000::153`, `2606:50c0:8001::153`, `2606:50c0:8002::153`, `2606:50c0:8003::153`

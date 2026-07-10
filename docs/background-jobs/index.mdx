@@ -91,7 +91,7 @@ export default class CleanupJob extends BackgroundService {
 Whether a service runs on a schedule or just once at startup depends entirely on what its `schedule` getter returns:
 
 - **Returns a cron string** (e.g. `"*/5 * * * *"` for every 5 minutes): the service is scheduled with `node-schedule` and `run()` fires on every tick, for the lifetime of the server.
-- **Returns `undefined`**: `run()` fires exactly once, immediately after `start()`, and the service is then stopped and torn down automatically. Use this for one-time startup work rather than a recurring job.
+- **Returns `undefined`** - `run()` fires exactly once, immediately after `start()`, and the service is then stopped and torn down automatically. Use this for one-time startup work rather than a recurring job.
 
 # Auto-discovery and startup
 

@@ -13,8 +13,8 @@ npx rapidreact dev
 
 This runs two processes in parallel, sharing your terminal's output:
 
-- **Server**: restarts on every change under `src/` or `app/`. Uses `nodemon` if it's installed (as an optional peer dependency), otherwise falls back to plain `tsx --watch`.
-- **Client bundle watcher**: `vite build --watch`, rebuilding hydration bundles on every `app/` change. Only relevant if you're using `hydrate` on a route.
+- **Server** - restarts on every change under `src/` or `app/`. Uses `nodemon` if it's installed (as an optional peer dependency), otherwise falls back to plain `tsx --watch`.
+- **Client bundle watcher** - `vite build --watch`, rebuilding hydration bundles on every `app/` change. Only relevant if you're using `hydrate` on a route.
 
 If either process exits with a non-zero code, the other is shut down too.
 

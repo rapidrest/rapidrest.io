@@ -21,7 +21,7 @@ apps/app/
 
 ## Special files
 
-**`_layout.tsx`**: required. Wraps every page. Must export a default component accepting `children`:
+**`_layout.tsx`** - required. Wraps every page. Must export a default component accepting `children`:
 
 ```tsx
 export default function Layout({children}: PropsWithChildren) {
@@ -34,9 +34,9 @@ export default function Layout({children}: PropsWithChildren) {
 }
 ```
 
-**`_404.tsx`**: optional. Rendered, with a real HTTP 404 status, when no page file matches the request path. Without one, a bare `<h1>404 Not Found</h1>` is returned instead.
+**`_404.tsx`** - optional. Rendered, with a real HTTP 404 status, when no page file matches the request path. Without one, a bare `<h1>404 Not Found</h1>` is returned instead.
 
-**`_500.tsx`**: optional. Rendered, with a real HTTP 500 status, when an unhandled exception occurs during rendering. Receives the thrown value as an `error` prop. Without one, a bare `<h1>500 Internal Server Error</h1>` is returned instead.
+**`_500.tsx`** - optional. Rendered, with a real HTTP 500 status, when an unhandled exception occurs during rendering. Receives the thrown value as an `error` prop. Without one, a bare `<h1>500 Internal Server Error</h1>` is returned instead.
 
 :::note[Underscore-prefixed files aren't a hard server-side exclusion]
 Files starting with `_` are skipped when Vite scans for client hydration bundle entries, but the server itself doesn't refuse to render them if requested directly by path. Don't rely on the leading underscore alone to keep a file unreachable; it's a naming convention for "not a page," not an access control mechanism.

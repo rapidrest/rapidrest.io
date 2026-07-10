@@ -9,8 +9,8 @@ The RapidREST [cli](/docs/cli-reference/) can generate two different deployment 
 colon-to-double-underscore convention `.env()` uses in [Configuration](/docs/core-concepts/configuration), e.g. `datastores__mongo__url`, not a
 separate deployment-specific config format.
 
-- **[Docker](/docs/deployment/docker)**: a multi-stage `Dockerfile` and Compose setup, including debug and CPU-profiling variants.
-- **[Kubernetes (Helm)](/docs/deployment/kubernetes)**: a Helm chart with optional MongoDB/Redis subcharts, Gateway API routing, and auto-generated
+- **[Docker](/docs/deployment/docker)** - a multi-stage `Dockerfile` and Compose setup, including debug and CPU-profiling variants.
+- **[Kubernetes (Helm)](/docs/deployment/kubernetes)** - a Helm chart with optional MongoDB/Redis subcharts, Gateway API routing, and auto-generated
 secrets.
 
 Both can be added to an existing project with the CLI. See [CLI Reference → Add-ons](/docs/cli-reference/addons) using `rapidrest generate docker` and

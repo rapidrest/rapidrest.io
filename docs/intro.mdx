@@ -9,21 +9,21 @@ RapidREST is a low-code TypeScript framework for building data-driven REST APIs 
 to deliver industry leading performance without sacrificing code quality or speed of development. RapidREST provides the critical features needed to
 ship production-ready backend services and server-side-rendered (SSR) React that the modern web demands:
 
-- **Decorator-driven REST APIs**: create a class and decorate it with `@Route`, then add functions decorated with HTTP verbs
+- **Decorator-driven REST APIs** - create a class and decorate it with `@Route`, then add functions decorated with HTTP verbs
 (e.g. `@Get`, `@Post`) for the endpoints. RapidREST automatically detects and wires everything
-- **Persistence framework**: provides an easy to use decorator-driven API for data persistence across NoSQL and SQL databases. Combined
+- **Persistence framework** - provides an easy to use decorator-driven API for data persistence across NoSQL and SQL databases. Combined
 with the built-in `CRUDRoute` and `ModelRoute` base classes, RapidREST offers an ultra low-code solution for rapidly building data-driven REST APIs
 and web apps
-- **Integrated cache system**: the Redis-based caching system automatically caches search queries, documents and server rendered React pages with fully configurable TTLs
-- **Built-in RBAC / ACL auth**: safeguard access to data by defining an Access Control List per URL path, class type or documents using the built-in
+- **Integrated cache system** - the Redis-based caching system automatically caches search queries, documents and server rendered React pages with fully configurable TTLs
+- **Built-in RBAC / ACL auth** - safeguard access to data by defining an Access Control List per URL path, class type or documents using the built-in
 Roles Based Access Control authorization system
-- **Background jobs and services**: execute background jobs and services on a pre-defined crontab-style schedule or interval by creating a class that
+- **Background jobs and services** - execute background jobs and services on a pre-defined crontab-style schedule or interval by creating a class that
 extends `BackgroundService`
-- **Integrated Prometheus metrics**: Prometheus metrics is pre-integrated with the framework and exposed via the `/metrics` endpoint through the
+- **Integrated Prometheus metrics** - Prometheus metrics is pre-integrated with the framework and exposed via the `/metrics` endpoint through the
 built-in `BaseMetricsRoute`, already wired up for you by the CLI scaffold (see [Base Routes](/docs/base-routes))
-- **Automated OpenAPI docs**: the framework automatically builds a complete OpenAPI specification based on the code and exposes it via the
+- **Automated OpenAPI docs** - the framework automatically builds a complete OpenAPI specification based on the code and exposes it via the
 `/openapi/json` and `/openapi/yaml` endpoints through the built-in `BaseOpenAPIRoute`, also wired up for you by the CLI scaffold
-- **Server-side-rendered React**: deliver server-side-rendered (SSR) React for static and interactive apps with seamless integration to the entire
+- **Server-side-rendered React** - deliver server-side-rendered (SSR) React for static and interactive apps with seamless integration to the entire
 backend framework using a `@ReactService` decorated class
 
 ## History

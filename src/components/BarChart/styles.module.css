@@ -1,0 +1,48 @@
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 1.5rem 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 90px 1fr 84px;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.rowLabel {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--ifm-font-color-base);
+}
+
+.rowValue {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  color: var(--ifm-color-emphasis-700);
+  text-align: right;
+}
+
+.track {
+  height: 18px;
+  background: var(--ifm-color-emphasis-100);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar,
+.barHighlight {
+  height: 100%;
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+
+.bar {
+  background: var(--ifm-color-emphasis-400);
+}
+
+.barHighlight {
+  background: var(--ifm-color-primary);
+}

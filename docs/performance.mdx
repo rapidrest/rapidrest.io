@@ -3,6 +3,8 @@ sidebar_position: 2
 sidebar_label: Performance
 ---
 
+import BarChart from '@site/src/components/BarChart';
+
 # Performance
 
 RapidREST is built on [uWebSockets.js](https://github.com/uNetworking/uWebSockets.js) rather than Express, specifically to keep the framework's own
@@ -11,9 +13,22 @@ same [Petstore](https://github.com/rapidrest/petstore_example)-style CRUD API.
 
 :::note[Methodology]
 
-[k6](https://k6.io/) load test, 3 runs averaged per endpoint, identical CRUD workload (create/find pets, create/find users, login, health check)
-implemented natively in each framework. RapidREST's results include its built-in response caching and RBAC checks enabled — i.e. these are "batteries
-included" numbers, not a stripped-down comparison.
+Test Hardware:
+- CPU: AMD Ryzen 9 7950X3D
+- RAM: 64GB DDR5
+- GPU: nVidia RTX 4080
+- Disk: 2TB NVM.e Gen4
+- OS: Windows 11
+- Runtime: Docker Desktop for Windows
+
+[k6](https://k6.io/) load test, 200 virtual users for 60 seconds per endpoint, 3 runs averaged. RapidREST's results include its built-in response
+caching and RBAC checks enabled — i.e. these are "batteries included" numbers, not a stripped-down comparison.
+
+Every branch — RapidREST, Express, Fastify, and Next.js — implements its `Pet` and `User` endpoints on top of the exact same
+`ModelRoute`/`RepoUtils` persistence, caching, and ACL code from `@rapidrest/service-core`. Only the HTTP layer differs: a native `@Route`
+class running under `Server`'s uWebSockets.js transport for RapidREST, versus the same business logic wired into an Express router, a Fastify
+plugin, or a Next.js route handler for the other three. That's a deliberate choice — it isolates the one variable this benchmark is actually about
+(HTTP transport overhead) instead of comparing four independently-written applications that might differ in a dozen unrelated ways.
 :::
 
 ## Requests per second
@@ -34,8 +49,355 @@ the two endpoints that are dominated by password-hashing cost rather than HTTP h
 | `create_user` | 74.0 | 73.3 | 73.3 | 73.0 |
 | `login` | 74.3 | 73.3 | 74.7 | 73.7 |
 
-*(req/sec, higher is better; `create_user` and `login` are bottlenecked by bcrypt password hashing, not the HTTP framework — throughput is deliberately
-similar across all four.)*
+*(req/sec, higher is better; `create_user` and `login` are bottlenecked by Argon2 password hashing, not the HTTP framework — throughput is
+deliberately similar across all four.)*
+
+The rest of this page goes endpoint by endpoint: what each test actually sends, what part of the stack it's exercising, and why the result looks
+the way it does. A [dedicated section](#what-caching-and-rbac-actually-cost) at the end breaks down how much of RapidREST's lead on the read-heavy
+endpoints comes from its response cache versus its RBAC engine, using the same test suite run with each turned off.
+
+## Endpoint by endpoint
+
+### `get_status` — the floor
+
+```
+GET /status
+```
+
+No auth header, no database, no cache — [`BaseStatusRoute`](/docs/base-routes/status) just reads three config values and returns them. This is as
+close as the suite gets to measuring pure HTTP-layer overhead: routing a request in, serializing a tiny JSON body out, nothing else in between.
+
+| Metric | RapidREST | Express | Fastify | Next.js |
+|---|---:|---:|---:|---:|
+| Req/sec | **9,630** | 9,025 | 9,445 | 2,515 |
+| p95 latency | **33 ms** | 34 ms | 33 ms | 92 ms |
+
+<BarChart
+  ariaLabel="get_status requests per second: RapidREST 9,630, Fastify 9,445, Express 9,025, Next.js 2,515"
+  unit="req/sec"
+  rows={[
+    {label: 'RapidREST', value: 9630, highlight: true},
+    {label: 'Fastify', value: 9445},
+    {label: 'Express', value: 9025},
+    {label: 'Next.js', value: 2515},
+  ]}
+/>
+
+RapidREST, Express and Fastify all land within about 6% of each other here — with no business logic to differentiate them, this endpoint mostly
+measures how cheap each framework's request/response path is, and uWebSockets.js's edge is real but modest when there's nothing else to do. Next.js
+is the outlier, since every request still goes through a full route handler resolution and a page-render-capable pipeline even for a JSON response.
+
+### `get_pet` — a single cached document
+
+```
+GET /pet/snowball
+```
+
+An anonymous, unauthenticated lookup of one document by its identifier. `Pet` is `@Cache()`-decorated, so after the first request the document
+comes from Redis rather than MongoDB for the rest of the run.
+
+| Metric | RapidREST | Express | Fastify | Next.js |
+|---|---:|---:|---:|---:|
+| Req/sec | **9,396** | 7,565 | 8,263 | 2,056 |
+| p95 latency | **29 ms** | 35 ms | 32 ms | 115 ms |
+
+<BarChart
+  ariaLabel="get_pet requests per second: RapidREST 9,396, Fastify 8,263, Express 7,565, Next.js 2,056"
+  unit="req/sec"
+  rows={[
+    {label: 'RapidREST', value: 9396, highlight: true},
+    {label: 'Fastify', value: 8263},
+    {label: 'Express', value: 7565},
+    {label: 'Next.js', value: 2056},
+  ]}
+/>
+
+**9,396 req/sec**, a 24% lead over Express and 14% over Fastify — despite all three running identical persistence and caching code underneath.
+Since the cache hit itself costs the same regardless of which HTTP layer is on top, the gap here is close to the cleanest read of transport overhead
+alone that this suite provides — see [What caching and RBAC actually cost](#what-caching-and-rbac-actually-cost) for exactly how much the cache is
+contributing to that 9,396 figure in absolute terms.
+
+### `find_bunnies` — a cached filtered query
+
+```
+GET /pet?category.name=bunny
+```
+
+Only one pet in the seeded dataset (`snowball`) has `category.name: "bunny"`, so this always returns the same single-item result set — it's
+functionally a second cached-read test, but through the query/filter path instead of a direct ID lookup.
+
+| Metric | RapidREST | Express | Fastify | Next.js |
+|---|---:|---:|---:|---:|
+| Req/sec | **7,384** | 5,754 | 6,487 | 1,892 |
+| p95 latency | **36 ms** | 44 ms | 39 ms | 135 ms |
+
+<BarChart
+  ariaLabel="find_bunnies requests per second: RapidREST 7,384, Fastify 6,487, Express 5,754, Next.js 1,892"
+  unit="req/sec"
+  rows={[
+    {label: 'RapidREST', value: 7384, highlight: true},
+    {label: 'Fastify', value: 6487},
+    {label: 'Express', value: 5754},
+    {label: 'Next.js', value: 1892},
+  ]}
+/>
+
+**7,384 req/sec** vs Express's 5,754 (+28%) and Fastify's 6,487 (+14%). It's slower than `get_pet` across all three frameworks despite returning
+the same amount of data, because building and caching a query result costs more than a straight identifier lookup — but the relative ordering
+between frameworks is unchanged, which is what you'd expect from a test whose cost is dominated by the same shared code path.
+
+### `get_user` — a document-level ACL check
+
+```
+GET /user/test_user{1-10}
+Authorization: jwt <admin token>
+```
+
+Unlike `Pet`, `User` is protected with document-level ACLs (`@Protect(..., true)` in the model) rather than a single class-level record — every
+request needs a JWT verified *and* a per-document permission check, on top of the same cache lookup `get_pet` does.
+
+| Metric | RapidREST | Express | Fastify | Next.js |
+|---|---:|---:|---:|---:|
+| Req/sec | **4,914** | 4,354 | 4,475 | 1,698 |
+| p95 latency | **52 ms** | 59 ms | 57 ms | 132 ms |
+
+<BarChart
+  ariaLabel="get_user requests per second: RapidREST 4,914, Fastify 4,475, Express 4,354, Next.js 1,698"
+  unit="req/sec"
+  rows={[
+    {label: 'RapidREST', value: 4914, highlight: true},
+    {label: 'Fastify', value: 4475},
+    {label: 'Express', value: 4354},
+    {label: 'Next.js', value: 1698},
+  ]}
+/>
+
+**4,914 req/sec**, about half of `get_pet`'s throughput. That's not a cache problem, it's an ACL problem: see the ablation numbers below, where
+turning RBAC off for this specific endpoint recovers nearly 18% of throughput — more than any other endpoint in the suite, because it's the only
+one exercising a per-document (rather than per-class) permission check on the read path. RapidREST still leads Express by 13% and Fastify by 10%
+here, so the extra check doesn't erase the transport-layer advantage, it just makes the endpoint slower for everyone equally.
+
+### `find_admins` — a filtered, authenticated query
+
+```
+GET /user?roles=admin
+Authorization: jwt <admin token>
+```
+
+Same authenticated + document-protected `User` model as `get_user`, but through the query/filter path — and, like `find_bunnies`, the seeded data
+means this always resolves to a single matching document (the `admin` account).
+
+| Metric | RapidREST | Express | Fastify | Next.js |
+|---|---:|---:|---:|---:|
+| Req/sec | **5,124** | 4,205 | 4,491 | 1,656 |
+| p95 latency | **48 ms** | 56 ms | 55 ms | 148 ms |
+
+<BarChart
+  ariaLabel="find_admins requests per second: RapidREST 5,124, Fastify 4,491, Express 4,205, Next.js 1,656"
+  unit="req/sec"
+  rows={[
+    {label: 'RapidREST', value: 5124, highlight: true},
+    {label: 'Fastify', value: 4491},
+    {label: 'Express', value: 4205},
+    {label: 'Next.js', value: 1656},
+  ]}
+/>
+
+**5,124 req/sec** vs Express's 4,205 (+22%) and Fastify's 4,491 (+14%). Interestingly this is *faster* than `get_user`'s direct-ID lookup despite
+doing strictly more work (a filtered query plus the same ACL check) — the ablation data below shows RBAC's cost on this endpoint is close to zero,
+which suggests the per-document check that hurts `get_user` doesn't apply the same way once the query planner has already narrowed the result set
+to documents the caller is allowed to see.
+
+### `find_pets` — a large, unauthenticated listing
+
+```
+GET /pet?page={0-9}
+```
+
+Unfiltered, paginated listing across the full (and growing, since `create_pet` is hammering the same dataset concurrently) `Pet` collection. This
+is the first endpoint in the suite where response size, not lookup cost, is doing most of the work.
+
+| Metric | RapidREST | Express | Fastify | Next.js |
+|---|---:|---:|---:|---:|
+| Req/sec | **2,400** | 2,094 | 2,278 | 1,168 |
+| p95 latency | **96 ms** | 115 ms | 101 ms | 205 ms |
+| Received | **71.3 MB/s** | 62.0 MB/s | 67.3 MB/s | 34.7 MB/s |
+
+<BarChart
+  ariaLabel="find_pets requests per second: RapidREST 2,400, Fastify 2,278, Express 2,094, Next.js 1,168"
+  unit="req/sec"
+  rows={[
+    {label: 'RapidREST', value: 2400, highlight: true},
+    {label: 'Fastify', value: 2278},
+    {label: 'Express', value: 2094},
+    {label: 'Next.js', value: 1168},
+  ]}
+/>
+
+RapidREST moves more JSON per second here than on any other endpoint in the suite. **2,400 req/sec** vs Express's 2,094 (+15%) and Fastify's 2,278
+(+5%) — the smallest transport-layer gap over Fastify in the entire read-side of the suite, because at this payload size, serialization and network
+write time dominate over routing overhead, and that cost is close to identical across all three HTTP layers.
+
+### `find_users` — a large, authenticated listing
+
+```
+GET /user?page={0-9}
+Authorization: jwt <admin token>
+```
+
+The authenticated, paginated counterpart to `find_pets`, against the ~100 users the k6 setup script seeds before the run. Combines the
+document-level ACL check from `get_user`/`find_admins` with the large-payload cost of `find_pets`.
+
+| Metric | RapidREST | Express | Fastify | Next.js |
+|---|---:|---:|---:|---:|
+| Req/sec | **1,744** | 1,531 | 1,639 | 958 |
+| p95 latency | **127 ms** | 150 ms | 142 ms | 236 ms |
+| Received | **84.0 MB/s** | 74.0 MB/s | 79.0 MB/s | 46.0 MB/s |
+
+<BarChart
+  ariaLabel="find_users requests per second: RapidREST 1,744, Fastify 1,639, Express 1,531, Next.js 958"
+  unit="req/sec"
+  rows={[
+    {label: 'RapidREST', value: 1744, highlight: true},
+    {label: 'Fastify', value: 1639},
+    {label: 'Express', value: 1531},
+    {label: 'Next.js', value: 958},
+  ]}
+/>
+
+**1,744 req/sec** vs Express's 1,531 (+14%) and Fastify's 1,639 (+6%) — roughly the same relative gap as `find_pets`, which fits: once payload
+size is the dominant cost, the extra per-document ACL evaluation doesn't change *how much* slower one HTTP layer is than another, it just lowers
+the ceiling for all of them equally.
+
+### `create_pet` — the write path
+
+```
+POST /pet
+Authorization: jwt <admin token>
+Body: {name, category, photoUrls, tags, status}
+```
+
+Validation, persistence, an ACL evaluation against the `Pet` class record, and (unlike the read endpoints) a cache invalidation rather than a cache
+hit.
+
+| Metric | RapidREST | Express | Fastify | Next.js |
+|---|---:|---:|---:|---:|
+| Req/sec | **1,070** | 1,034 | 1,056 | 705 |
+| p95 latency | 250 ms | **245 ms** | 249 ms | 355 ms |
+
+<BarChart
+  ariaLabel="create_pet requests per second: RapidREST 1,070, Fastify 1,056, Express 1,034, Next.js 705"
+  unit="req/sec"
+  rows={[
+    {label: 'RapidREST', value: 1070, highlight: true},
+    {label: 'Fastify', value: 1056},
+    {label: 'Express', value: 1034},
+    {label: 'Next.js', value: 705},
+  ]}
+/>
+
+**1,070 req/sec** vs Express's 1,034 (+3.5%) and Fastify's 1,056 (+1.3%) — by far the smallest lead in the suite, and on p95 latency specifically
+Express actually edges ahead (245ms vs RapidREST's 250ms). Writes hit the database and invalidate the cache on every single request regardless of
+HTTP layer, so there's much less room for transport overhead to show up in the total — most of the cost here is genuinely shared, not
+framework-specific. The ablation numbers below tell a more interesting story for this endpoint than the cross-framework comparison does: disabling
+RBAC alone buys back 16% of throughput, more than caching does for a write.
+
+### `create_user` / `login` — where the framework doesn't matter
+
+```
+POST /user     Body: {name, password, firstName, lastName, email, phone}
+GET  /user/login     Authorization: basic <name:password>
+```
+
+Both endpoints hash a password with [Argon2](https://github.com/ranisalt/node-argon2) — `create_user` on the way in, `login` to verify HTTP Basic
+credentials against the stored hash. Argon2 is deliberately expensive (that's the point of a password hashing algorithm), and it dominates the
+request cost so completely that it doesn't matter which HTTP framework is asking for it.
+
+| Metric | RapidREST | Express | Fastify | Next.js |
+|---|---:|---:|---:|---:|
+| `create_user` req/sec | 74.0 | 73.3 | 73.3 | 73.0 |
+| `create_user` p95 | 2,750 ms | 2,783 ms | 2,773 ms | 2,790 ms |
+| `login` req/sec | 74.3 | 73.3 | 74.7 | 73.7 |
+| `login` p95 | 2,737 ms | 2,757 ms | 2,733 ms | 2,757 ms |
+
+<BarChart
+  ariaLabel="create_user and login requests per second, essentially flat across all four frameworks: values range from 73.0 to 74.7"
+  unit="req/sec"
+  rows={[
+    {label: 'RapidREST', value: (74.0 + 74.3) / 2, highlight: true},
+    {label: 'Fastify', value: (73.3 + 74.7) / 2},
+    {label: 'Express', value: (73.3 + 73.3) / 2},
+    {label: 'Next.js', value: (73.0 + 73.7) / 2},
+  ]}
+/>
+
+**~74 req/sec across all four frameworks**, within 2% of each other on both endpoints, with p95 latencies around 2.7 seconds — essentially the
+Argon2 cost floor plus noise. These two rows exist in the suite specifically *because* they don't favor RapidREST: they're the honesty check on
+every other result on this page. If RapidREST's numbers were inflated by something other than real transport overhead, this is where it would show.
+
+## What caching and RBAC actually cost
+
+The comparison above holds caching and RBAC constant (both on) across all four frameworks. A separate set of runs, RapidREST only, toggles each
+off to show how much of its own numbers come from those two features rather than from uWebSockets.js itself.
+
+| Endpoint | Cache + RBAC (baseline) | RBAC off | Cache + RBAC off |
+|---|---:|---:|---:|
+| `get_status` | 9,630 | 9,601 | 9,189 |
+| `get_pet` | 9,396 | 9,449 | 668 |
+| `find_bunnies` | 7,384 | 8,316 | 751 |
+| `get_user` | 4,914 | 5,796 | 3,039 |
+| `find_admins` | 5,124 | 5,043 | 2,924 |
+| `find_pets` | 2,400 | 2,595 | 1,346 |
+| `find_users` | 1,744 | 1,783 | 1,011 |
+| `create_pet` | 1,070 | 1,240 | 1,228 |
+| `create_user` | 74.0 | 74.0 | 73.7 |
+| `login` | 74.3 | 73.3 | 72.7 |
+
+*(req/sec; "RBAC off" keeps caching enabled and only disables `rbac:enabled`; "Cache + RBAC off" disables both.)*
+
+Two endpoints make the pattern clearest. `get_pet` is almost entirely a caching story:
+
+<BarChart
+  ariaLabel="get_pet requests per second by configuration: cache and RBAC enabled 9,396, RBAC off 9,449, cache and RBAC off 668"
+  unit="req/sec"
+  rows={[
+    {label: 'Baseline', value: 9396},
+    {label: 'RBAC off', value: 9449, highlight: true},
+    {label: 'Cache+RBAC off', value: 668},
+  ]}
+/>
+
+`get_user`, on the other hand, is the one endpoint where RBAC itself has a real, measurable cost, because `User` is protected at the document level
+rather than the class level:
+
+<BarChart
+  ariaLabel="get_user requests per second by configuration: cache and RBAC enabled 4,914, RBAC off 5,796, cache and RBAC off 3,039"
+  unit="req/sec"
+  rows={[
+    {label: 'Baseline', value: 4914},
+    {label: 'RBAC off', value: 5796, highlight: true},
+    {label: 'Cache+RBAC off', value: 3039},
+  ]}
+/>
+
+A few things fall out of the full table that aren't visible in the framework comparison:
+
+- **Caching is doing almost all of the work on read-heavy endpoints, not RBAC.** Turning off caching alone drops `get_pet` by 93% and
+  `find_bunnies` by 91%. Turning off *only* RBAC on those same endpoints doesn't cost anything measurable — if anything the numbers tick up
+  slightly, within run-to-run noise.
+- **RBAC's cost is concentrated where it actually does more work: document-level checks and writes.** `get_user` (document-level `@Protect`)
+  gets 18% faster with RBAC off — the largest RBAC-attributable delta in the suite. `create_pet` gets 16% faster, since every write needs a fresh
+  permission check that a cached read can otherwise skip. Class-level-protected reads (`get_pet`, `find_bunnies`, `find_pets`) show no meaningful
+  RBAC cost at all.
+- **`get_status` barely moves (9,630 → 9,189, about 5%) even with both features off**, which is the expected result for an endpoint that never
+  touches the database or the cache in the first place — the small dip is most likely fixed per-request overhead from the ACL and cache
+  subsystems being initialized on the server, not per-call cost.
+- **`create_user` and `login` don't move at all**, confirming the earlier point independently: Argon2 is the entire cost of those two endpoints,
+  and neither caching nor RBAC has anything to do with it.
+
+Both `rbac:enabled` and the `cache` datastore are ordinary config (see [Authorization](/docs/auth-rbac/authorization) and the `@Cache()` decorator
+in [Models & Persistence](/docs/models-persistence)) — if you want to know what either one costs for your own workload rather than this one, this
+is the same experiment you'd run to find out.
 
 ## Why Next.js trails here
 
@@ -47,5 +409,5 @@ framework.
 ## Try it yourself
 
 The benchmark suite lives in the [petstore_example](https://github.com/rapidrest/petstore_example) repository in the `k6-tests` folder. There exists
-a separate branch for each of the frameworks tested (`main` for RapidREST, `express` for Express, `fastify` for Fastify, and `nextjs` for Next.js).
+a separate branch for each of the frameworks tested (`master` for RapidREST, `express` for Express, `fastify` for Fastify, and `nextjs` for Next.js).
 If your workload looks different from the Petstore example, we'd rather you measure it yourself than take our word for it.

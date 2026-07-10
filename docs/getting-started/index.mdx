@@ -64,7 +64,8 @@ curl http://localhost:3000/status
 ```
 
 That works because the scaffold already includes a ready-made `StatusRoute.ts`, along with equivalents for `/admin`, `/metrics`, `/openapi`, and
-`/push` — thin subclasses of the framework's [Base Routes](/docs/base-routes) that you're free to edit, lock down, or delete.
+`/push` (and `/acls`, if you kept a database selected) — thin subclasses of the framework's [Base Routes](/docs/base-routes) that you're free to
+edit, lock down, or delete.
 
 ## Project layout
 

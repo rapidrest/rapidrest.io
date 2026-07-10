@@ -63,6 +63,9 @@ By default the server listens on port `3000`. Confirm it's up:
 curl http://localhost:3000/status
 ```
 
+That works because the scaffold already includes a ready-made `StatusRoute.ts`, along with equivalents for `/admin`, `/metrics`, `/openapi`, and
+`/push` — thin subclasses of the framework's [Base Routes](/docs/base-routes) that you're free to edit, lock down, or delete.
+
 ## Project layout
 
 A freshly generated project looks roughly like this:
@@ -111,5 +114,6 @@ This gives you a full set of CRUD endpoints for `Pet` — see [Auto CRUD Routes]
 
 - [Core Concepts](/docs/core-concepts) — dependency injection, auto-discovery, and configuration
 - [Routing & Controllers](/docs/routing-controllers) — writing your own endpoints
+- [Base Routes](/docs/base-routes) — what the generated `AdminRoute`, `MetricsRoute`, `OpenAPIRoute`, `StatusRoute` and `PushRoute` files actually do
 - [SSR React](/docs/ssr-react) — server-rendered pages in the same project
 - [CLI Reference](/docs/cli-reference) — every `generate` command in detail

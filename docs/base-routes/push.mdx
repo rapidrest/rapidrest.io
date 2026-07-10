@@ -1,0 +1,82 @@
+---
+sidebar_position: 6
+sidebar_label: Push
+---
+
+# `BasePushRoute`
+
+`BasePushRoute` is the concrete delivery mechanism for [push notifications](/docs/events-notifications/notifications) — a WebSocket endpoint that
+subscribes a connected client to Redis pub/sub channels named after their own `uid` (and any other channel they have `READ` permission for), and
+forwards whatever's published on those channels straight to the socket.
+
+```ts
+import { BasePushRoute, RouteDecorators } from "@rapidrest/service-core";
+const { Route } = RouteDecorators;
+
+@Route("/push")
+export class PushRoute extends BasePushRoute {}
+```
+
+The CLI scaffold generates exactly this at `src/routes/PushRoute.ts`, mounted at `/push`.
+
+## Endpoints
+
+| Function | HTTP Method + Path | What it does |
+|---|---|---|
+| `connect` | `UPGRADE /push/connect` | Opens a WebSocket connection and subscribes it to the authenticated user's own channel. |
+| `send` | `POST /push/:id` | Publishes a message to the channel `:id`, subject to an ACL check. |
+
+Both endpoints require `@Auth(["jwt"])`.
+
+## How `connect` works
+
+On connect, the socket is automatically subscribed to a channel named after the caller's `uid`. From there, the client can send `SUBSCRIBE`/
+`UNSUBSCRIBE` messages to add or remove additional channels:
+
+```json
+{"id": 1, "type": "SUBSCRIBE", "data": ["room-42"]}
+```
+
+Each requested channel is checked with `ACLUtils.hasPermission(user, channel, ACLAction.READ)` before the subscription is added — a client can't
+subscribe to a channel it doesn't have read access to. The server acknowledges with a `SUBSCRIBED`/`UNSUBSCRIBED` message echoing the same `id`.
+
+Every message published on a channel the socket is subscribed to is forwarded to the client verbatim, as the raw JSON string that was published.
+
+## Publishing to a channel
+
+There are two ways to get a message onto a channel that `connect` is listening on:
+
+**From server-side code**, publish through `NotificationUtils` (see [Notifications](/docs/events-notifications/notifications)) — this is the usual
+path when a backend service wants to notify a user as a side effect of something else happening (an order shipped, a document was updated):
+
+```ts
+const notifications = await this.objectFactory?.newInstance(NotificationUtils, { args: [this.redis] });
+notifications?.sendMessage(ownerUid, 'pet', 'updated', pet);
+```
+
+**Over HTTP**, via `POST /push/:id` — this is the endpoint to reach for when the publisher isn't backend code with direct Redis access, for example
+a webhook handler or another service that only speaks REST. The caller needs `CREATE` permission on `:id`:
+
+```ts
+await fetch('/push/room-42', {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  body: JSON.stringify({ hello: 'world' }),
+});
+```
+
+Note that `send` wraps the payload as `{type: "MESSAGE", channel: id, data: msg}` before publishing, which differs slightly from
+`NotificationUtils.sendMessage`'s `{type, action, data}` shape — clients listening for both should handle either envelope.
+
+## Configuration
+
+```ts
+conf.defaults({
+  datastores: {
+    events: {type: 'redis', host: 'localhost', port: 6379},
+  },
+});
+```
+
+`BasePushRoute` publishes and subscribes over the `events` datastore connection. If it isn't configured, `connect` still accepts sockets but they'll
+never receive anything, and `send` fails with a `500`.

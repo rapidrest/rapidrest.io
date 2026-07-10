@@ -1,0 +1,65 @@
+---
+sidebar_position: 5
+sidebar_label: Status
+---
+
+# `BaseStatusRoute`
+
+`BaseStatusRoute` returns a small block of status metadata about the running service — useful as a health check target, or for confirming which
+version of a service is deployed.
+
+```ts
+import { BaseStatusRoute, RouteDecorators } from "@rapidrest/service-core";
+const { Route } = RouteDecorators;
+
+@Route("/status")
+export class StatusRoute extends BaseStatusRoute {}
+```
+
+The CLI scaffold generates exactly this at `src/routes/StatusRoute.ts`, mounted at `/status`.
+
+## Endpoints
+
+| Function | HTTP Method + Path | What it does |
+|---|---|---|
+| `get` | `GET /status` | Returns the service's status metadata. No authentication required. |
+
+## Response
+
+```json
+{
+  "name": "petstore",
+  "time": 1751587200000,
+  "version": "1.4.2"
+}
+```
+
+| Field | From |
+|---|---|
+| `name` | The `service_name` config key. |
+| `time` | The current UTC timestamp, generated per-request. |
+| `version` | The `version` config key. |
+
+## Adding your own fields
+
+Inject additional data into the response by populating `StatusExtraData`, which `BaseStatusRoute` spreads onto the result:
+
+```ts
+import { StatusExtraData } from "@rapidrest/service-core";
+import { ObjectDecorators } from "@rapidrest/core";
+const { Inject, Init } = ObjectDecorators;
+
+export class StatusPopulator {
+  @Inject(StatusExtraData)
+  private statusExtraData?: StatusExtraData;
+
+  @Init
+  private init() {
+    if (this.statusExtraData) {
+      this.statusExtraData.data = { region: process.env.REGION };
+    }
+  }
+}
+```
+
+Any properties set on `statusExtraData.data` are merged into every `/status` response alongside `name`, `time` and `version`.

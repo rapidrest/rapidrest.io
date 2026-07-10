@@ -1,0 +1,66 @@
+---
+sidebar_position: 2
+sidebar_label: Admin
+---
+
+# `BaseAdminRoute`
+
+`BaseAdminRoute` gives trusted users a set of common administrative actions over the running service: clearing the cache, tailing logs live, reading
+release notes, and triggering a restart.
+
+```ts
+import { BaseAdminRoute, RouteDecorators } from "@rapidrest/service-core";
+const { Route } = RouteDecorators;
+
+@Route("/admin")
+export class AdminRoute extends BaseAdminRoute {}
+```
+
+The CLI scaffold generates exactly this at `src/routes/AdminRoute.ts`, mounted at `/admin`.
+
+## Endpoints
+
+| Function | HTTP Method + Path | What it does |
+|---|---|---|
+| `clearCache` | `GET /admin/clear-cache` | Flushes the Redis-based second-level cache. |
+| `logs` | `UPGRADE /admin/logs` | Opens a WebSocket that live-tails the service's log output. |
+| `getReleaseNotes` | `GET /admin/release-notes` | Returns the service's release notes. |
+| `restart` | `GET /admin/restart` | Signals the service to restart. |
+
+Every endpoint requires `@Auth(["jwt"])`, and `clearCache`, `getReleaseNotes` and `restart` additionally require the caller to hold one of the roles
+listed in `trusted_roles` — there is no way to reach them anonymously.
+
+## Configuration
+
+```ts
+conf.defaults({
+  service_name: 'petstore',
+  trusted_roles: ['admin'],
+  datastores: {
+    cache: {type: 'redis', host: 'localhost', port: 6379},
+    logs: {type: 'redis', host: 'localhost', port: 6379},
+  },
+});
+```
+
+- **`clearCache`** only does anything useful if a `cache` datastore is configured — it scans and deletes keys matching `db.cache.*` on that
+  connection.
+- **`logs`** requires a `logs` datastore. On startup, `BaseAdminRoute` attaches a Winston transport (`RedisTransport`) that publishes every log line
+  to a `<service_name>-logs` Redis channel; the WebSocket endpoint subscribes to that same channel and forwards messages to the connected client. If
+  `logs` isn't configured, the route logs a warning at startup and the endpoint closes any connection attempt.
+- **`restart`** publishes a `RESTART` message on a `<service_name>` (or `service_admin`, if `service_name` is unset) channel over the `cache`
+  connection. `BaseAdminRoute` also subscribes to that same channel on startup, so any instance sharing that Redis connection — including the one
+  that issued the request — will receive the signal and call `process.kill(process.pid, "SIGINT")` on itself. In a multi-instance deployment behind
+  a shared Redis, a single `/admin/restart` call restarts every instance listening on that channel.
+
+## Locking it down further
+
+Because `AdminRoute` is a normal class in your project, you can tighten access beyond `trusted_roles` — for example, mounting it on a different base
+path that's only reachable from an internal network, or overriding `trustedRoles` to a narrower list:
+
+```ts
+@Route("/internal/admin")
+export class AdminRoute extends BaseAdminRoute {
+  protected trustedRoles: string[] = ['superadmin'];
+}
+```

@@ -1,0 +1,59 @@
+---
+sidebar_position: 3
+sidebar_label: Metrics
+---
+
+# `BaseMetricsRoute`
+
+`BaseMetricsRoute` exposes whatever [Prometheus](https://prometheus.io/) metrics your service has registered, using the global registry from the
+`prom-client` dependency that ships with `service-core`.
+
+```ts
+import { BaseMetricsRoute, RouteDecorators } from "@rapidrest/service-core";
+const { Route } = RouteDecorators;
+
+@Route("/metrics")
+export class MetricsRoute extends BaseMetricsRoute {}
+```
+
+The CLI scaffold generates exactly this at `src/routes/MetricsRoute.ts`, mounted at `/metrics`.
+
+## Endpoints
+
+| Function | HTTP Method + Path | What it does |
+|---|---|---|
+| `getMetrics` | `GET /metrics` | Returns every metric currently registered, in Prometheus exposition format. |
+| `getSingleMetric` | `GET /metrics/:metric` | Returns a single named metric. |
+
+## Registering your own metrics
+
+`BaseMetricsRoute` doesn't collect anything itself — it just serves whatever is in `prom-client`'s global registry. Register counters, gauges, and
+histograms from anywhere in your code using `prom-client` directly:
+
+```ts
+import * as prom from 'prom-client';
+
+const petsCreated = new prom.Counter({
+  name: 'pets_created_total',
+  help: 'Total number of pets created',
+});
+
+petsCreated.inc();
+```
+
+Once registered, `pets_created_total` shows up in `GET /metrics` alongside the framework's own metrics without any further wiring.
+
+## Configuration
+
+```ts
+conf.defaults({
+  trusted_roles: ['admin'],
+  metrics: {
+    authRequired: true,
+  },
+});
+```
+
+`metrics:authRequired` defaults to `true` — callers must be authenticated and hold one of `trusted_roles` to read either endpoint. Set it to `false`
+to expose metrics without authentication, which is the more common choice when metrics collection happens over an internal network (e.g. a
+Prometheus scraper running inside the same cluster) rather than being reachable publicly.

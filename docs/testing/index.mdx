@@ -60,7 +60,7 @@ import {Logger} from '@rapidrest/core';
 describe('PetRoute', () => {
   const logger = Logger();
   const objectFactory = new ObjectFactory(config, logger);
-  const server = new Server(config, './src', logger, objectFactory);
+  const server = new Server({config, basePath: './src', logger, objectFactory});
 
   beforeAll(async () => {
     await server.start();

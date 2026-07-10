@@ -64,7 +64,7 @@ endpoints comes from its response cache versus its RBAC engine, using the same t
 GET /status
 ```
 
-No auth header, no database, no cache. [`BaseStatusRoute`](/docs/base-routes/status) just reads three config values and returns them. This is as
+No auth header, no database, no cache. [`BaseStatusRoute`](/docs/default-routes/status) just reads three config values and returns them. This is as
 close as the suite gets to measuring pure HTTP-layer overhead: routing a request in, serializing a tiny JSON body out, nothing else in between.
 
 | Metric | RapidREST | Express | Fastify | Next.js |

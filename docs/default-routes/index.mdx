@@ -17,12 +17,12 @@ you can easily name the final file as `AdminRoute`, `MetricsRoute`, and so on.
 
 | Class name | Endpoints it implements | Docs |
 |---|---|---|
-| `BaseAdminRoute` | Cache clearing, live log tail, release notes, restart | [Admin](/docs/base-routes/admin) |
-| `BaseMetricsRoute` | Prometheus metrics | [Metrics](/docs/base-routes/metrics) |
-| `BaseOpenAPIRoute` | Swagger UI, raw OpenAPI JSON/YAML | [OpenAPI](/docs/base-routes/openapi) |
-| `BaseStatusRoute` | Service status metadata | [Status](/docs/base-routes/status) |
-| `BasePushRoute` | WebSocket push notification delivery | [Push](/docs/base-routes/push) |
-| `BaseACLRoute<T>` | CRUD management of Access Control List records | [ACL](/docs/base-routes/acl) |
+| `BaseAdminRoute` | Cache clearing, live log tail, release notes, restart | [Admin](/docs/default-routes/admin) |
+| `BaseMetricsRoute` | Prometheus metrics | [Metrics](/docs/default-routes/metrics) |
+| `BaseOpenAPIRoute` | Swagger UI, raw OpenAPI JSON/YAML | [OpenAPI](/docs/default-routes/openapi) |
+| `BaseStatusRoute` | Service status metadata | [Status](/docs/default-routes/status) |
+| `BasePushRoute` | WebSocket push notification delivery | [Push](/docs/default-routes/push) |
+| `BaseACLRoute<T>` | CRUD management of Access Control List records | [ACL](/docs/default-routes/acl) |
 
 ## The CLI scaffold wires these up for you
 
@@ -46,7 +46,7 @@ them at runtime as "built-in." You can delete the file to remove the endpoint en
 
 `ACLRoute` (extending `BaseACLRoute`) is also scaffolded, but only for projects with a database selected. Like `AuthRoute` and `UserRoute`, it needs
 somewhere to persist to. Which `AccessControlList` model it extends depends on the database you picked: `AccessControlListMongo` for MongoDB
-projects, `AccessControlListSQL` for PostgreSQL/SQLite ones. See [ACL](/docs/base-routes/acl) for details.
+projects, `AccessControlListSQL` for PostgreSQL/SQLite ones. See [ACL](/docs/default-routes/acl) for details.
 
 ## Using them without the CLI scaffold
 

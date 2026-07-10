@@ -19,7 +19,7 @@ docker-compose up
 | `--output-dir <path>` | Project directory to add to. Defaults to the current directory |
 | `-f`, `--force` | Overwrite existing files |
 
-Safe to re-run with `--force` whenever your project's datastores change — it regenerates the output from the current project state rather than patching the existing files.
+Safe to re-run with `--force` whenever your project's datastores change. It regenerates the output from the current project state rather than patching the existing files.
 
 ## `rapidrest generate k8s`
 
@@ -72,4 +72,4 @@ rapidrest generate react-page app my/path/page --service
 | `-s`, `--service` | Also generate a companion service class for server-side data fetching (see [Data Fetching](/docs/ssr-react/data-fetching)) |
 | `-f`, `--force` | Overwrite existing files |
 
-`NAME` may include a subpath (e.g. `my/path/page`) — each segment is PascalCased to derive the generated component/service name (`my/path/page` → `MyPathPage`).
+`NAME` may include a subpath (e.g. `my/path/page`). Each segment is PascalCased to derive the generated component/service name (`my/path/page` → `MyPathPage`).

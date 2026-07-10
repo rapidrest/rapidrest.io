@@ -5,7 +5,7 @@ sidebar_label: Getting Started
 
 # Getting Started
 
-This walks through installing the CLI, scaffolding a project, and running it locally — no database installation required.
+This walks through installing the CLI, scaffolding a project, and running it locally. No database installation required.
 
 :::note[Requirements]
 RapidREST requires **Node.js 24 or later**.
@@ -17,7 +17,7 @@ RapidREST requires **Node.js 24 or later**.
 npm install -g @rapidrest/cli
 ```
 
-This installs the `rapidrest` command (also available as the shorter `rr` alias — both invoke the exact same binary, use whichever you prefer).
+This installs the `rapidrest` command (also available as the shorter `rr` alias, both invoke the exact same binary, use whichever you prefer).
 
 ## Scaffold a project
 
@@ -55,7 +55,7 @@ yarn install
 rapidrest dev
 ```
 
-`rapidrest dev` reads `src/config.ts` to see which datastores your project is configured for, then **automatically starts an in-memory instance of each one** (MongoDB, PostgreSQL, and/or Redis) — there's nothing to install or run separately for local development. It then starts your server via `tsx --watch`, restarting on every source change. If you selected the React feature, it also runs `vite build --watch` alongside it. Everything is cleaned up when you hit <kbd>Ctrl</kbd>+<kbd>C</kbd>.
+`rapidrest dev` reads `src/config.ts` to see which datastores your project is configured for, then **automatically starts an in-memory instance of each one** (MongoDB, PostgreSQL, and/or Redis). There's nothing to install or run separately for local development. It then starts your server via `tsx --watch`, restarting on every source change. If you selected the React feature, it also runs `vite build --watch` alongside it. Everything is cleaned up when you hit <kbd>Ctrl</kbd>+<kbd>C</kbd>.
 
 By default the server listens on port `3000`. Confirm it's up:
 
@@ -64,8 +64,8 @@ curl http://localhost:3000/status
 ```
 
 That works because the scaffold already includes a ready-made `StatusRoute.ts`, along with equivalents for `/admin`, `/metrics`, `/openapi`, and
-`/push` (and `/acls`, if you kept a database selected) — thin subclasses of the framework's [Base Routes](/docs/base-routes) that you're free to
-edit, lock down, or delete.
+`/push` (and `/acls`, if you kept a database selected). These are thin subclasses of the framework's [Base Routes](/docs/base-routes) that you're
+free to edit, lock down, or delete.
 
 ## Project layout
 
@@ -88,7 +88,7 @@ my-api/
 └── package.json
 ```
 
-Every class you export anywhere under `src/` is automatically discovered and wired up — there's no central file where routes or models get registered. See [Core Concepts](/docs/core-concepts) for how that works.
+Every class you export anywhere under `src/` is automatically discovered and wired up. There's no central file where routes or models get registered. See [Core Concepts](/docs/core-concepts) for how that works.
 
 :::note[tsconfig.json]
 RapidREST's decorators require `experimentalDecorators` and `emitDecoratorMetadata`. Rather than setting these by hand, extend the framework's base config:
@@ -109,12 +109,12 @@ rapidrest generate model Pet --datastore mongo
 rapidrest generate route PetRoute --model Pet
 ```
 
-This gives you a full set of CRUD endpoints for `Pet` — see [Auto CRUD Routes](/docs/auto-crud-routes) for exactly what gets generated.
+This gives you a full set of CRUD endpoints for `Pet`. See [Auto CRUD Routes](/docs/auto-crud-routes) for exactly what gets generated.
 
 ## Next steps
 
-- [Core Concepts](/docs/core-concepts) — dependency injection, auto-discovery, and configuration
-- [Routing & Controllers](/docs/routing-controllers) — writing your own endpoints
-- [Base Routes](/docs/base-routes) — what the generated `AdminRoute`, `MetricsRoute`, `OpenAPIRoute`, `StatusRoute` and `PushRoute` files actually do
-- [SSR React](/docs/ssr-react) — server-rendered pages in the same project
-- [CLI Reference](/docs/cli-reference) — every `generate` command in detail
+- [Core Concepts](/docs/core-concepts): dependency injection, auto-discovery, and configuration
+- [Routing & Controllers](/docs/routing-controllers): writing your own endpoints
+- [Base Routes](/docs/base-routes): what the generated `AdminRoute`, `MetricsRoute`, `OpenAPIRoute`, `StatusRoute` and `PushRoute` files actually do
+- [SSR React](/docs/ssr-react): server-rendered pages in the same project
+- [CLI Reference](/docs/cli-reference): every `generate` command in detail

@@ -5,7 +5,7 @@ sidebar_label: Configuration
 
 # Configuration
 
-RapidREST configuration is built directly on [nconf](https://github.com/node-config/node-config), set up in `src/config.ts`. There's no separate RapidREST-specific config format — you're looking at plain nconf, with one thing worth calling out up front.
+RapidREST configuration is built directly on [nconf](https://github.com/node-config/node-config), set up in `src/config.ts`. There's no separate RapidREST-specific config format. You're looking at plain nconf, with one thing worth calling out up front.
 
 :::note[The one gotcha]
 nconf uses **colons** (`:`) as its hierarchy separator, not dots. `config.get("auth.secret")` returns `undefined`. Always use `config.get("auth:secret")`.
@@ -47,7 +47,7 @@ conf.defaults({
 export default conf;
 ```
 
-Because `.env()` is configured with `separator: '__'`, you can override any nested key via environment variables using double underscores in place of colons — for example `AUTH__SECRET=prod-secret` overrides `auth:secret`.
+Because `.env()` is configured with `separator: '__'`, you can override any nested key via environment variables using double underscores in place of colons. For example `AUTH__SECRET=prod-secret` overrides `auth:secret`.
 
 ## Reading config values
 
@@ -59,7 +59,7 @@ config.get('rbac:enabled');
 config.get('auth:socketTimeout');
 ```
 
-Inside a class managed by the dependency injection container, use `@Config` instead of importing the config object directly — see [Dependency Injection](/docs/core-concepts/dependency-injection):
+Inside a class managed by the dependency injection container, use `@Config` instead of importing the config object directly. See [Dependency Injection](/docs/core-concepts/dependency-injection):
 
 ```ts
 @Config('trusted_roles', ['admin'])

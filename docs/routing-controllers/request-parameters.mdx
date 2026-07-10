@@ -44,25 +44,25 @@ definition, with preceding injected arguments and/or proceeding injected argumen
 ```ts
 @Post()
 async createPet(pet: Pet) {
-  // `pet` is the parsed JSON body — no decorator needed
+  // `pet` is the parsed JSON body, no decorator needed
   return this.petService.create(pet);
 }
 
 @Post()
 async createPet2(@Query() query: any, pet: Pet) {
-  // `pet` is the parsed JSON body — no decorator needed
+  // `pet` is the parsed JSON body, no decorator needed
   return this.petService.create(pet);
 }
 
 @Post()
 async createPet3(pet: Pet, @User user: JWTUser) {
-  // `pet` is the parsed JSON body — no decorator needed
+  // `pet` is the parsed JSON body, no decorator needed
   return this.petService.create(pet);
 }
 
 @Post()
 async createPet4(@Query() query: any, pet: Pet, @User user: JWTUser) {
-  // `pet` is the parsed JSON body — no decorator needed
+  // `pet` is the parsed JSON body, no decorator needed
   return this.petService.create(pet);
 }
 ```

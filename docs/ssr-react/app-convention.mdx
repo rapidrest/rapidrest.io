@@ -5,7 +5,7 @@ sidebar_label: App Directory Convention
 
 # App Directory Convention
 
-All React UI code lives under a single app directory (`apps/app` by default — see [Getting Started](/docs/ssr-react/getting-started) for how to change it).
+All React UI code lives under a single app directory (`apps/app` by default, see [Getting Started](/docs/ssr-react/getting-started) for how to change it).
 
 ```text
 apps/app/
@@ -21,7 +21,7 @@ apps/app/
 
 ## Special files
 
-**`_layout.tsx`** — required. Wraps every page. Must export a default component accepting `children`:
+**`_layout.tsx`**: required. Wraps every page. Must export a default component accepting `children`:
 
 ```tsx
 export default function Layout({children}: PropsWithChildren) {
@@ -34,17 +34,17 @@ export default function Layout({children}: PropsWithChildren) {
 }
 ```
 
-**`_404.tsx`** — optional. Rendered, with a real HTTP 404 status, when no page file matches the request path. Without one, a bare `<h1>404 Not Found</h1>` is returned instead.
+**`_404.tsx`**: optional. Rendered, with a real HTTP 404 status, when no page file matches the request path. Without one, a bare `<h1>404 Not Found</h1>` is returned instead.
 
-**`_500.tsx`** — optional. Rendered, with a real HTTP 500 status, when an unhandled exception occurs during rendering. Receives the thrown value as an `error` prop. Without one, a bare `<h1>500 Internal Server Error</h1>` is returned instead.
+**`_500.tsx`**: optional. Rendered, with a real HTTP 500 status, when an unhandled exception occurs during rendering. Receives the thrown value as an `error` prop. Without one, a bare `<h1>500 Internal Server Error</h1>` is returned instead.
 
 :::note[Underscore-prefixed files aren't a hard server-side exclusion]
-Files starting with `_` are skipped when Vite scans for client hydration bundle entries — but the server itself doesn't refuse to render them if requested directly by path. Don't rely on the leading underscore alone to keep a file unreachable; it's a naming convention for "not a page," not an access control mechanism.
+Files starting with `_` are skipped when Vite scans for client hydration bundle entries, but the server itself doesn't refuse to render them if requested directly by path. Don't rely on the leading underscore alone to keep a file unreachable; it's a naming convention for "not a page," not an access control mechanism.
 :::
 
 ## Page files
 
-Every other `.tsx`, `.jsx`, or `.js` file is a page. It exports a default component, and optionally an async `fetchProps` function — see [Data Fetching](/docs/ssr-react/data-fetching).
+Every other `.tsx`, `.jsx`, or `.js` file is a page. It exports a default component, and optionally an async `fetchProps` function. See [Data Fetching](/docs/ssr-react/data-fetching).
 
 ```tsx
 // apps/app/pets.tsx
@@ -80,9 +80,9 @@ apps/app/auth/login/index.tsx  →  GET /auth/login
 apps/app/auth/login.tsx        →  GET /auth/login   (equivalent)
 ```
 
-Prefer the `index.tsx` form once a route needs more than one file in the same directory — non-`index` files inside a subdirectory are not routed automatically, so they're safe to use as private sub-components:
+Prefer the `index.tsx` form once a route needs more than one file in the same directory. Non-`index` files inside a subdirectory are not routed automatically, so they're safe to use as private sub-components:
 
 ```text
-apps/app/pets/PetCard.tsx   ← NOT routed — import it from pets/index.tsx
+apps/app/pets/PetCard.tsx   ← NOT routed, import it from pets/index.tsx
 apps/app/pets/index.tsx     ← routed as GET /pets
 ```

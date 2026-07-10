@@ -6,7 +6,7 @@ sidebar_label: OpenAPI
 # `BaseOpenAPIRoute`
 
 `BaseOpenAPIRoute` exposes the OpenAPI specification that `service-core` builds automatically from your `@Route`/`@Get`/`@Post`/etc. decorated
-classes and the `@Summary`/`@Description`/`@Returns` documentation decorators on them — as an interactive Swagger UI page, and as raw JSON or YAML.
+classes and the `@Summary`/`@Description`/`@Returns` documentation decorators on them, as an interactive Swagger UI page, and as raw JSON or YAML.
 
 ```ts
 import { BaseOpenAPIRoute, RouteDecorators } from "@rapidrest/service-core";
@@ -26,12 +26,12 @@ The CLI scaffold generates exactly this at `src/routes/OpenAPIRoute.ts`, mounted
 | `getJSON` | `GET /openapi/json` | The raw OpenAPI specification as JSON. |
 | `getYAML` | `GET /openapi/yaml` | The raw OpenAPI specification as YAML. |
 
-None of the three endpoints requires authentication by default — treat the specification as public unless your API itself is private, in which case
+None of the three endpoints requires authentication by default. Treat the specification as public unless your API itself is private, in which case
 apply `@Auth` or `@Protect` to the subclass the same way you would for any other route.
 
 ## What ends up in the spec
 
-The specification is assembled from the same decorators you're already using to define routes — there's no separate schema to maintain:
+The specification is assembled from the same decorators you're already using to define routes. There's no separate schema to maintain:
 
 - `@Route`, `@Get`, `@Post`, `@Put`, `@Delete`, etc. determine the paths and HTTP methods.
 - `@Summary` and `@Description` populate each operation's summary and description.

@@ -9,14 +9,14 @@ sidebar_label: Docker
 rapidrest generate docker
 ```
 
-This adds a multi-stage `Dockerfile`, a `docker-compose.yml`, and two Compose override files (`docker-compose.debug.yml`, `docker-compose.profile.yml`) to your project — regenerating them from your project's current datastores is always safe, so re-run it with `--force` any time you add or remove one (see [CLI Reference → Add-ons](/docs/cli-reference/addons)).
+This adds a multi-stage `Dockerfile`, a `docker-compose.yml`, and two Compose override files (`docker-compose.debug.yml`, `docker-compose.profile.yml`) to your project. Regenerating them from your project's current datastores is always safe, so re-run it with `--force` any time you add or remove one (see [CLI Reference → Add-ons](/docs/cli-reference/addons)).
 
 ## The image
 
 The `Dockerfile` builds in two stages: a `builder` stage that installs dependencies and runs `rapidreact build` (a no-op if your project doesn't use [SSR React](/docs/ssr-react)), and a `runner` stage that copies over just the compiled output and `node_modules`. The final image:
 
 - Exposes port `3000` (the app) and `9229` (the Node inspector, for attaching a debugger).
-- Runs `rapidrest start --docker` as its entrypoint — the `--docker` flag skips RapidREST's usual in-memory database bootstrap, since real datastores are provided by Compose (see [Dev Workflow](/docs/cli-reference/dev-workflow)).
+- Runs `rapidrest start --docker` as its entrypoint. The `--docker` flag skips RapidREST's usual in-memory database bootstrap, since real datastores are provided by Compose (see [Dev Workflow](/docs/cli-reference/dev-workflow)).
 - Has a built-in `HEALTHCHECK` polling `/` every 10 seconds.
 
 ## Compose and datastores
@@ -50,7 +50,7 @@ services:
     image: mongo
 ```
 
-Each `datastores__<name>__<key>` variable overrides the matching `datastores:<name>:<key>` config path, exactly as described in [Configuration](/docs/core-concepts/configuration) — Docker Compose's environment block is just another way of setting the same nconf keys, nothing Docker-specific to learn.
+Each `datastores__<name>__<key>` variable overrides the matching `datastores:<name>:<key>` config path, exactly as described in [Configuration](/docs/core-concepts/configuration). Docker Compose's environment block is just another way of setting the same nconf keys, nothing Docker-specific to learn.
 
 ```bash
 docker compose up
@@ -66,7 +66,7 @@ docker compose -f docker-compose.yml -f docker-compose.debug.yml up
 
 ## CPU profiling
 
-`docker-compose.profile.yml` runs the server through a wrapper script that starts Node with `--cpu-prof`, and saves the resulting `.cpuprofile` file to a mounted `./profiles` directory on shutdown — load it into Chrome DevTools' profiler afterward:
+`docker-compose.profile.yml` runs the server through a wrapper script that starts Node with `--cpu-prof`, and saves the resulting `.cpuprofile` file to a mounted `./profiles` directory on shutdown. Load it into Chrome DevTools' profiler afterward:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.profile.yml up

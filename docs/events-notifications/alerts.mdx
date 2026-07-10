@@ -5,7 +5,7 @@ sidebar_label: Alerts
 
 # Alerts
 
-`AlertUtils` sends structured, priority-leveled incident alerts to an external monitoring service — the PagerDuty/Opsgenie style of alert, meant for your team's attention, not your end users'. It's a separate concern from [Notifications](/docs/events-notifications/notifications) (which push messages to connected users) and [Messaging](/docs/events-notifications/messaging) (which sends templated email/Slack/SMS) — this is specifically for "something is wrong and someone needs to look at it."
+`AlertUtils` sends structured, priority-leveled incident alerts to an external monitoring service: the PagerDuty/Opsgenie style of alert, meant for your team's attention, not your end users'. It's a separate concern from [Notifications](/docs/events-notifications/notifications) (which push messages to connected users) and [Messaging](/docs/events-notifications/messaging) (which sends templated email/Slack/SMS). This is specifically for "something is wrong and someone needs to look at it."
 
 ## Constructing it
 
@@ -32,7 +32,7 @@ export class MonitoringService {
 }
 ```
 
-`serviceUrl` is the base URL of an alerting API compatible with this shape — Opsgenie's alerts API is the reference implementation. `auth` is sent as the `Authorization` header on every request.
+`serviceUrl` is the base URL of an alerting API compatible with this shape. Opsgenie's alerts API is the reference implementation. `auth` is sent as the `Authorization` header on every request.
 
 ## Sending an alert
 
@@ -49,9 +49,9 @@ const id = await this.alerts?.send({
 }, {count: 5});
 ```
 
-`send` returns the created alert's id on success, or `null` if it failed. `alias` is what the alerting service uses to de-duplicate — sending another alert with the same `alias` while one is still open typically updates it rather than creating a duplicate, though the exact behavior depends on your alerting provider.
+`send` returns the created alert's id on success, or `null` if it failed. `alias` is what the alerting service uses to de-duplicate. Sending another alert with the same `alias` while one is still open typically updates it rather than creating a duplicate, though the exact behavior depends on your alerting provider.
 
-The `message`/`description`/`note` fields are each compiled as Handlebars templates against the second argument (`vars`), the same way `MessagingUtils` templates are — so `{{count}}` above gets filled in from `{count: 5}`.
+The `message`/`description`/`note` fields are each compiled as Handlebars templates against the second argument (`vars`), the same way `MessagingUtils` templates are, so `{{count}}` above gets filled in from `{count: 5}`.
 
 ### Priority levels
 
@@ -80,5 +80,5 @@ await this.alerts?.send(alert, {}, {
 ```
 
 :::note[Field length limits]
-`AlertUtils` truncates `alias`, `description`, `message`, `note`, `source`, and `tags` to fixed maximum lengths before sending — matching the most restrictive limits among common alerting providers (Opsgenie, at time of writing) — so a long description won't cause the request itself to fail.
+`AlertUtils` truncates `alias`, `description`, `message`, `note`, `source`, and `tags` to fixed maximum lengths before sending, matching the most restrictive limits among common alerting providers (Opsgenie, at time of writing), so a long description won't cause the request itself to fail.
 :::

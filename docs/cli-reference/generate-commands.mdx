@@ -19,7 +19,7 @@ rapidrest generate server my-api --output-dir ~/projects/my-api
 | `--output-dir <path>` | Directory to write into. Defaults to `./<NAME>` |
 | `--force` | Overwrite existing files |
 
-Everything else is interactive: project description, author (auto-filled from Git config when available), package manager (`yarn`/`npm`), databases (MongoDB and Redis checked by default; PostgreSQL and SQLite also available), additional features (React, Docker — checked by default, Kubernetes/Helm), and source control (GitHub, GitLab, Git, Perforce, Subversion, or none).
+Everything else is interactive: project description, author (auto-filled from Git config when available), package manager (`yarn`/`npm`), databases (MongoDB and Redis checked by default; PostgreSQL and SQLite also available), additional features (React, Docker, checked by default, Kubernetes/Helm), and source control (GitHub, GitLab, Git, Perforce, Subversion, or none).
 
 ## `rapidrest generate model NAME`
 
@@ -57,7 +57,7 @@ rapidrest generate route ProductRoute --model Product --protect
 | `--author <name>` | |
 | `--description <text>` | |
 | `--path <route-path>` | Base path, e.g. `/api/v1/products` |
-| `--model <name>` | Bind to a model — generates a `CRUDRoute` (see [Auto CRUD Routes](/docs/auto-crud-routes)) |
+| `--model <name>` | Bind to a model, generates a `CRUDRoute` (see [Auto CRUD Routes](/docs/auto-crud-routes)) |
 | `--no-model` | Skip all prompts about associating a model |
 | `-p`, `--protect` | Enables RBAC protection. Interactively defaults to **off** (opposite of `generate model`) |
 | `-f`, `--force` | Overwrite existing files |

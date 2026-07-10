@@ -58,7 +58,7 @@ export class Pet extends BaseMongoEntity {}
 export class Category extends BaseMongoEntity {}
 ```
 
-Caching only takes effect when a Redis connection named `"cache"` is configured — without one, `@Cache` is silently a no-op rather than an error.
+Caching only takes effect when a Redis connection named `"cache"` is configured. Without one, `@Cache` is silently a no-op rather than an error.
 
 ## `@TrackChanges(versions?)`
 
@@ -75,7 +75,7 @@ export class AuditedRecord extends BaseMongoEntity {}
 
 ## `@ChildEntity()`
 
-Lets multiple entity classes share a single collection/table, discriminated by type — useful for modeling an inheritance hierarchy without a
+Lets multiple entity classes share a single collection/table, discriminated by type. Useful for modeling an inheritance hierarchy without a
 separate collection per subclass:
 
 ```ts

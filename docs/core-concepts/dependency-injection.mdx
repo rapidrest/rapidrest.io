@@ -6,7 +6,7 @@ sidebar_label: Dependency Injection
 # Dependency Injection
 
 Every exported data model, job, route, and service in RapidREST is automatically detected by the `ClassLoader` and instances managed by
-`ObjectFactory`. The `ObjectFactory` creates class instances, resolves their dependencies, and runs lifecycle hooks — all driven by property and
+`ObjectFactory`. The `ObjectFactory` creates class instances, resolves their dependencies, and runs lifecycle hooks. All of this is driven by property and
 method decorators from the `@rapidrest/core` library.
 
 # `ObjectFactory`
@@ -46,4 +46,4 @@ You rarely construct these classes with `new` yourself. Instead:
 2. Each discovered class is registered with the `ObjectFactory`.
 3. When a route, model, or another service is instantiated, the `ObjectFactory` walks its `@Inject`/`@Config`/`@Logger` properties, resolves them, and finally runs any `@Init` methods.
 
-This means a plain service class with no decorators at all — like a `PetService` that wraps some business logic — is automatically available for injection anywhere in your project, as long as it's exported from a file somewhere under `src/`.
+This means a plain service class with no decorators at all, like a `PetService` that wraps some business logic, is automatically available for injection anywhere in your project, as long as it's exported from a file somewhere under `src/`.

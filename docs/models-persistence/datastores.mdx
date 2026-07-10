@@ -35,7 +35,7 @@ Forgetting `@DataStore(...)` on an entity fails fast at startup with an explicit
 
 ## Direct repository and connection injection
 
-Most of the time you won't need this — [Auto CRUD Routes](/docs/auto-crud-routes) and the base entity classes handle datastore access for you. But you can inject a repository or connection directly into a service when you need to:
+Most of the time you won't need this. [Auto CRUD Routes](/docs/auto-crud-routes) and the base entity classes handle datastore access for you. But you can inject a repository or connection directly into a service when you need to:
 
 ```ts
 import { DatabaseDecorators } from '@rapidrest/service-core';

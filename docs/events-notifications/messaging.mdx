@@ -5,7 +5,7 @@ sidebar_label: Messaging
 
 # Messaging
 
-`MessagingUtils` sends templated messages over email, Slack, and SMS — the same template, rendered with [Handlebars](https://handlebarsjs.com/), can drive all three depending on what a given template defines. Unlike `NotificationUtils` and `AlertUtils`, it has a no-argument constructor and uses `@Config`/`@Logger` injection internally, so it's directly `@Inject`-able like any other service:
+`MessagingUtils` sends templated messages over email, Slack, and SMS. The same template, rendered with [Handlebars](https://handlebarsjs.com/), can drive all three depending on what a given template defines. Unlike `NotificationUtils` and `AlertUtils`, it has a no-argument constructor and uses `@Config`/`@Logger` injection internally, so it's directly `@Inject`-able like any other service:
 
 ```ts
 import {ObjectDecorators} from '@rapidrest/core';
@@ -20,7 +20,7 @@ export class PetService {
 
 ## Configuring channels
 
-Each channel is configured independently, and `MessagingUtils` only sets up the channels it finds configuration for — an unconfigured channel simply throws if you try to send through it, rather than failing at startup.
+Each channel is configured independently, and `MessagingUtils` only sets up the channels it finds configuration for. An unconfigured channel simply throws if you try to send through it, rather than failing at startup.
 
 ```ts
 conf.defaults({
@@ -43,7 +43,7 @@ conf.defaults({
 | Config key | Channel | Notes |
 |---|---|---|
 | `smtp_config` | Email | A single SMTP config, sent via [Nodemailer](https://nodemailer.com/). |
-| `slack` | Slack | An array — you can register more than one Slack app/workspace. |
+| `slack` | Slack | An array, you can register more than one Slack app/workspace. |
 | `twilio` | SMS | A single [Twilio](https://www.twilio.com/) account config. |
 
 `@slack/bolt`, `nodemailer`, and `twilio` are all lazily `import()`-ed only for the channels you actually configure, so you only need to install the ones you use.
@@ -72,11 +72,11 @@ conf.defaults({
 });
 ```
 
-Each field — `subject`, `html`/`text`, `slack_text`, `sms` — is compiled independently as its own Handlebars template the first time the template is used, and cached from then on. `enabled: false` makes a template a no-op without deleting its configuration, which is handy for turning a notification off temporarily.
+Each field (`subject`, `html`/`text`, `slack_text`, `sms`) is compiled independently as its own Handlebars template the first time the template is used, and cached from then on. `enabled: false` makes a template a no-op without deleting its configuration, which is handy for turning a notification off temporarily.
 
 ### Loading templates from a file
 
-For anything longer than a one-liner, `htmlPath`/`textPath` load the template body from a file on disk instead of inlining it in config — the file's contents are read once, compiled, and cached the same way an inline `html`/`text` value would be:
+For anything longer than a one-liner, `htmlPath`/`textPath` load the template body from a file on disk instead of inlining it in config. The file's contents are read once, compiled, and cached the same way an inline `html`/`text` value would be:
 
 ```ts
 conf.defaults({
@@ -93,7 +93,7 @@ conf.defaults({
 });
 ```
 
-`htmlPath`/`textPath` and their inline `html`/`text` counterparts are interchangeable per-template — use whichever fits a given message. There's no file-based equivalent for `subject`, `slack_text`, or `sms`; those are always inline strings.
+`htmlPath`/`textPath` and their inline `html`/`text` counterparts are interchangeable per-template. Use whichever fits a given message. There's no file-based equivalent for `subject`, `slack_text`, or `sms`; those are always inline strings.
 
 ## Sending messages
 
@@ -103,4 +103,4 @@ await this.messaging?.sendSlack('pet-created', {name: pet.name, species: pet.spe
 await this.messaging?.sendSMS('pet-created', {name: pet.name, species: pet.species});
 ```
 
-All three methods take the template name and the variables to render it with, and return `undefined` (rather than throwing) if the template exists but is disabled or missing the fields that channel needs — they only throw if the channel itself isn't configured at all, or the named template doesn't exist.
+All three methods take the template name and the variables to render it with, and return `undefined` (rather than throwing) if the template exists but is disabled or missing the fields that channel needs. They only throw if the channel itself isn't configured at all, or the named template doesn't exist.

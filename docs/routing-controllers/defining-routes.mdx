@@ -121,7 +121,7 @@ async getPet(@Param('id') id: string): Promise<Pet | null> {
 }
 ```
 
-Throwing inside a handler (or a `@Before`/`@Validate` step) results in an error response — see [Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation) for where in the pipeline that happens.
+Throwing inside a handler (or a `@Before`/`@Validate` step) results in an error response. See [Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation) for where in the pipeline that happens.
 
 ## WebSocket Support
 

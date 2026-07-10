@@ -13,7 +13,7 @@ yarn add @rapidrest/react
 
 `@rapidrest/react` requires `@rapidrest/core`, `@rapidrest/service-core`, React 19, and React DOM 19 as peer dependencies. `vite`, `@vitejs/plugin-react`, and `tsx` are optional peers, only needed if you use client-side hydration or the dev CLI.
 
-If you generated your project with `rapidrest generate server` and selected the React feature, all of this is already wired up — skip to [App Directory Convention](/docs/ssr-react/app-convention).
+If you generated your project with `rapidrest generate server` and selected the React feature, all of this is already wired up. Skip to [App Directory Convention](/docs/ssr-react/app-convention).
 
 ## Minimal setup by hand
 
@@ -63,7 +63,7 @@ const {Route} = RouteDecorators;
 export class AppRouter extends ReactRoute {}
 ```
 
-A named prefix like `/app/*` (rather than a bare `/*`) is important: RapidREST also registers a static-file handler at `/*`, and the last-registered wildcard wins — so a named prefix keeps your pages from being shadowed by it.
+A named prefix like `/app/*` (rather than a bare `/*`) is important: RapidREST also registers a static-file handler at `/*`, and the last-registered wildcard wins, so a named prefix keeps your pages from being shadowed by it.
 
 **5. Run it**
 
@@ -74,7 +74,7 @@ npx rapidreact dev
 The page at `apps/app/index.tsx` is now served at `/app/`. See [Dev Mode](/docs/ssr-react/dev-mode) for what this command actually runs.
 
 :::note[Changing the app directory]
-The app directory isn't configured via nconf — override the `appDir` property on your route subclass instead:
+The app directory isn't configured via nconf. Override the `appDir` property on your route subclass instead:
 
 ```ts
 @Route('/app/*')

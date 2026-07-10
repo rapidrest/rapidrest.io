@@ -5,14 +5,14 @@ sidebar_label: Overview
 
 # Base Routes
 
-`@rapidrest/service-core` ships six ready-made route classes for common operational concerns — admin actions, Prometheus metrics, OpenAPI docs,
+`@rapidrest/service-core` ships six ready-made route classes for common operational concerns: admin actions, Prometheus metrics, OpenAPI docs,
 service status, WebSocket push delivery, and ACL management. Each one is a plain class prefixed `Base` (`BaseAdminRoute`, `BaseMetricsRoute`,
 `BaseOpenAPIRoute`, `BaseStatusRoute`, `BasePushRoute`, `BaseACLRoute`) that implements all of the behavior for its endpoints, but carries no
 `@Route` decorator of its own.
 
 That last part matters: `Server.start()` only wires up classes it discovers via `ClassLoader` that are decorated with `@Route` (see
 [Auto-Discovery](/docs/core-concepts/auto-discovery)). None of the `Base*Route` classes qualify on their own, so none of them are exposed by simply
-installing `service-core` — you (or your scaffold) must extend one, decorate the subclass with `@Route`, and export it from somewhere under `src/`.
+installing `service-core`. You (or your scaffold) must extend one, decorate the subclass with `@Route`, and export it from somewhere under `src/`.
 
 | Base class | Endpoints it implements | Docs |
 |---|---|---|
@@ -36,17 +36,17 @@ const { Route } = RouteDecorators;
 export class StatusRoute extends BaseStatusRoute {}
 ```
 
-Because these files are ordinary auto-discovered route classes, they behave exactly like any other route in your project — nothing distinguishes
+Because these files are ordinary auto-discovered route classes, they behave exactly like any other route in your project. Nothing distinguishes
 them at runtime as "built-in." You can delete the file to remove the endpoint entirely, change the `@Route` base path, or add further decorators
 (`@Auth`, `@Protect`, additional `trusted_roles`) directly on the subclass to lock it down further.
 
-`ACLRoute` (extending `BaseACLRoute`) is also scaffolded, but only for projects with a database selected — like `AuthRoute` and `UserRoute`, it needs
+`ACLRoute` (extending `BaseACLRoute`) is also scaffolded, but only for projects with a database selected. Like `AuthRoute` and `UserRoute`, it needs
 somewhere to persist to. Which `AccessControlList` model it extends depends on the database you picked: `AccessControlListMongo` for MongoDB
 projects, `AccessControlListSQL` for PostgreSQL/SQLite ones. See [ACL](/docs/base-routes/acl) for details.
 
 ## Using them without the CLI scaffold
 
-If you're wiring `service-core` into a project by hand — or you deleted one of the generated files and want it back — the pattern is the same for
+If you're wiring `service-core` into a project by hand, or you deleted one of the generated files and want it back, the pattern is the same for
 every base route: extend it, apply `@Route()` with whatever base path you want, and export the class from anywhere under your source tree.
 
 ```ts

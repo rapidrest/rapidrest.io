@@ -11,7 +11,7 @@ A page gets its props from up to three sources, merged together on every request
 props = { user, userUid, ...pageProps, ...serviceProps, ...routeProps }
 ```
 
-Later sources win on overlapping keys — a route-class override can always override a service, which can always override the page itself. `user`/`userUid` come from the authenticated request, if any, before either of the sources below run.
+Later sources win on overlapping keys. A route-class override can always override a service, which can always override the page itself. `user`/`userUid` come from the authenticated request, if any, before either of the sources below run.
 
 ## Page-level `fetchProps`
 
@@ -38,7 +38,7 @@ This is enough for most pages, and keeps the data-fetching code next to the comp
 
 ## Injecting server-side services with `@ReactService`
 
-For data that needs RapidREST's own dependency injection — a database-backed service, a cache client, anything you'd normally `@Inject` into a route — register a service class against a specific page path with `@ReactService`:
+For data that needs RapidREST's own dependency injection (a database-backed service, a cache client, anything you'd normally `@Inject` into a route), register a service class against a specific page path with `@ReactService`:
 
 ```ts
 // src/services/PetService.ts
@@ -59,7 +59,7 @@ Because this is a plain class discovered by [auto-discovery](/docs/core-concepts
 
 ## Overriding at the route-class level
 
-The route class mounting your app (the one extending `ReactRoute`) can also override `fetchProps` directly — this is the last, most authoritative layer, and a good place for cross-cutting data every page needs:
+The route class mounting your app (the one extending `ReactRoute`) can also override `fetchProps` directly. This is the last, most authoritative layer, and a good place for cross-cutting data every page needs:
 
 ```ts
 @Route('/app/*')

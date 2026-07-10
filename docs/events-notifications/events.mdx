@@ -40,7 +40,7 @@ export class PetEventHandler {
 | `@EventListener()` | Class decorator. Marks a class (which must have a no-argument constructor) to be automatically instantiated and registered as an event listener at startup. |
 | `@OnEvent(type?)` | Method decorator. `type` can be a single event type, an array of types, or omitted entirely to receive every event. Types are matched as case-insensitive regular expressions, not exact strings. |
 
-As with routes and models, there's no manual registration step for a class decorated with `@EventListener()` — export it anywhere under `src/` and it's picked up automatically (see [Auto-Discovery](/docs/core-concepts/auto-discovery)).
+As with routes and models, there's no manual registration step for a class decorated with `@EventListener()`. Export it anywhere under `src/` and it's picked up automatically (see [Auto-Discovery](/docs/core-concepts/auto-discovery)).
 
 ## Configuring the event bus
 
@@ -57,11 +57,11 @@ conf.defaults({
 });
 ```
 
-The event system only starts if a datastore named `events` is configured — if it isn't, `@OnEvent` handlers are simply never registered, with no error.
+The event system only starts if a datastore named `events` is configured. If it isn't, `@OnEvent` handlers are simply never registered, with no error.
 
 ## Publishing an event
 
-There isn't a dedicated "publish an event" helper — an event is just a JSON message with a `type` field, published to one of the configured channels over the same `events` Redis connection:
+There isn't a dedicated "publish an event" helper. An event is just a JSON message with a `type` field, published to one of the configured channels over the same `events` Redis connection:
 
 ```ts
 import {DatabaseDecorators} from '@rapidrest/service-core';
@@ -80,4 +80,4 @@ export class PetService {
 }
 ```
 
-Any listener subscribed to the `pets` channel with a matching `@OnEvent` type receives it — the channel is just the transport; dispatch to handlers is based on the event's `type` field, not which channel it arrived on.
+Any listener subscribed to the `pets` channel with a matching `@OnEvent` type receives it. The channel is just the transport; dispatch to handlers is based on the event's `type` field, not which channel it arrived on.

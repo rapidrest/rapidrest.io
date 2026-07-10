@@ -9,7 +9,7 @@ sidebar_label: Kubernetes (Helm)
 rapidrest generate k8s
 ```
 
-This adds a Helm chart under `helm/`. Like `generate docker`, it's idempotent — regenerate it with `--force` any time your project's datastores change (see [CLI Reference → Add-ons](/docs/cli-reference/addons)).
+This adds a Helm chart under `helm/`. Like `generate docker`, it's idempotent: regenerate it with `--force` any time your project's datastores change (see [CLI Reference → Add-ons](/docs/cli-reference/addons)).
 
 ## What's in the chart
 
@@ -19,11 +19,11 @@ The templates are organized by the order Kubernetes resources naturally depend o
 
 ```text
 helm/templates/
-├── 0_config/        # ConfigMap + Secrets — becomes your app's env vars
+├── 0_config/        # ConfigMap + Secrets: becomes your app's env vars
 ├── 1_deployments/   # the server Deployment
 ├── 2_services/      # the Service exposing it inside the cluster
 ├── 3_gateways/      # Gateway + HTTPRoute exposing it outside the cluster
-└── NOTES.txt        # printed after `helm install` — see below
+└── NOTES.txt        # printed after `helm install` (see below)
 ```
 
 ## Configuring `values.yaml`
@@ -33,15 +33,15 @@ The settings you'll actually touch:
 | Key | What it controls |
 |---|---|
 | `host` | The public hostname the service will be reachable at. |
-| `environment` | `dev` or `production` — in non-production environments the container also runs with `--inspect` enabled for remote debugging. |
+| `environment` | `dev` or `production`. In non-production environments the container also runs with `--inspect` enabled for remote debugging. |
 | `auth.audience` / `auth.issuer` / `auth.expiresIn` | JWT token settings, same as the `auth` config key described in [Authentication](/docs/auth-rbac/authentication). |
 | `service.image.registry` / `repository` / `tag` | Where to pull the container image from. |
 | `service.replicas` | How many pods to run. |
 | `mongodb.create` / `redis.create` | Whether to deploy the bundled Bitnami subchart, or connect to an existing external instance instead. |
 
-`auth.secret`, `cookies.secret`, and `sessions.secret` default to Helm's `randAlphaNum 32` — a fresh random value generated at install time rather than a value you set. That's deliberate (see below).
+`auth.secret`, `cookies.secret`, and `sessions.secret` default to Helm's `randAlphaNum 32`, a fresh random value generated at install time rather than a value you set. That's deliberate (see below).
 
-Just like Docker Compose, every datastore ends up as a `datastores__<name>__<key>` environment variable on the pod, sourced from a generated `ConfigMap`/`Secret` pair rather than typed in by hand — the same nconf keys from [Configuration](/docs/core-concepts/configuration), just populated by Kubernetes instead of Compose.
+Just like Docker Compose, every datastore ends up as a `datastores__<name>__<key>` environment variable on the pod, sourced from a generated `ConfigMap`/`Secret` pair rather than typed in by hand. These are the same nconf keys from [Configuration](/docs/core-concepts/configuration), just populated by Kubernetes instead of Compose.
 
 ## Installing
 
@@ -49,16 +49,16 @@ Just like Docker Compose, every datastore ends up as a `datastores__<name>__<key
 helm install my-api ./helm
 ```
 
-Before your service starts serving traffic, init containers block startup until Redis and MongoDB (if either is bundled) respond to a basic connectivity probe — the pod won't report ready before its datastores are actually reachable.
+Before your service starts serving traffic, init containers block startup until Redis and MongoDB (if either is bundled) respond to a basic connectivity probe. The pod won't report ready before its datastores are actually reachable.
 
 :::note[Save the install output]
-Because `auth.secret`, the MongoDB admin password, and other credentials are randomly generated at install time rather than configured up front, `helm install` prints them to the terminal exactly once, via `NOTES.txt`. There's no way to recover them from the cluster afterward except by reading the underlying `Secret` resources directly — write them down (or better, pull them into your own secret manager) before you close that terminal.
+Because `auth.secret`, the MongoDB admin password, and other credentials are randomly generated at install time rather than configured up front, `helm install` prints them to the terminal exactly once, via `NOTES.txt`. There's no way to recover them from the cluster afterward except by reading the underlying `Secret` resources directly. Write them down (or better, pull them into your own secret manager) before you close that terminal.
 :::
 
 ## Routing
 
-The chart uses the [Kubernetes Gateway API](https://gateway-api.sigs.k8s.io/) (a `Gateway` + `HTTPRoute`), not a classic `Ingress` — your cluster needs a Gateway API-compatible controller installed (the chart assumes an NGINX Gateway Fabric-style `gatewayClassName: nginx`). TLS termination and HSTS are both configurable via `gateway.tls`/`gateway.hsts` in `values.yaml`.
+The chart uses the [Kubernetes Gateway API](https://gateway-api.sigs.k8s.io/) (a `Gateway` + `HTTPRoute`), not a classic `Ingress`. Your cluster needs a Gateway API-compatible controller installed (the chart assumes an NGINX Gateway Fabric-style `gatewayClassName: nginx`). TLS termination and HSTS are both configurable via `gateway.tls`/`gateway.hsts` in `values.yaml`.
 
 ## Trying it locally
 
-If you don't already have a cluster to deploy to, `helm/scripts/k3s_install.sh` sets up a single-node [k3s](https://k3s.io/) cluster with the prerequisites this chart expects (a Gateway API controller, the Bitnami Helm repo, and so on) — a reasonable way to try a full Helm deployment on a single machine before deploying to a real cluster.
+If you don't already have a cluster to deploy to, `helm/scripts/k3s_install.sh` sets up a single-node [k3s](https://k3s.io/) cluster with the prerequisites this chart expects (a Gateway API controller, the Bitnami Helm repo, and so on), a reasonable way to try a full Helm deployment on a single machine before deploying to a real cluster.

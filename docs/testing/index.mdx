@@ -3,7 +3,7 @@ sidebar_position: 1
 sidebar_label: Overview
 ---
 
-RapidREST projects are tested with [Vitest](https://vitest.dev/), against a real (if ephemeral) running `Server` instance rather than mocked request/response objects — a test makes an actual HTTP or WebSocket call and asserts on the real response. `@rapidrest/service-core/test` provides two supertest-style helpers, `request` and `requestws`, to make that convenient.
+RapidREST projects are tested with [Vitest](https://vitest.dev/), against a real (if ephemeral) running `Server` instance rather than mocked request/response objects. A test makes an actual HTTP or WebSocket call and asserts on the real response. `@rapidrest/service-core/test` provides two supertest-style helpers, `request` and `requestws`, to make that convenient.
 
 # Setup
 
@@ -21,7 +21,7 @@ RapidREST's decorators (`@Route`, `@Get`, `@Entity`, ...) rely on `experimentalD
 }
 ```
 
-That covers `tsc` and your editor, but **Vitest doesn't invoke `tsc`** — it uses its own transform pipeline, which doesn't apply `tsconfig.json`'s decorator settings on its own. Wire in the [`unplugin-swc`](https://github.com/danielpza/unplugin-swc) plugin so decorators compile the same way under test as they do everywhere else:
+That covers `tsc` and your editor, but **Vitest doesn't invoke `tsc`**. It uses its own transform pipeline, which doesn't apply `tsconfig.json`'s decorator settings on its own. Wire in the [`unplugin-swc`](https://github.com/danielpza/unplugin-swc) plugin so decorators compile the same way under test as they do everywhere else:
 
 ```ts
 // vitest.config.ts
@@ -46,7 +46,7 @@ export default defineConfig({
 });
 ```
 
-If your project was scaffolded with `rapidrest generate server`, `unplugin-swc` is already a dependency — this config is the piece that actually puts it to work.
+If your project was scaffolded with `rapidrest generate server`, `unplugin-swc` is already a dependency. This config is the piece that actually puts it to work.
 
 # Testing HTTP routes
 
@@ -135,7 +135,7 @@ Each queued action runs in order once the connection opens; the chain resolves o
 
 # Testing background jobs
 
-A [background job](/docs/background-jobs) is a plain class — there's no HTTP surface to hit, so test it by instantiating and calling its lifecycle methods directly rather than going through `request`:
+A [background job](/docs/background-jobs) is a plain class. There's no HTTP surface to hit, so test it by instantiating and calling its lifecycle methods directly rather than going through `request`:
 
 ```ts
 import {MetricsCollector} from '../src/jobs/MetricsCollector.js';
@@ -150,7 +150,7 @@ it('runs without error', async () => {
 
 # In-memory datastores
 
-For tests that touch a real datastore, use an in-memory server instead of a shared test database — [`mongodb-memory-server`](https://github.com/typegoose/mongodb-memory-server) is what `rapidrest dev` itself uses for local development (see [Getting Started](/docs/getting-started)), and it works the same way in tests:
+For tests that touch a real datastore, use an in-memory server instead of a shared test database. [`mongodb-memory-server`](https://github.com/typegoose/mongodb-memory-server) is what `rapidrest dev` itself uses for local development (see [Getting Started](/docs/getting-started)), and it works the same way in tests:
 
 ```ts
 import {MongoMemoryServer} from 'mongodb-memory-server';

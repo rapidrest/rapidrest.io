@@ -13,7 +13,7 @@ allowing two primary methods for access protection.
 
 ## `@RequiresRole`
 
-The simplest form of authorization — require the authenticated user to have one of the given roles:
+The simplest form of authorization: require the authenticated user to have one of the given roles.
 
 ```ts
 @RequiresRole('admin')
@@ -162,4 +162,4 @@ conf.defaults({
 });
 ```
 
-`rbac:enabled` is a global switch — set it to `false` to bypass every ACL check (useful in tests). Users with any role listed in `trusted_roles` bypass ACL checks entirely, regardless of what the record's ACL says.
+`rbac:enabled` is a global switch. Set it to `false` to bypass every ACL check (useful in tests). Users with any role listed in `trusted_roles` bypass ACL checks entirely, regardless of what the record's ACL says.

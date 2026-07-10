@@ -27,7 +27,7 @@ The CLI scaffold generates exactly this at `src/routes/MetricsRoute.ts`, mounted
 
 ## Registering your own metrics
 
-`BaseMetricsRoute` doesn't collect anything itself — it just serves whatever is in `prom-client`'s global registry. Register counters, gauges, and
+`BaseMetricsRoute` doesn't collect anything itself. It just serves whatever is in `prom-client`'s global registry. Register counters, gauges, and
 histograms from anywhere in your code using `prom-client` directly:
 
 ```ts
@@ -54,6 +54,6 @@ conf.defaults({
 });
 ```
 
-`metrics:authRequired` defaults to `true` — callers must be authenticated and hold one of `trusted_roles` to read either endpoint. Set it to `false`
+`metrics:authRequired` defaults to `true`. Callers must be authenticated and hold one of `trusted_roles` to read either endpoint. Set it to `false`
 to expose metrics without authentication, which is the more common choice when metrics collection happens over an internal network (e.g. a
 Prometheus scraper running inside the same cluster) rather than being reachable publicly.

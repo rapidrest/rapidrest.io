@@ -22,19 +22,19 @@ Test Hardware:
 - Runtime: Docker Desktop for Windows
 
 [k6](https://k6.io/) load test, 200 virtual users for 60 seconds per endpoint, 3 runs averaged. RapidREST's results include its built-in response
-caching and RBAC checks enabled — i.e. these are "batteries included" numbers, not a stripped-down comparison.
+caching and RBAC checks enabled. These are "batteries included" numbers, not a stripped-down comparison.
 
-Every branch — RapidREST, Express, Fastify, and Next.js — implements its `Pet` and `User` endpoints on top of the exact same
+Every branch (RapidREST, Express, Fastify, and Next.js) implements its `Pet` and `User` endpoints on top of the exact same
 `ModelRoute`/`RepoUtils` persistence, caching, and ACL code from `@rapidrest/service-core`. Only the HTTP layer differs: a native `@Route`
 class running under `Server`'s uWebSockets.js transport for RapidREST, versus the same business logic wired into an Express router, a Fastify
-plugin, or a Next.js route handler for the other three. That's a deliberate choice — it isolates the one variable this benchmark is actually about
-(HTTP transport overhead) instead of comparing four independently-written applications that might differ in a dozen unrelated ways.
+plugin, or a Next.js route handler for the other three. That's deliberate. It isolates the one variable this benchmark is actually about (HTTP
+transport overhead) instead of comparing four independently-written applications that might differ in a dozen unrelated ways.
 :::
 
 ## Requests per second
 
 Higher is better. RapidREST leads on every endpoint where framework overhead is the bottleneck, and is essentially tied with Express and Fastify on
-the two endpoints that are dominated by password-hashing cost rather than HTTP handling — which is exactly what you'd expect from an honest benchmark.
+the two endpoints that are dominated by password-hashing cost rather than HTTP handling, which is exactly what you'd expect from an honest benchmark.
 
 | Endpoint | RapidREST | Express | Fastify | Next.js |
 |---|---:|---:|---:|---:|
@@ -49,7 +49,7 @@ the two endpoints that are dominated by password-hashing cost rather than HTTP h
 | `create_user` | 74.0 | 73.3 | 73.3 | 73.0 |
 | `login` | 74.3 | 73.3 | 74.7 | 73.7 |
 
-*(req/sec, higher is better; `create_user` and `login` are bottlenecked by Argon2 password hashing, not the HTTP framework — throughput is
+*(req/sec, higher is better. `create_user` and `login` are bottlenecked by Argon2 password hashing, not the HTTP framework, so throughput is
 deliberately similar across all four.)*
 
 The rest of this page goes endpoint by endpoint: what each test actually sends, what part of the stack it's exercising, and why the result looks
@@ -58,13 +58,13 @@ endpoints comes from its response cache versus its RBAC engine, using the same t
 
 ## Endpoint by endpoint
 
-### `get_status` — the floor
+### `get_status`: the floor
 
 ```
 GET /status
 ```
 
-No auth header, no database, no cache — [`BaseStatusRoute`](/docs/base-routes/status) just reads three config values and returns them. This is as
+No auth header, no database, no cache. [`BaseStatusRoute`](/docs/base-routes/status) just reads three config values and returns them. This is as
 close as the suite gets to measuring pure HTTP-layer overhead: routing a request in, serializing a tiny JSON body out, nothing else in between.
 
 | Metric | RapidREST | Express | Fastify | Next.js |
@@ -83,11 +83,12 @@ close as the suite gets to measuring pure HTTP-layer overhead: routing a request
   ]}
 />
 
-RapidREST, Express and Fastify all land within about 6% of each other here — with no business logic to differentiate them, this endpoint mostly
-measures how cheap each framework's request/response path is, and uWebSockets.js's edge is real but modest when there's nothing else to do. Next.js
-is the outlier, since every request still goes through a full route handler resolution and a page-render-capable pipeline even for a JSON response.
+RapidREST, Express and Fastify all land within about 6% of each other here. There's no business logic to differentiate them, so this endpoint
+mostly measures how cheap each framework's request/response path is, and uWebSockets.js's edge is real but modest when there's nothing else to do.
+Next.js is the outlier, since every request still goes through a full route handler resolution and a page-render-capable pipeline even for a JSON
+response.
 
-### `get_pet` — a single cached document
+### `get_pet`: a single cached document
 
 ```
 GET /pet/snowball
@@ -112,18 +113,18 @@ comes from Redis rather than MongoDB for the rest of the run.
   ]}
 />
 
-**9,396 req/sec**, a 24% lead over Express and 14% over Fastify — despite all three running identical persistence and caching code underneath.
+**9,396 req/sec**, a 24% lead over Express and 14% over Fastify, despite all three running identical persistence and caching code underneath.
 Since the cache hit itself costs the same regardless of which HTTP layer is on top, the gap here is close to the cleanest read of transport overhead
-alone that this suite provides — see [What caching and RBAC actually cost](#what-caching-and-rbac-actually-cost) for exactly how much the cache is
+alone that this suite provides. See [What caching and RBAC actually cost](#what-caching-and-rbac-actually-cost) for exactly how much the cache is
 contributing to that 9,396 figure in absolute terms.
 
-### `find_bunnies` — a cached filtered query
+### `find_bunnies`: a cached filtered query
 
 ```
 GET /pet?category.name=bunny
 ```
 
-Only one pet in the seeded dataset (`snowball`) has `category.name: "bunny"`, so this always returns the same single-item result set — it's
+Only one pet in the seeded dataset (`snowball`) has `category.name: "bunny"`, so this always returns the same single-item result set. It's
 functionally a second cached-read test, but through the query/filter path instead of a direct ID lookup.
 
 | Metric | RapidREST | Express | Fastify | Next.js |
@@ -143,17 +144,17 @@ functionally a second cached-read test, but through the query/filter path instea
 />
 
 **7,384 req/sec** vs Express's 5,754 (+28%) and Fastify's 6,487 (+14%). It's slower than `get_pet` across all three frameworks despite returning
-the same amount of data, because building and caching a query result costs more than a straight identifier lookup — but the relative ordering
-between frameworks is unchanged, which is what you'd expect from a test whose cost is dominated by the same shared code path.
+the same amount of data, because building and caching a query result costs more than a straight identifier lookup. The relative ordering between
+frameworks stays the same though, which is what you'd expect from a test whose cost is dominated by the same shared code path.
 
-### `get_user` — a document-level ACL check
+### `get_user`: a document-level ACL check
 
 ```
 GET /user/test_user{1-10}
 Authorization: jwt <admin token>
 ```
 
-Unlike `Pet`, `User` is protected with document-level ACLs (`@Protect(..., true)` in the model) rather than a single class-level record — every
+Unlike `Pet`, `User` is protected with document-level ACLs (`@Protect(..., true)` in the model) rather than a single class-level record. Every
 request needs a JWT verified *and* a per-document permission check, on top of the same cache lookup `get_pet` does.
 
 | Metric | RapidREST | Express | Fastify | Next.js |
@@ -172,20 +173,20 @@ request needs a JWT verified *and* a per-document permission check, on top of th
   ]}
 />
 
-**4,914 req/sec**, about half of `get_pet`'s throughput. That's not a cache problem, it's an ACL problem: see the ablation numbers below, where
-turning RBAC off for this specific endpoint recovers nearly 18% of throughput — more than any other endpoint in the suite, because it's the only
+**4,914 req/sec**, about half of `get_pet`'s throughput. That's not a cache problem, it's an ACL problem. See the ablation numbers below, where
+turning RBAC off for this specific endpoint recovers nearly 18% of throughput, more than any other endpoint in the suite, because it's the only
 one exercising a per-document (rather than per-class) permission check on the read path. RapidREST still leads Express by 13% and Fastify by 10%
-here, so the extra check doesn't erase the transport-layer advantage, it just makes the endpoint slower for everyone equally.
+here, so the extra check doesn't erase the transport-layer advantage. It just makes the endpoint slower for everyone equally.
 
-### `find_admins` — a filtered, authenticated query
+### `find_admins`: a filtered, authenticated query
 
 ```
 GET /user?roles=admin
 Authorization: jwt <admin token>
 ```
 
-Same authenticated + document-protected `User` model as `get_user`, but through the query/filter path — and, like `find_bunnies`, the seeded data
-means this always resolves to a single matching document (the `admin` account).
+Same authenticated, document-protected `User` model as `get_user`, but through the query/filter path. Like `find_bunnies`, the seeded data means
+this always resolves to a single matching document (the `admin` account).
 
 | Metric | RapidREST | Express | Fastify | Next.js |
 |---|---:|---:|---:|---:|
@@ -204,11 +205,11 @@ means this always resolves to a single matching document (the `admin` account).
 />
 
 **5,124 req/sec** vs Express's 4,205 (+22%) and Fastify's 4,491 (+14%). Interestingly this is *faster* than `get_user`'s direct-ID lookup despite
-doing strictly more work (a filtered query plus the same ACL check) — the ablation data below shows RBAC's cost on this endpoint is close to zero,
+doing strictly more work (a filtered query plus the same ACL check). The ablation data below shows RBAC's cost on this endpoint is close to zero,
 which suggests the per-document check that hurts `get_user` doesn't apply the same way once the query planner has already narrowed the result set
 to documents the caller is allowed to see.
 
-### `find_pets` — a large, unauthenticated listing
+### `find_pets`: a large, unauthenticated listing
 
 ```
 GET /pet?page={0-9}
@@ -235,10 +236,10 @@ is the first endpoint in the suite where response size, not lookup cost, is doin
 />
 
 RapidREST moves more JSON per second here than on any other endpoint in the suite. **2,400 req/sec** vs Express's 2,094 (+15%) and Fastify's 2,278
-(+5%) — the smallest transport-layer gap over Fastify in the entire read-side of the suite, because at this payload size, serialization and network
-write time dominate over routing overhead, and that cost is close to identical across all three HTTP layers.
+(+5%), the smallest transport-layer gap over Fastify in the entire read-side of the suite. At this payload size, serialization and network write
+time dominate over routing overhead, and that cost is close to identical across all three HTTP layers.
 
-### `find_users` — a large, authenticated listing
+### `find_users`: a large, authenticated listing
 
 ```
 GET /user?page={0-9}
@@ -265,11 +266,11 @@ document-level ACL check from `get_user`/`find_admins` with the large-payload co
   ]}
 />
 
-**1,744 req/sec** vs Express's 1,531 (+14%) and Fastify's 1,639 (+6%) — roughly the same relative gap as `find_pets`, which fits: once payload
-size is the dominant cost, the extra per-document ACL evaluation doesn't change *how much* slower one HTTP layer is than another, it just lowers
-the ceiling for all of them equally.
+**1,744 req/sec** vs Express's 1,531 (+14%) and Fastify's 1,639 (+6%), roughly the same relative gap as `find_pets`. That fits: once payload size
+is the dominant cost, the extra per-document ACL evaluation doesn't change *how much* slower one HTTP layer is than another, it just lowers the
+ceiling for all of them equally.
 
-### `create_pet` — the write path
+### `create_pet`: the write path
 
 ```
 POST /pet
@@ -296,20 +297,20 @@ hit.
   ]}
 />
 
-**1,070 req/sec** vs Express's 1,034 (+3.5%) and Fastify's 1,056 (+1.3%) — by far the smallest lead in the suite, and on p95 latency specifically
+**1,070 req/sec** vs Express's 1,034 (+3.5%) and Fastify's 1,056 (+1.3%), by far the smallest lead in the suite. On p95 latency specifically
 Express actually edges ahead (245ms vs RapidREST's 250ms). Writes hit the database and invalidate the cache on every single request regardless of
-HTTP layer, so there's much less room for transport overhead to show up in the total — most of the cost here is genuinely shared, not
+HTTP layer, so there's much less room for transport overhead to show up in the total. Most of the cost here is genuinely shared, not
 framework-specific. The ablation numbers below tell a more interesting story for this endpoint than the cross-framework comparison does: disabling
 RBAC alone buys back 16% of throughput, more than caching does for a write.
 
-### `create_user` / `login` — where the framework doesn't matter
+### `create_user` / `login`: where the framework doesn't matter
 
 ```
 POST /user     Body: {name, password, firstName, lastName, email, phone}
 GET  /user/login     Authorization: basic <name:password>
 ```
 
-Both endpoints hash a password with [Argon2](https://github.com/ranisalt/node-argon2) — `create_user` on the way in, `login` to verify HTTP Basic
+Both endpoints hash a password with [Argon2](https://github.com/ranisalt/node-argon2): `create_user` on the way in, `login` to verify HTTP Basic
 credentials against the stored hash. Argon2 is deliberately expensive (that's the point of a password hashing algorithm), and it dominates the
 request cost so completely that it doesn't matter which HTTP framework is asking for it.
 
@@ -331,8 +332,8 @@ request cost so completely that it doesn't matter which HTTP framework is asking
   ]}
 />
 
-**~74 req/sec across all four frameworks**, within 2% of each other on both endpoints, with p95 latencies around 2.7 seconds — essentially the
-Argon2 cost floor plus noise. These two rows exist in the suite specifically *because* they don't favor RapidREST: they're the honesty check on
+**~74 req/sec across all four frameworks**, within 2% of each other on both endpoints, with p95 latencies around 2.7 seconds. That's essentially
+the Argon2 cost floor plus noise. These two rows exist in the suite specifically *because* they don't favor RapidREST: they're the honesty check on
 every other result on this page. If RapidREST's numbers were inflated by something other than real transport overhead, this is where it would show.
 
 ## What caching and RBAC actually cost
@@ -353,7 +354,7 @@ off to show how much of its own numbers come from those two features rather than
 | `create_user` | 74.0 | 74.0 | 73.7 |
 | `login` | 74.3 | 73.3 | 72.7 |
 
-*(req/sec; "RBAC off" keeps caching enabled and only disables `rbac:enabled`; "Cache + RBAC off" disables both.)*
+*(req/sec. "RBAC off" keeps caching enabled and only disables `rbac:enabled`. "Cache + RBAC off" disables both.)*
 
 Two endpoints make the pattern clearest. `get_pet` is almost entirely a caching story:
 
@@ -367,8 +368,8 @@ Two endpoints make the pattern clearest. `get_pet` is almost entirely a caching 
   ]}
 />
 
-`get_user`, on the other hand, is the one endpoint where RBAC itself has a real, measurable cost, because `User` is protected at the document level
-rather than the class level:
+`get_user` is the opposite case: the one endpoint where RBAC itself has a real, measurable cost, because `User` is protected at the document level
+rather than the class level.
 
 <BarChart
   ariaLabel="get_user requests per second by configuration: cache and RBAC enabled 4,914, RBAC off 5,796, cache and RBAC off 3,039"
@@ -383,25 +384,25 @@ rather than the class level:
 A few things fall out of the full table that aren't visible in the framework comparison:
 
 - **Caching is doing almost all of the work on read-heavy endpoints, not RBAC.** Turning off caching alone drops `get_pet` by 93% and
-  `find_bunnies` by 91%. Turning off *only* RBAC on those same endpoints doesn't cost anything measurable — if anything the numbers tick up
+  `find_bunnies` by 91%. Turning off *only* RBAC on those same endpoints doesn't cost anything measurable. If anything the numbers tick up
   slightly, within run-to-run noise.
 - **RBAC's cost is concentrated where it actually does more work: document-level checks and writes.** `get_user` (document-level `@Protect`)
-  gets 18% faster with RBAC off — the largest RBAC-attributable delta in the suite. `create_pet` gets 16% faster, since every write needs a fresh
+  gets 18% faster with RBAC off, the largest RBAC-attributable delta in the suite. `create_pet` gets 16% faster, since every write needs a fresh
   permission check that a cached read can otherwise skip. Class-level-protected reads (`get_pet`, `find_bunnies`, `find_pets`) show no meaningful
   RBAC cost at all.
-- **`get_status` barely moves (9,630 → 9,189, about 5%) even with both features off**, which is the expected result for an endpoint that never
-  touches the database or the cache in the first place — the small dip is most likely fixed per-request overhead from the ACL and cache
-  subsystems being initialized on the server, not per-call cost.
+- **`get_status` barely moves (9,630 to 9,189, about 5%) even with both features off.** That's the expected result for an endpoint that never
+  touches the database or the cache in the first place. The small dip is most likely fixed per-request overhead from the ACL and cache subsystems
+  being initialized on the server, not per-call cost.
 - **`create_user` and `login` don't move at all**, confirming the earlier point independently: Argon2 is the entire cost of those two endpoints,
   and neither caching nor RBAC has anything to do with it.
 
 Both `rbac:enabled` and the `cache` datastore are ordinary config (see [Authorization](/docs/auth-rbac/authorization) and the `@Cache()` decorator
-in [Models & Persistence](/docs/models-persistence)) — if you want to know what either one costs for your own workload rather than this one, this
-is the same experiment you'd run to find out.
+in [Models & Persistence](/docs/models-persistence)). If you want to know what either one costs for your own workload, this is the same experiment
+you'd run to find out.
 
 ## Why Next.js trails here
 
-This isn't really an apples-to-apples "which is the faster HTTP framework" comparison for the Next.js numbers — a Next.js route handler in this test
+This isn't really an apples-to-apples "which is the faster HTTP framework" comparison for the Next.js numbers. A Next.js route handler in this test
 is doing a full server-side page render per request, which is inherently more work than returning JSON. It's included because RapidREST's SSR React
 pages are a first-class feature too, and this shows the cost of choosing to render server-side isn't unusually high relative to a mainstream SSR
 framework.

@@ -5,7 +5,7 @@ sidebar_label: Notifications
 
 # Notifications
 
-Where events are for services talking to each other, `NotificationUtils` is for pushing a message to one or more specific, currently-connected users — the kind of thing a WebSocket route forwards straight to a client.
+Where events are for services talking to each other, `NotificationUtils` is for pushing a message to one or more specific, currently-connected users: the kind of thing a WebSocket route forwards straight to a client.
 
 ```ts
 class NotificationUtils {
@@ -14,7 +14,7 @@ class NotificationUtils {
 }
 ```
 
-`sendMessage` publishes a JSON payload (`{type, action, data}`) to a Redis channel named after each recipient's `uid`. On the receiving end, [`BasePushRoute`](/docs/base-routes/push) is the concrete implementation of that idea — a WebSocket route that subscribes each connected client to its own `uid` channel (plus any others it has permission for) and forwards whatever's published there straight to the socket. A CLI-scaffolded project already has this wired up as `PushRoute` at `/push`; see [Base Routes: Push](/docs/base-routes/push) for how `connect` and subscriptions work in detail.
+`sendMessage` publishes a JSON payload (`{type, action, data}`) to a Redis channel named after each recipient's `uid`. On the receiving end, [`BasePushRoute`](/docs/base-routes/push) is the concrete implementation of that idea: a WebSocket route that subscribes each connected client to its own `uid` channel (plus any others it has permission for) and forwards whatever's published there straight to the socket. A CLI-scaffolded project already has this wired up as `PushRoute` at `/push`; see [Base Routes: Push](/docs/base-routes/push) for how `connect` and subscriptions work in detail.
 
 Because its constructor takes a Redis connection directly rather than using property injection, construct it explicitly through the `ObjectFactory` with the connection you want it to publish through:
 
@@ -43,5 +43,5 @@ export class PetService {
 
 Two more utilities from `@rapidrest/core` round out the notification story:
 
-- **[Messaging](/docs/events-notifications/messaging)** — `MessagingUtils`, for templated email, Slack, and SMS/Twilio messaging.
-- **[Alerts](/docs/events-notifications/alerts)** — `AlertUtils`, for structured, priority-leveled incident alerts (PagerDuty/Opsgenie-style), aimed at your team rather than your users.
+- **[Messaging](/docs/events-notifications/messaging)**: `MessagingUtils`, for templated email, Slack, and SMS/Twilio messaging.
+- **[Alerts](/docs/events-notifications/alerts)**: `AlertUtils`, for structured, priority-leveled incident alerts (PagerDuty/Opsgenie-style), aimed at your team rather than your users.

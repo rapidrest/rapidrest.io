@@ -12,7 +12,7 @@ automatically at startup, by the `ClassLoader`.
 ## How it works
 
 When the server starts, it recursively scans the project's source directory (`.ts`/`.tsx`/`.js` files, configurable), imports every module it finds,
-and registers each exported class — default or named — with the dependency injection container (the [ObjectFactory](/docs/core-concepts/dependency-injection)).
+and registers each exported class (default or named) with the dependency injection container (the [ObjectFactory](/docs/core-concepts/dependency-injection)).
 
 ```text
 src/
@@ -28,13 +28,13 @@ A class's registered name (its "fully-qualified name") is derived from its file 
 
 ## What this means in practice
 
-- **Adding a route is just adding a file.** Export a class annotated with `@Route`, and it's live on the next server start — no router file to edit.
-- **Plain service classes are injectable for free.** A class with no RapidREST decorators at all — just business logic — can still be `@Inject`-ed anywhere, because discovery doesn't care whether a class "looks like" a route or model.
+- **Adding a route is just adding a file.** Export a class annotated with `@Route`, and it's live on the next server start. No router file to edit.
+- **Plain service classes are injectable for free.** A class with no RapidREST decorators at all, just business logic, can still be `@Inject`-ed anywhere, because discovery doesn't care whether a class "looks like" a route or model.
 - **Neither file location or naming convention matter.** Discovery is purely based on "is this file under the scanned directory and does it export a class," not on filename suffixes like `*.route.ts`, or sub-folder placement like `routes`.
 
 ## Excluding files
 
-Not every file under your source tree should be scanned — your server's own entry point and config file, for instance, don't export anything meant for injection. Exclude them via the `class_loader:ignore` configuration key (an array of regular expressions matched against filenames):
+Not every file under your source tree should be scanned. Your server's own entry point and config file, for instance, don't export anything meant for injection. Exclude them via the `class_loader:ignore` configuration key (an array of regular expressions matched against filenames):
 
 ```ts
 conf.defaults({

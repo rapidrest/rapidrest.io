@@ -28,7 +28,7 @@ The CLI scaffold generates exactly this at `src/routes/AdminRoute.ts`, mounted a
 | `restart` | `GET /admin/restart` | Signals the service to restart. |
 
 Every endpoint requires `@Auth(["jwt"])`, and `clearCache`, `getReleaseNotes` and `restart` additionally require the caller to hold one of the roles
-listed in `trusted_roles` — there is no way to reach them anonymously.
+listed in `trusted_roles`. There is no way to reach them anonymously.
 
 ## Configuration
 
@@ -43,20 +43,20 @@ conf.defaults({
 });
 ```
 
-- **`clearCache`** only does anything useful if a `cache` datastore is configured — it scans and deletes keys matching `db.cache.*` on that
+- **`clearCache`** only does anything useful if a `cache` datastore is configured. It scans and deletes keys matching `db.cache.*` on that
   connection.
 - **`logs`** requires a `logs` datastore. On startup, `BaseAdminRoute` attaches a Winston transport (`RedisTransport`) that publishes every log line
   to a `<service_name>-logs` Redis channel; the WebSocket endpoint subscribes to that same channel and forwards messages to the connected client. If
   `logs` isn't configured, the route logs a warning at startup and the endpoint closes any connection attempt.
 - **`restart`** publishes a `RESTART` message on a `<service_name>` (or `service_admin`, if `service_name` is unset) channel over the `cache`
-  connection. `BaseAdminRoute` also subscribes to that same channel on startup, so any instance sharing that Redis connection — including the one
-  that issued the request — will receive the signal and call `process.kill(process.pid, "SIGINT")` on itself. In a multi-instance deployment behind
+  connection. `BaseAdminRoute` also subscribes to that same channel on startup, so any instance sharing that Redis connection (including the one
+  that issued the request) will receive the signal and call `process.kill(process.pid, "SIGINT")` on itself. In a multi-instance deployment behind
   a shared Redis, a single `/admin/restart` call restarts every instance listening on that channel.
 
 ## Locking it down further
 
-Because `AdminRoute` is a normal class in your project, you can tighten access beyond `trusted_roles` — for example, mounting it on a different base
-path that's only reachable from an internal network, or overriding `trustedRoles` to a narrower list:
+Because `AdminRoute` is a normal class in your project, you can tighten access beyond `trusted_roles`. For example, mount it on a different base
+path that's only reachable from an internal network, or override `trustedRoles` to a narrower list:
 
 ```ts
 @Route("/internal/admin")

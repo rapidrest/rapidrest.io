@@ -5,7 +5,7 @@ sidebar_label: ACL
 
 # `BaseACLRoute`
 
-`BaseACLRoute<T>` exposes full CRUD management over [Access Control List](/docs/auth-rbac/authorization) records — the same records that
+`BaseACLRoute<T>` exposes full CRUD management over [Access Control List](/docs/auth-rbac/authorization) records: the same records that
 `@Protect` seeds at startup and `ACLUtils` consults on every permission check. Unlike the other base routes, it's generic over which
 `AccessControlList` model your project persists to: `AccessControlListMongo` for MongoDB projects, `AccessControlListSQL` for PostgreSQL/SQLite
 ones.
@@ -31,12 +31,12 @@ export class ACLRoute extends BaseACLRoute<AccessControlListSQL> {}
 ```
 
 The CLI scaffold generates the matching variant automatically at `src/routes/ACLRoute.ts`, mounted at `/acls`, for any project with a database
-selected — the same condition that generates `AuthRoute` and `UserRoute`. Projects with no database feature selected don't get an `ACLRoute`, since
+selected. That's the same condition that generates `AuthRoute` and `UserRoute`. Projects with no database feature selected don't get an `ACLRoute`, since
 there's nowhere for it to persist to.
 
 ## What it's built on
 
-`BaseACLRoute` extends [`CRUDRoute`](/docs/auto-crud-routes) — so it exposes the same full set of CRUD endpoints (`HEAD /acls`, `POST /acls`,
+`BaseACLRoute` extends [`CRUDRoute`](/docs/auto-crud-routes), so it exposes the same full set of CRUD endpoints (`HEAD /acls`, `POST /acls`,
 `GET /acls`, `GET /acls/:id`, `PUT /acls/:id`, `PUT /acls`, `DELETE /acls/:id`, `DELETE /acls`, `PUT /acls/:id/:property`) documented on that page,
 with ACL-specific permission checks layered on top via `@Before`.
 
@@ -53,6 +53,6 @@ trusted role unconditionally.
 ## Protection for `default_*` records
 
 RapidREST regenerates a `default_<uid>` record from your `@Protect` decorators on every server startup (see `ACLUtils.saveDefaultACL` in
-[Authorization](/docs/auth-rbac/authorization)) — these seed the user-editable override record and are never meant to be edited directly, since
+[Authorization](/docs/auth-rbac/authorization)). These seed the user-editable override record and are never meant to be edited directly, since
 changes to them are discarded on the next restart. `update` and `delete` both reject any `id` starting with `default_`, even for a trusted-role
 caller, to prevent that confusion.

@@ -47,6 +47,10 @@ The root export is database-agnostic (strategy logic, config types). The `/mongo
 3. **Base routes** ([Base Routes](/docs/auth/routes)) wire a strategy or a model up to HTTP: subclass a `Base*Mongo`/`Base*SQL` route, add `@Route(path)`, and you have a working endpoint.
 4. **Configuration** ([Configuration](/docs/auth/configuration)) ties it together via `@rapidrest/core`'s config system — no dedicated config schema is shipped, it's the same `@Config` decorator you'd use anywhere else in a RapidREST project.
 
+## Reference implementation
+
+[`auth-server`](https://github.com/rapidrest/auth-server) is a complete, deployable authorization server built with `@rapidrest/auth` — every strategy, every model, and every base route wired up and running, with both a MongoDB and a SQL (PostgreSQL) variant of the whole server side by side (`src/mongo/routes/` and `src/sql/routes/`). It's the fastest way to see the pieces documented across this section assembled into a real project, and a reasonable starting point to fork if you're standing up your own auth server. Several of the route and config examples on the following pages closely mirror it.
+
 ## What's next
 
 - [Data Models](/docs/auth/data-models): `User`, `Alias`, `Secret`, `Profile`.

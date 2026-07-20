@@ -21,16 +21,20 @@ One per strategy. Each is `GET`/`POST /` behind `@Auth([strategyName])`, and ret
 | `BaseAuthPasskeyRoute` | `PasskeyStrategy` | `@Config("auth:passkey")` |
 | `BaseAuthTOTPRoute` | `TOTPStrategy` | `@Config("auth")` |
 
+This is the exact class used by [`auth-server`](https://github.com/rapidrest/auth-server)'s Basic strategy route:
+
 ```ts
 import { RouteDecorators } from "@rapidrest/service-core";
 import { BaseAuthBasicRouteMongo } from "@rapidrest/auth/mongo";
-const { Route } = RouteDecorators;
+const { ApiRoute } = RouteDecorators;
 
-@Route("/auth/password")
+@ApiRoute("/auth/password")
 export class AuthBasicRoute extends BaseAuthBasicRouteMongo {}
 ```
 
-`BaseAuthOIDCRoute` needs one more thing: since a single strategy class can front multiple providers, your subclass supplies which one by overriding `providerConfig`.
+Every other auth-flow route in the table above follows the identical one-line pattern — swap in the matching `Base*Mongo`/`Base*SQL` class and a `@Route`/`@ApiRoute` path (see [`auth-server`'s `src/mongo/routes/`](https://github.com/rapidrest/auth-server/tree/main/src/mongo/routes) for all seven side by side).
+
+`BaseAuthOIDCRoute` needs one more thing: since a single strategy class can front multiple providers, your subclass supplies which one by overriding `providerConfig`. `auth-server` wires up a single provider this way; the example below extends that to show naming a specific provider (`google`) so multiple providers could be registered concurrently under different names and paths.
 
 ```ts
 import { RouteDecorators, ObjectDecorators } from "@rapidrest/service-core";
@@ -80,8 +84,10 @@ export class AuthGoogleRoute extends BaseAuthOIDCRouteMongo {
 ```ts
 import { RouteDecorators } from "@rapidrest/service-core";
 import { BaseSecretRouteMongo } from "@rapidrest/auth/mongo";
-const { Route } = RouteDecorators;
+const { ApiRoute } = RouteDecorators;
 
-@Route("/secrets")
+@ApiRoute("/secrets")
 export class SecretRoute extends BaseSecretRouteMongo {}
 ```
+
+Again taken directly from `auth-server` — `UserRoute`, `AliasRoute`, and `ProfileRoute` are the same one-liner with the matching class swapped in.

@@ -7,6 +7,8 @@ sidebar_label: Configuration
 
 `@rapidrest/auth` doesn't ship a dedicated config schema or setup step. It plugs into the same `nconf`-based `@Config` system every other part of a RapidREST project uses — see [Configuration](/docs/core-concepts/configuration) for how that works generally. The config keys below are simply what the strategies and routes look for.
 
+The block below is adapted from [`auth-server`](https://github.com/rapidrest/auth-server)'s own `src/config.mongo.ts` — its `src/config.sql.ts` counterpart configures the same `auth`/`session` keys identically, only the `datastores` block differs (Postgres instead of MongoDB).
+
 ```ts
 // src/config.ts
 auth: {

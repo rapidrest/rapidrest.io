@@ -8,7 +8,7 @@ sidebar_label: Strategies
 `@rapidrest/auth` ships seven `AuthStrategy` implementations. Each registers itself against `AuthMiddleware` under a name, and that name is what you pass to `@Auth([...])` on a route — the same mechanism [Authentication](/docs/auth-rbac/authentication) already documents for `JWTStrategy`.
 
 :::note[Session requirement]
-`FIDO2Strategy`, `PasskeyStrategy`, `OIDCStrategy`, `OTPStrategy`, and `MFAStrategy` all need `session` configured — they store challenge/state between the first and second request of a login flow. `BasicStrategy` and `TOTPStrategy` don't, since they verify in a single request. See [Configuration](/docs/auth/configuration).
+`FIDO2Strategy`, `PasskeyStrategy`, `OIDCStrategy`, `OTPStrategy`, and `MFAStrategy` all need `session` configured — they store challenge/state between the first and second request of a login flow. `BasicStrategy` and `TOTPStrategy` don't, since they verify in a single request. See [Configuration](/docs/auth/configuration) and [HTTP Engine → Sessions](/docs/http-engine/sessions) for how the underlying session system works.
 :::
 
 ## `BasicStrategy` (`basic`)

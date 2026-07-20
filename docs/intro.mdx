@@ -47,7 +47,7 @@ RapidREST is split into a small number of focused packages that build on each ot
 | Package | What it does |
 |---|---|
 | `@rapidrest/core` | Dependency injection (`@Inject`, `@Config`, `@Logger`), automatic class discovery, and shared utilities (JWT, notifications, telemetry). |
-| `@rapidrest/service-core` | The HTTP server itself, built on [uWebSockets.js](https://github.com/uNetworking/uWebSockets.js). Routing, models & persistence, auth & RBAC, background jobs, and automatic OpenAPI generation. |
+| `@rapidrest/service-core` | The HTTP server itself — a dual-engine design ([uWebSockets.js](https://github.com/uNetworking/uWebSockets.js) on Node.js, `Bun.serve()` on Bun, see [HTTP Engine](/docs/http-engine)). Routing, models & persistence, auth & RBAC, background jobs, and automatic OpenAPI generation. |
 | `@rapidrest/react` | Server-side-rendered React pages, layered on top of `service-core`. |
 | `@rapidrest/auth` | Library for common authentication strategies: password, TOTP, OTP, WebAuthn passkeys/FIDO2, MFA, and OIDC. |
 | `@rapidrest/cli` | Project scaffolding and the local dev workflow (`rapidrest generate ...`, `rapidrest dev`). |

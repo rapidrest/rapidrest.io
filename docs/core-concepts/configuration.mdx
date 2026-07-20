@@ -35,7 +35,7 @@ conf.defaults({
   class_loader: {
     ignore: [/server\..*/, /config\..*/],
   },
-  cors: {origin: ['http://localhost:3000']},
+  cors: {origins: ['http://localhost:3000']},
   datastores: {
     mongo: {type: 'mongodb', host: 'localhost', database: 'my_api'},
   },
@@ -75,7 +75,10 @@ protected trustedRoles: string[] = ['admin'];
 | `rbac:enabled` | Turns the RBAC/ACL permission system on or off globally |
 | `trusted_roles` | Roles that bypass ACL permission checks entirely |
 | `class_loader:ignore` | Regexes for files to exclude from auto-discovery |
-| `cors` | CORS origin configuration |
+| `port` / `listen_host` / `ssl` / `max_body_size` | Server bind address and TLS — see [HTTP Engine](/docs/http-engine) |
+| `session` | Server-side session config — see [Sessions](/docs/http-engine/sessions) |
+| `cors` | CORS allow-list (`cors.origins`) — see [Cookies & CORS](/docs/http-engine/cookies-cors) |
+| `headers` | Extra response headers applied to every request — see [Cookies & CORS](/docs/http-engine/cookies-cors) |
 | `logger:level` | Winston log level |
 
 You'll see most of these referenced again in [Models & Persistence](/docs/models-persistence) and [Auth & RBAC](/docs/auth-rbac) as they come up.

@@ -36,6 +36,9 @@ The `@Param('id')` injected value will extract the `:id` portion of the HTTP req
 portion will extract the value for the query paramater key `version` (e.g. `GET /my-pet?version=3` → `3`). Finally, the `@User` injects the
 authenticated user (if applicable).
 
+The `@Request`-injected object also carries `req.cookies` and, if [sessions](/docs/http-engine/sessions) are configured, `req.session` — see
+[HTTP Engine → Sessions](/docs/http-engine/sessions) and [HTTP Engine → Cookies & CORS](/docs/http-engine/cookies-cors).
+
 ## The request body
 
 The first handler argument that **isn't** decorated automatically receives the parsed request body. Note that this can be anywhere in the function

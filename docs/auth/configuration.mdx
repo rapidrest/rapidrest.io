@@ -54,7 +54,8 @@ auth: {
 
 // Required by FIDO2Strategy, PasskeyStrategy, OIDCStrategy, OTPStrategy, and
 // MFAStrategy — they store challenge/flow state in the session between
-// requests.
+// requests. See HTTP Engine → Sessions for the full option list and how it
+// works generally.
 session: {
   secret: "change-me-in-production",
   cookieName: "rrst.sid",
@@ -62,4 +63,4 @@ session: {
 },
 ```
 
-`auth.strategy` and `auth.secret`/`auth.options` are exactly what [Authentication](/docs/auth-rbac/authentication) already documents for `JWTStrategy` — `@rapidrest/auth`'s routes mint tokens through the same `JWTUtils.createToken` call, so there's nothing extra to configure there. `oidc`, `passkey`, `fido2`, and `totp` are only read by the strategies you actually use; omit whichever you don't need.
+`auth.strategy` and `auth.secret`/`auth.options` are exactly what [Authentication](/docs/auth-rbac/authentication) already documents for `JWTStrategy` — `@rapidrest/auth`'s routes mint tokens through the same `JWTUtils.createToken` call, so there's nothing extra to configure there. `oidc`, `passkey`, `fido2`, and `totp` are only read by the strategies you actually use; omit whichever you don't need. `session` is a general `service-core` feature, not specific to this package — see [HTTP Engine → Sessions](/docs/http-engine/sessions) for the full set of options and how it works under the hood.

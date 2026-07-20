@@ -1,0 +1,59 @@
+---
+sidebar_position: 3
+sidebar_label: Cookies & CORS
+---
+
+# Cookies & CORS
+
+## Cookies
+
+Every request has its `Cookie` header parsed automatically, no configuration needed:
+
+```ts
+@Get('/')
+async index(@Request req: HttpRequest) {
+  const theme = req.cookies['theme'] ?? 'light';
+  // ...
+}
+```
+
+There's no built-in `res.cookie()` helper. To set a cookie yourself, write the `Set-Cookie` header directly:
+
+```ts
+res.setHeader('Set-Cookie', 'theme=dark; Path=/; Max-Age=31536000');
+```
+
+Keep in mind the single-`Set-Cookie`-per-response limitation described in [Sessions](/docs/http-engine/sessions) — if sessions are active, its cookie will collide with one you set by hand this way.
+
+`req.signedCookies` exists on the request type but isn't populated by anything today — don't rely on it.
+
+## CORS
+
+```ts
+conf.defaults({
+  cors: {
+    origins: ['https://my-app.example.com'],
+  },
+});
+```
+
+| Config | Behavior |
+|---|---|
+| `cors.origins` unset, or no match | `Access-Control-Allow-Origin: *`, no credentials |
+| `cors.origins` set and the request's `Origin` matches | That origin is reflected back, plus `Access-Control-Allow-Credentials: true` |
+
+`cors.origins` accepts a single origin string or an array. Note the key is `origins` (plural) — `cors.origin` is not read.
+
+Regardless of configuration, every response also gets a fixed set of allowed methods (`GET, HEAD, OPTIONS, PUT, POST, DELETE`) and allowed headers (`Accept, Authorization, Content-Type, Location, Origin, Set-Cookie, X-Requested-With`), and `OPTIONS` preflight requests are answered directly with `204` before reaching your route.
+
+## Global response headers
+
+```ts
+conf.defaults({
+  headers: {
+    'x-powered-by': 'RapidREST', // default
+  },
+});
+```
+
+Anything under `headers` is applied to every outgoing response, regardless of route.

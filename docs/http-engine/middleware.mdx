@@ -1,0 +1,21 @@
+---
+sidebar_position: 5
+sidebar_label: Global Middleware
+---
+
+# Global Middleware
+
+Most middleware-like behavior in RapidREST is per-route, expressed with decorators — auth strategies, `@RequiresRole`/ACL checks, `@Validate`, `@Before`/`@After` — all covered in [Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation). That's what you want for almost everything.
+
+Separately, the underlying router also supports Express-style global middleware via `.use()`, registered once and run for every request before route matching. The framework uses this itself, internally, to implement [CORS](/docs/http-engine/cookies-cors), [Sessions](/docs/http-engine/sessions), global response [headers](/docs/http-engine/cookies-cors#global-response-headers), Prometheus metrics, and top-level error handling — none of which are tied to any single route.
+
+If you're wiring `service-core` into a project by hand and need something to run on every request regardless of route, you can register it the same way:
+
+```ts
+server.getApplication().use(async (req, res, next) => {
+  // runs before route matching, for every request
+  next();
+});
+```
+
+Reach for this only for genuinely cross-cutting, route-independent concerns — for anything scoped to a specific route or set of routes, the per-route lifecycle pipeline in [Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation) is almost always the better fit.

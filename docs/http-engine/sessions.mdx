@@ -1,0 +1,58 @@
+---
+sidebar_position: 2
+sidebar_label: Sessions
+---
+
+# Sessions
+
+Server-side sessions are opt-in: they're only active when a `session` config block is present. If you're only using stateless JWT auth, you don't need this at all — it's for anything that needs short-lived state between requests, most notably the challenge/response flows in [`@rapidrest/auth`](/docs/auth) (FIDO2, Passkey, OIDC, OTP, and MFA all require it — see [Auth Server → Strategies](/docs/auth/strategies) and [Auth Server → Configuration](/docs/auth/configuration)).
+
+```ts
+conf.defaults({
+  session: {
+    secret: 'change-me-in-production',
+    cookieName: 'rrst.sid', // default
+    ttl: 1800,              // seconds, default
+    store: 'memory',        // 'memory' | 'redis', default auto-selects
+    cookieSecure: false,    // default
+    cookieSameSite: 'Lax',  // default
+    cookiePath: '/',        // default
+  },
+});
+```
+
+| Key | Default | Notes |
+|---|---|---|
+| `secret` | — | Required. Falls back to a top-level `cookie_secret` if set instead. Signs the session-id cookie |
+| `cookieName` | `rrst.sid` | |
+| `ttl` | `1800` | Session and cookie lifetime, in seconds |
+| `store` | auto | `memory` or `redis`. If omitted, `redis` is used automatically when a `cache` datastore is configured, otherwise `memory` |
+| `cookieSecure` | `false` | Adds the `Secure` cookie attribute |
+| `cookieSameSite` | `Lax` | `SameSite` cookie attribute |
+| `cookiePath` | `/` | `Path` cookie attribute |
+
+## How it works
+
+The session id is a random value, HMAC-signed with `secret` and sent as `cookieName`. Session data itself is kept server-side, in one of two stores:
+
+- **`MemorySessionStore`** — an in-process map, swept every 60 seconds to evict expired entries. Fine for single-instance deployments or local dev; doesn't survive a restart and isn't shared across instances.
+- **`RedisSessionStore`** — keyed `session:<id>`, backed by whichever `cache` datastore you've configured (see [Datastores & Connections](/docs/models-persistence/datastores)). Use this for anything running more than one instance.
+
+## Using it in a route
+
+Session data is a plain object on the request — read and write it directly, no explicit save call needed:
+
+```ts
+@Get('/cart')
+async getCart(@Request req: HttpRequest) {
+  req.session ??= {};
+  req.session.viewCount = (req.session.viewCount ?? 0) + 1;
+  return { cart: req.session.cart ?? [] };
+}
+```
+
+Whatever's in `req.session` at the end of the handler is persisted automatically once the response finishes — there's no `session.save()` to remember to call. Sessions that are empty at the end of the request are never written or looked up in the store at all, so requests from clients with no active session cost nothing extra.
+
+:::note[Only one `Set-Cookie` per response]
+Both engines store outgoing headers as a single value per key, so only one `Set-Cookie` header can be sent per response today. The session middleware is typically the first (and often only) thing setting one — if you also need to set a cookie by hand (see [Cookies & CORS](/docs/http-engine/cookies-cors)), be aware a second `res.setHeader('Set-Cookie', ...)` call will overwrite the session's cookie rather than adding to it.
+:::

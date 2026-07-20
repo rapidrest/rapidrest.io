@@ -1,0 +1,85 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+# HTTP Engine
+
+`@rapidrest/service-core` has two HTTP backends: the default is built on [uWebSockets.js](https://github.com/uNetworking/uWebSockets.js) (uWS) running under Node.js, the alternative is built directly on Bun's `Bun.serve()`. Which one runs is auto-detected at startup — there's nothing to configure in your project's code, and see [Deployment → Bun](/docs/deployment/bun) if you want to opt into the Bun engine.
+
+## Why two engines, and why it doesn't matter to you
+
+`Server.ts` picks a backend once, at boot:
+
+```ts
+if (isBunRuntime()) {
+  // Bun.serve()-backed router
+} else {
+  // uWebSockets.js-backed router
+}
+```
+
+Both are loaded via a dynamic `import()`, specifically so the uWS native binary is never touched when running under Bun, and vice versa.
+
+The important part isn't which one is picked — it's that **everything else in the framework is built against one shared abstraction**, `IHttpRouter`, and the request/response types `HttpRequest`/`HttpResponse`. Routing, CORS, sessions, JWT auth, RBAC/ACL, Prometheus metrics, error handling, static files, and WebSocket connections are all implemented once, purely in terms of that abstraction — none of it references uWS or Bun directly. That's why every other page in these docs (routing, auth, default routes, and the rest of this section) applies identically no matter which engine is running underneath.
+
+A few things do differ only in the internal plumbing, transparent to you as a user:
+- **Route matching** — uWS uses its native trie router; the Bun backend hand-rolls an equivalent matcher built to reproduce uWS's exact precedence rules (static path beats `:param` beats `/*` wildcard).
+- **SSL config** — you write the same `ssl` block either way (see below); uWS consumes it as file *paths*, the Bun adapter reads the same paths into file contents internally.
+- **Request body size enforcement** — both enforce `max_body_size`, uWS by counting streamed chunks, Bun by also fast-rejecting on an oversized declared `Content-Length` first.
+
+None of this changes how you write a route, a strategy, or a config file.
+
+## The request/response objects
+
+`HttpRequest` and `HttpResponse` are the same shape regardless of engine — this is what `@Request`/`@Response` inject into your handlers (see [Request Parameters](/docs/routing-controllers/request-parameters)):
+
+```ts
+interface HttpRequest {
+  method: string;
+  path: string;
+  headers: Record<string, string | string[] | undefined>;
+  params: Record<string, string>;
+  query: Record<string, string | string[]>;
+  body: any;
+  cookies: Record<string, string>;
+  session?: Record<string, any>; // only set when session middleware is registered, see Sessions
+  user?: any;                    // set by JWT auth middleware
+  // ...
+}
+
+interface HttpResponse {
+  statusCode: number;
+  status(code: number): this;
+  setHeader(key: string, value: string | number): this;
+  json(data: any): void;
+  send(data?: any): void;
+  end(data?: any): void;
+  // ...
+}
+```
+
+The rest of this section covers what's built directly into this layer: [Sessions](/docs/http-engine/sessions), [Cookies & CORS](/docs/http-engine/cookies-cors), [Streaming Responses](/docs/http-engine/streaming), and [Global Middleware](/docs/http-engine/middleware).
+
+## Server configuration
+
+| Key | Default | Purpose |
+|---|---|---|
+| `port` | `3000` | Listen port |
+| `listen_host` | `0.0.0.0` | Bind host. Use `::` to bind all interfaces including IPv6 |
+| `ssl.key` / `ssl.cert` / `ssl.ca` / `ssl.passphrase` | — | File paths enabling HTTPS/TLS. Same shape on both engines |
+| `max_body_size` | `10485760` (10 MiB) | Maximum request body size before the request is rejected with `413 Payload Too Large` |
+
+```ts
+conf.defaults({
+  port: 3000,
+  listen_host: '0.0.0.0',
+  ssl: {
+    key: './certs/server.key',
+    cert: './certs/server.crt',
+  },
+  max_body_size: 10 * 1024 * 1024,
+});
+```
+
+For how RapidREST compares to Express, Fastify, and Next.js under load, see [Performance](/docs/performance) — that page's numbers are all on the uWS/Node engine; there's no published Bun-vs-uWS comparison yet.

@@ -1,0 +1,65 @@
+---
+sidebar_position: 5
+sidebar_label: Configuration
+---
+
+# Configuration
+
+`@rapidrest/auth` doesn't ship a dedicated config schema or setup step. It plugs into the same `nconf`-based `@Config` system every other part of a RapidREST project uses — see [Configuration](/docs/core-concepts/configuration) for how that works generally. The config keys below are simply what the strategies and routes look for.
+
+```ts
+// src/config.ts
+auth: {
+  strategy: "auth.JWTStrategy", // service-core's JWTStrategy remains the framework-wide default
+  secret: "change-me-in-production",
+  options: {
+    expiresIn: "7 days",
+    audience: "my-api.example.com",
+    issuer: "api.example.com",
+  },
+  oidc: {
+    // -> BaseAuthOIDCRoute's providerConfig, via @Config("auth:oidc")
+    name: "google",
+    authorizationURL: "https://accounts.google.com/o/oauth2/v2/auth",
+    clientID: "...",
+    clientSecret: "...",
+    profileURL: "...",
+    protocol: "openid",
+    redirectURI: "https://my-api.example.com/auth/oidc",
+    tokenURL: "https://oauth2.googleapis.com/token",
+  },
+  passkey: {
+    // -> @Config("auth:passkey")
+    rpName: "My API",
+    rpID: "my-api.example.com",
+    origin: "https://my-api.example.com",
+  },
+  fido2: {
+    // -> @Config("auth:fido2")
+    rpName: "My API",
+    rpID: "my-api.example.com",
+    origin: "https://my-api.example.com",
+    authenticatorAttachment: "cross-platform",
+    residentKey: "discouraged",
+  },
+  totp: {
+    // -> @Config("auth:totp")
+    issuer: "My API",
+    digits: 6,
+    period: 30,
+    algorithm: "sha1",
+    epochTolerance: [5, 0],
+  },
+},
+
+// Required by FIDO2Strategy, PasskeyStrategy, OIDCStrategy, OTPStrategy, and
+// MFAStrategy — they store challenge/flow state in the session between
+// requests.
+session: {
+  secret: "change-me-in-production",
+  cookieName: "rrst.sid",
+  ttl: 300,
+},
+```
+
+`auth.strategy` and `auth.secret`/`auth.options` are exactly what [Authentication](/docs/auth-rbac/authentication) already documents for `JWTStrategy` — `@rapidrest/auth`'s routes mint tokens through the same `JWTUtils.createToken` call, so there's nothing extra to configure there. `oidc`, `passkey`, `fido2`, and `totp` are only read by the strategies you actually use; omit whichever you don't need.

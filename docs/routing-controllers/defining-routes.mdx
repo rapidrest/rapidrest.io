@@ -35,6 +35,29 @@ const {Route} = RouteDecorators;
 export class PetRoute {}
 ```
 
+## API-Versioned Routes (using `@ApiRoute`)
+
+`@ApiRoute(paths, version?)` is a drop-in alternative to `@Route` that prepends `/api` (or `/api/v{version}`, if a version is given) to every path.
+Everything else about the class — handler functions, sub-paths, `@Auth`, `@Protect` — works identically.
+
+```ts
+import { RouteDecorators } from '@rapidrest/service-core';
+const { ApiRoute } = RouteDecorators;
+
+@ApiRoute('/pets')
+export class PetRoute {}
+// GET /pets -> GET /api/pets
+```
+
+```ts
+@ApiRoute('/pets', 2)
+export class PetRouteV2 {}
+// GET /pets -> GET /api/v2/pets
+```
+
+The CLI's `--api [version]` flag (available on `generate route`, `generate server`, and `generate default-route`) scaffolds classes using `@ApiRoute`
+instead of `@Route` — see [CLI Reference](/docs/cli-reference).
+
 ## HTTP Handler Functions
 
 As mentioned above, RapidREST does not bind a route until a HTTP handler function is defined in a route class. To define an HTTP handler function

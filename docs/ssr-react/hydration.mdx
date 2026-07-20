@@ -1,0 +1,96 @@
+---
+sidebar_position: 6
+sidebar_label: Hydration & Production Builds
+---
+
+# Hydration & Production Builds
+
+Everything in [Getting Started](/docs/ssr-react/getting-started) through [Dev Mode](/docs/ssr-react/dev-mode) renders pages entirely on the server. This page covers making them interactive in the browser (client-side hydration) and what changes in production.
+
+## Vite configuration
+
+`@rapidrest/react` uses Vite purely as a build tool — RapidREST is the only runtime server, Vite never runs its own dev server. `createViteConfig` auto-discovers your page components and generates the client hydration entry points for you, so you don't hand-write a `*.entry.tsx` file per page.
+
+```ts
+// vite.config.ts
+import { createViteConfig } from '@rapidrest/react/vite';
+
+export default createViteConfig({ appDir: 'apps/app' });
+```
+
+```ts
+export interface RapidRestViteOptions {
+  appDir?: string;   // default: "app"
+  outDir?: string;   // default: "dist/public"
+  plugins?: any[];   // additional Vite plugins, e.g. @tailwindcss/vite
+}
+```
+
+:::note[`appDir` defaults don't match]
+`createViteConfig`'s `appDir` defaults to `"app"`, but `ReactRoute.appDir` (the property you'd override on your route subclass, see [Getting
+Started](/docs/ssr-react/getting-started)) defaults to `"apps/app"`. If you're following this doc set's convention of an
+`apps/app` directory, pass `appDir: 'apps/app'` to `createViteConfig` explicitly — the two defaults aren't wired together.
+:::
+
+`outDir` (default `dist/public`) should resolve to the directory RapidREST auto-serves static files from in production.
+
+## Enabling hydration
+
+By default, pages render to static HTML with no client-side JavaScript. To hydrate a page — attach React on the client so it becomes interactive — set `hydrate = true` on your route subclass:
+
+```ts
+@Route('/app')
+export class AppRouter extends ReactRoute {
+  protected override readonly hydrate: boolean = true;
+}
+```
+
+| Property | Default | What it controls |
+|---|---|---|
+| `hydrate` | `false` | Whether pages under this route render a hydration root and load client JS |
+| `hydrateRootId` | `"react-root"` | `id` of the DOM element React hydrates into |
+| `hydratePropsId` | `"react-props"` | `id` of the `<script type="application/json">` element carrying serialized props to the client |
+
+In production, `hydrate = true` requires `react:manifestPath` to be configured (see below) — that's how `ReactRoute` knows which built client bundle to reference for each page.
+
+## The `/client` subpath
+
+Each page component that hydrates needs a small client-side entry that reads the server-injected props and calls `hydrateRoot`. `createViteConfig`'s auto-discovery generates this for you per page, calling into `@rapidrest/react/client`:
+
+```ts
+import { hydrateRoute, getHydrationProps } from '@rapidrest/react/client';
+
+// hydrateRoute(Component, rootId?, propsId?) — reads props from the DOM and hydrates
+hydrateRoute(PageComponent);
+
+// getHydrationProps(propsId?) — just the props, if you need them without hydrating
+const props = getHydrationProps();
+```
+
+You typically don't call these directly — they're what the generated virtual entry modules use — but they're useful if you need a custom hydration entry point.
+
+## Production: the Vite manifest
+
+```ts
+conf.defaults({
+  react: {
+    manifestPath: 'dist/public/.vite/manifest.json',
+  },
+});
+```
+
+When `NODE_ENV=production` and `react:manifestPath` is set, `ReactRoute` reads the Vite-generated manifest to resolve each page's hashed script/style URLs. In dev mode, the manifest (if present) is watched and hot-reloaded instead.
+
+## Production: Redis response caching
+
+`ReactRoute` already declares `cacheClient` for you, bound to a `cache` datastore via `@RedisConnection("cache")`:
+
+```ts
+// on ReactRoute itself, nothing you need to write:
+@RedisConnection("cache")
+protected cacheClient?: Redis;
+
+protected readonly cacheTTL: number = 60; // seconds, override on your subclass if needed
+```
+
+When `NODE_ENV=production` and a `cache` datastore is configured (see [Datastores & Connections](/docs/models-persistence/datastores)), `ReactRoute` caches the fully rendered HTML for a request (keyed by a hash of the request) for `cacheTTL` seconds, and serves the cached response on subsequent matching requests instead of re-rendering. Without a `cache` datastore, `cacheClient` is `undefined` and caching is simply skipped.

@@ -49,6 +49,7 @@ Adds a route class.
 ```bash
 rapidrest generate route ProductRoute
 rapidrest generate route ProductRoute --model Product --protect
+rapidrest generate route ProductRoute --api 2
 ```
 
 | Flag | Description |
@@ -59,6 +60,7 @@ rapidrest generate route ProductRoute --model Product --protect
 | `--path <route-path>` | Base path, e.g. `/api/v1/products` |
 | `--model <name>` | Bind to a model, generates a `CRUDRoute` (see [Auto CRUD Routes](/docs/auto-crud-routes)) |
 | `--no-model` | Skip all prompts about associating a model |
+| `--api [version]` | Use `@ApiRoute` instead of `@Route` (see [Routing & Controllers](/docs/routing-controllers/defining-routes#api-versioned-routes-using-apiroute)). Pass a version to prefix the path with `/api/v<version>`; bare `--api` prefixes with `/api` only |
 | `-p`, `--protect` | Enables RBAC protection. Interactively defaults to **off** (opposite of `generate model`) |
 | `-f`, `--force` | Overwrite existing files |
 

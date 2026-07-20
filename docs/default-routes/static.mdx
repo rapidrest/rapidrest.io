@@ -1,0 +1,43 @@
+---
+sidebar_position: 8
+sidebar_label: Static Files
+---
+
+# `BaseStaticRoute`
+
+`BaseStaticRoute` serves static files from a directory on the filesystem (e.g. `./public`) under a single wildcard endpoint.
+
+```ts
+import { BaseStaticRoute, RouteDecorators } from "@rapidrest/service-core";
+const { Route } = RouteDecorators;
+
+@Route("/static")
+export class StaticRoute extends BaseStaticRoute {}
+```
+
+Like every other default route, it's not auto-registered — extend it, apply `@Route()`, and export the class from anywhere under your source tree. Use `rapidrest generate default-route --type static` to scaffold this for you (see [CLI Reference → Add-ons](/docs/cli-reference/addons)).
+
+## Endpoints
+
+| Function | HTTP Method + Path | What it does |
+|---|---|---|
+| `get` | `GET /<base_path>/*` | Serves static files from the configured `static_files` directory. |
+
+## Configuration
+
+```ts
+conf.defaults({
+  static_files: 'public', // default
+});
+```
+
+`staticDir` resolves relative to `process.cwd()`.
+
+## Path resolution
+
+- A request path ending in `/` serves `index.html` from that directory.
+- Any resolved path that would escape the configured static directory (e.g. via `../` segments) is rejected — this route is safe to expose to
+  untrusted clients.
+- A miss (file not found, or a rejected path) returns `404`.
+- The `content-type` header is set from a built-in extension map (`.html`, `.css`, `.js`, `.json`, common image/font formats, etc.); unrecognized
+  extensions fall back to `application/octet-stream`.

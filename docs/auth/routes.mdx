@@ -1,0 +1,87 @@
+---
+sidebar_position: 4
+sidebar_label: Base Routes
+---
+
+# Base Routes
+
+Like the default routes documented in [Default Routes](/docs/default-routes), `@rapidrest/auth`'s route classes are abstract and carry no `@Route` decorator of their own — you subclass the `Mongo`/`SQL` variant that matches your project's datastore and add `@Route(path)` yourself. Nothing distinguishes them from any other route in your project at runtime.
+
+## Auth-flow routes
+
+One per strategy. Each is `GET`/`POST /` behind `@Auth([strategyName])`, and returns an [`AuthResult`](/docs/auth/data-models#authresult) on success.
+
+| Class | Strategy | Config |
+|---|---|---|
+| `BaseAuthBasicRoute` | `BasicStrategy` | `@Config("auth")` (JWT signing) |
+| `BaseAuthFIDO2Route` | `FIDO2Strategy` | `@Config("auth:fido2")` |
+| `BaseAuthMFARoute` | `MFAStrategy` | `@Config("auth")` |
+| `BaseAuthOIDCRoute` | `OIDCStrategy` | `providerConfig: OIDCProvider` — an abstract field you must supply, typically via your own `@Config("auth:oidc")` |
+| `BaseAuthOTPRoute` | `OTPStrategy` | `@Config("auth")` |
+| `BaseAuthPasskeyRoute` | `PasskeyStrategy` | `@Config("auth:passkey")` |
+| `BaseAuthTOTPRoute` | `TOTPStrategy` | `@Config("auth")` |
+
+```ts
+import { RouteDecorators } from "@rapidrest/service-core";
+import { BaseAuthBasicRouteMongo } from "@rapidrest/auth/mongo";
+const { Route } = RouteDecorators;
+
+@Route("/auth/password")
+export class AuthBasicRoute extends BaseAuthBasicRouteMongo {}
+```
+
+`BaseAuthOIDCRoute` needs one more thing: since a single strategy class can front multiple providers, your subclass supplies which one by overriding `providerConfig`.
+
+```ts
+import { RouteDecorators, ObjectDecorators } from "@rapidrest/service-core";
+import { BaseAuthOIDCRouteMongo } from "@rapidrest/auth/mongo";
+import type { OIDCProvider } from "@rapidrest/auth";
+const { Route } = RouteDecorators;
+const { Config } = ObjectDecorators;
+
+@Route("/auth/oidc/google")
+export class AuthGoogleRoute extends BaseAuthOIDCRouteMongo {
+  @Config("auth:oidc:google")
+  protected providerConfig: OIDCProvider = {
+    name: "google",
+    authorizationURL: "https://accounts.google.com/o/oauth2/v2/auth",
+    clientID: "...",
+    clientSecret: "...",
+    tokenURL: "https://oauth2.googleapis.com/token",
+    redirectURI: "https://my-api.example.com/auth/oidc/google",
+    protocol: "openid",
+    scope: ["openid", "email", "profile"],
+  };
+}
+```
+
+## Data routes
+
+| Class | Extends | What it does |
+|---|---|---|
+| `BaseUserRoute` | `CRUDRoute<User>` | Standard CRUD over `User`. |
+| `BaseAliasRoute` | `CRUDRoute<Alias>` | Standard CRUD over `Alias`. |
+| `BaseProfileRoute` | `CRUDRoute<Profile>` | Standard CRUD over `Profile`. |
+| `BaseSecretRoute` | `ModelRoute<Secret>` | Full CRUD over `Secret`, plus registration ceremonies (see below). |
+
+`BaseUserRoute`, `BaseAliasRoute`, and `BaseProfileRoute` are thin, unmodified subclasses of [`CRUDRoute`](/docs/auto-crud-routes) — see that page for the full endpoint list.
+
+`BaseSecretRoute` does more, since secrets need type-specific handling and must never leak their raw `data`:
+
+| Endpoint | What it does |
+|---|---|
+| `GET /`, `GET /:id` | Find secrets. `data` is stripped from every result. |
+| `HEAD /`, `HEAD /:id` | Count / exists. |
+| `POST /` | Create a secret. Behavior depends on `type`: `password` hashes `data` with argon2; `totp` generates/validates a Base32 TOTP secret and returns an `otpauth://` provisioning URI (for QR-code enrollment) as `data.uri` instead of storing it; `fido2`/`passkey` verify a WebAuthn registration response against a session-stored challenge and replace `data` with the resulting credential. |
+| `DELETE /:id`, `DELETE /` | Delete one secret (supports `?version=`, `?purge=true`) or truncate all secrets the caller can access. |
+| `GET /passkey/register` | Begins a WebAuthn passkey registration ceremony for the authenticated caller (401 if anonymous), excluding already-registered credentials. |
+| `GET /fido2/register` | Same, for FIDO2 hardware keys — a separate relying-party config from passkeys. |
+
+```ts
+import { RouteDecorators } from "@rapidrest/service-core";
+import { BaseSecretRouteMongo } from "@rapidrest/auth/mongo";
+const { Route } = RouteDecorators;
+
+@Route("/secrets")
+export class SecretRoute extends BaseSecretRouteMongo {}
+```

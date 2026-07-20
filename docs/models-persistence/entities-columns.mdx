@@ -86,6 +86,25 @@ uid: string = uuid.v4();
 @Unique('email')
 ```
 
+## `@RequiresScope`
+
+`RequiresScope(scope: string | string[])` marks a property as readable only by clients whose token carries at least one of the given OAuth-style
+scopes. When the requesting user doesn't have a matching scope, the property is silently removed from the object rather than the request being
+rejected.
+
+```ts
+@Column()
+@RequiresScope('profile:email')
+contacts: Contact[] = [];
+```
+
+This is enforced automatically inside `RepoUtils.find()`/`findOne()` via `ObjectUtils.deleteScopedProps` — no extra wiring needed in your route. It's
+how `@rapidrest/auth`'s [`Profile`](/docs/auth/data-models#profile) model protects `contacts` and `preferences` behind `profile:email` and
+`profile:preferences` scopes.
+
+This is unrelated to the route-level `@RequiresScope` documented in [Authorization](/docs/auth-rbac/authorization#requiresscope-route-level), which
+gates an entire endpoint rather than a single field.
+
 ## A complete example
 
 ```ts

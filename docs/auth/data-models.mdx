@@ -1,0 +1,75 @@
+---
+sidebar_position: 2
+sidebar_label: Data Models
+---
+
+# Data Models
+
+`@rapidrest/auth` provides four data models. Each has a Mongo and a SQL implementation, distinguished by a `Mongo`/`SQL` suffix on the class name — e.g. `User` becomes `UserMongo` for MongoDB projects, `UserSQL` for PostgreSQL/SQLite ones, matching the convention used throughout `@rapidrest/service-core`. Import them from the matching subpath: `@rapidrest/auth/mongo` or `@rapidrest/auth/sql`.
+
+## `User`
+
+The account itself.
+
+| Field | Type | Notes |
+|---|---|---|
+| `roles` | `string[]` | Persisted. Same roles consumed by `@RequiresRole` and ACL checks elsewhere in the framework. |
+| `scopes` | `string[]` | **Not** persisted — purposefully built at runtime (from the strategy/JWT), not stored in the database. |
+| `verified` | `boolean` | Whether the account's contact info (email/phone) has been verified. |
+
+`User` implements service-core's `JWTUser`, so an authenticated `User` is exactly what `@User` injects into your route handlers elsewhere in the framework. It's locked down by `@Protect` by default — anonymous and every role are denied unless you override the ACL yourself.
+
+## `Alias`
+
+An alternate identifier for a user account: an email address, a phone number, a display name, or a third-party OAuth provider ID.
+
+| Field | Type | Notes |
+|---|---|---|
+| `alias` | `string` | The identifying value itself. Marked `@Identifier`, unique-indexed. |
+| `type` | `AliasType` | `EMAIL`, `NAME`, `OAUTH`, or `PHONE`. |
+| `userUid` | `string` | Foreign key to the owning `User`. |
+| `verified` | `boolean` | |
+
+A user can have multiple aliases — e.g. an email alias and a Google OAuth alias both pointing at the same `User`. Login flows that resolve "who is this" (basic, OTP, OIDC) look the caller up by alias.
+
+## `Secret`
+
+An authentication secret tied to a user — a hashed password, a TOTP seed, or a WebAuthn credential.
+
+| Field | Type | Notes |
+|---|---|---|
+| `data` | `any` | Shape depends on `type`: a password hash string, a `TOTPSecret` object, or a `StoredPasskeyCredential` object. |
+| `type` | `SecretType` | `FIDO2`, `PASSKEY`, `PASSWORD`, or `TOTP`. |
+| `userUid` | `string` | |
+
+For WebAuthn secrets (`fido2`/`passkey`), the `Secret`'s own `uid` is set equal to the WebAuthn credential ID, so login-time verification can look it up directly by credential ID rather than scanning a user's secrets.
+
+`data` is always stripped from API responses — see [`BaseSecretRoute`](/docs/auth/routes) for how secrets are created and returned safely.
+
+## `Profile`
+
+Additional, personally identifying information about a user.
+
+| Field | Type | Notes |
+|---|---|---|
+| `avatar` | `string?` | |
+| `birthdate` | `Date?` | |
+| `contacts` | `Contact[]` | `{contact, type: EMAIL\|PHONE, verified}`. Gated behind `@RequiresScope("profile:email")` — see [Models & Persistence → `@RequiresScope`](/docs/models-persistence/entities-columns#requiresscope). |
+| `givenName` | `string?` | |
+| `familyName` | `string?` | |
+| `preferences` | `Preferences` | `{contact: string[]}`. Gated behind `@RequiresScope("profile:preferences")`. |
+
+A `Profile`'s `uid` must equal its owning `User`'s `uid` — it's a 1:1 extension of the account, not a separately-identified resource.
+
+## `AuthResult`
+
+Not a persisted model — the response DTO every auth-flow route returns on success:
+
+```ts
+interface AuthResult {
+  token: string;
+  user: User;
+}
+```
+
+`token` is a JWT minted via `JWTUtils.createToken`, using the same `auth` config every other part of the framework uses (see [Configuration](/docs/auth/configuration)).

@@ -59,11 +59,11 @@ import {ReactRoute} from '@rapidrest/react';
 
 const {Route} = RouteDecorators;
 
-@Route('/app/*')
+@Route('/app')
 export class AppRouter extends ReactRoute {}
 ```
 
-A named prefix like `/app/*` (rather than a bare `/*`) is important: RapidREST also registers a static-file handler at `/*`, and the last-registered wildcard wins, so a named prefix keeps your pages from being shadowed by it.
+A named prefix like `/app` (rather than a bare `/`) is important: RapidREST also registers a static-file handler at `/*`, and the last-registered wildcard wins, so a named prefix keeps your pages from being shadowed by it. Don't add a trailing `/*` yourself — `ReactRoute.get()` already declares `@Get("/*")` under the hood, so `@Route('/app/*')` would register the effective path as the broken `/app/*/*`.
 
 **5. Run it**
 
@@ -77,7 +77,7 @@ The page at `apps/app/index.tsx` is now served at `/app/`. See [Dev Mode](/docs/
 The app directory isn't configured via nconf. Override the `appDir` property on your route subclass instead:
 
 ```ts
-@Route('/app/*')
+@Route('/app')
 export class AppRouter extends ReactRoute {
   protected override readonly appDir = 'apps/app';
 }

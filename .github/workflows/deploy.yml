@@ -29,8 +29,8 @@ jobs:
       # docusaurus.config.ts) generates docs directly from these packages'
       # TypeScript source, so it needs them checked out as siblings of
       # rapidrest.io — matching the layout expected locally. Add another
-      # checkout here (and a matching devDependency/plugin entry in
-      # docusaurus.config.ts) when @rapidrest/react's API is ready to include.
+      # checkout here (and a matching plugin entry in docusaurus.config.ts)
+      # for any future package once its API is ready to include.
       - name: Checkout core
         uses: actions/checkout@v4
         with:
@@ -42,6 +42,18 @@ jobs:
         with:
           repository: rapidrest/service-core
           path: service-core
+
+      - name: Checkout auth
+        uses: actions/checkout@v4
+        with:
+          repository: rapidrest/auth
+          path: auth
+
+      - name: Checkout react
+        uses: actions/checkout@v4
+        with:
+          repository: rapidrest/react
+          path: react
 
       - name: Enable Corepack (for Yarn Berry)
         run: corepack enable
@@ -62,6 +74,14 @@ jobs:
 
       - name: Install service-core dependencies
         working-directory: service-core
+        run: yarn install --immutable
+
+      - name: Install auth dependencies
+        working-directory: auth
+        run: yarn install --immutable
+
+      - name: Install react dependencies
+        working-directory: react
         run: yarn install --immutable
 
       - name: Install dependencies

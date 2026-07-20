@@ -62,7 +62,7 @@ Because this is a plain class discovered by [auto-discovery](/docs/core-concepts
 The route class mounting your app (the one extending `ReactRoute`) can also override `fetchProps` directly. This is the last, most authoritative layer, and a good place for cross-cutting data every page needs:
 
 ```ts
-@Route('/app/*')
+@Route('/app')
 export class AppRouter extends ReactRoute {
   protected override async fetchProps(req: HttpRequest) {
     return {featureFlags: await this.flagsService.getAll()};

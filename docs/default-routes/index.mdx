@@ -5,14 +5,14 @@ sidebar_label: Overview
 
 # Default Routes
 
-RapidREST ships six ready-made route classes for common operational concerns: admin actions, Prometheus metrics, OpenAPI docs,
-service status, WebSocket push delivery, and ACL management. These default route classes implement all of the behavior for its
+RapidREST ships seven ready-made route classes for common operational concerns: admin actions, Prometheus metrics, OpenAPI docs,
+service status, WebSocket push delivery, ACL management, and static file serving. These default route classes implement all of the behavior for its
 endpoints but are not automatically registered with the class loader and do not have a `@Route` decorator. This is intentional
 to ensure you have complete control over what endpoints the server exposes.
 
 This means that in order to use a default route you must create an exported class in your project's `src/` folder that extends
 one of these classes and adds the appropriate `@Route` or `@ApiRoute` decorator. Each default route class is prefixed with `Base`
-in the name (`BaseAdminRoute`, `BaseMetricsRoute`, `BaseOpenAPIRoute`, `BaseStatusRoute`, `BasePushRoute`, `BaseACLRoute`) so that
+in the name (`BaseAdminRoute`, `BaseMetricsRoute`, `BaseOpenAPIRoute`, `BaseStatusRoute`, `BasePushRoute`, `BaseACLRoute`, `BaseStaticRoute`) so that
 you can easily name the final file as `AdminRoute`, `MetricsRoute`, and so on.
 
 | Class name | Endpoints it implements | Docs |
@@ -23,6 +23,7 @@ you can easily name the final file as `AdminRoute`, `MetricsRoute`, and so on.
 | `BaseStatusRoute` | Service status metadata | [Status](/docs/default-routes/status) |
 | `BasePushRoute` | WebSocket push notification delivery | [Push](/docs/default-routes/push) |
 | `BaseACLRoute<T>` | CRUD management of Access Control List records | [ACL](/docs/default-routes/acl) |
+| `BaseStaticRoute` | Static file serving from the filesystem | [Static Files](/docs/default-routes/static) |
 
 ## The CLI scaffold wires these up for you
 
@@ -38,7 +39,8 @@ const { Route } = RouteDecorators;
 export class StatusRoute extends BaseStatusRoute {}
 ```
 
-If you have an existing project that you would like to add these default routes to, you can use the `rapidrest generate default-route` command.
+If you have an existing project that you would like to add these default routes to, you can use the `rapidrest generate default-route --type <name>`
+command, which also covers `BaseStaticRoute` (`--type static`) — see [CLI Reference → Add-ons](/docs/cli-reference/addons).
 
 Because these files are ordinary auto-discovered route classes, they behave exactly like any other route in your project. Nothing distinguishes
 them at runtime as "built-in." You can delete the file to remove the endpoint entirely, change the `@Route` base path, or add further decorators

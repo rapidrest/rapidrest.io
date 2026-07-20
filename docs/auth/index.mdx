@@ -1,0 +1,55 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+# Auth Server
+
+`@rapidrest/auth` is a library for implementing a complete authentication server with RapidREST. It provides the data models, persistence adapters, and HTTP routes needed to register and authenticate users via password, TOTP, OTP (email/SMS), WebAuthn passkeys, FIDO2 hardware security keys, multi-factor authentication, and OpenID Connect / OAuth 2.0.
+
+This builds on top of the JWT authentication and RBAC primitives that ship in `@rapidrest/service-core` itself — read [Auth & RBAC](/docs/auth-rbac) first if you haven't. That section covers `JWTStrategy`, `@Auth`, `@RequiresRole`, and ACLs, all of which apply here too. `@rapidrest/auth` doesn't replace any of that; it adds the strategies, models, and routes needed to actually issue a JWT in the first place (register a user, verify a password, complete an OAuth flow, and so on).
+
+:::note[Beta]
+`@rapidrest/auth` is currently `1.0.0-beta.1`. The API surface, especially around `OIDCStrategy` and MFA option shapes, may still change before a stable `1.0.0`.
+:::
+
+## Install
+
+```bash
+npm install @rapidrest/auth
+```
+
+`@rapidrest/auth` always requires `@rapidrest/core` and `@rapidrest/service-core` as peer dependencies. Beyond that, each strategy has its own optional peer dependency, installed only if you use that strategy:
+
+| Feature | Optional peer dependency |
+|---|---|
+| Password hashing (`BasicStrategy`, password secrets) | `argon2` |
+| TOTP / OTP / MFA | `otplib` |
+| WebAuthn (`PasskeyStrategy`, `FIDO2Strategy`) | `@simplewebauthn/server` |
+| OIDC JWKS signature verification | `jwks-rsa` |
+
+These aren't required at install time. Each strategy `import()`s its dependency dynamically the first time it's used, and throws a descriptive error naming the missing package if it isn't installed — so you only need to install what you actually use.
+
+## Three subpath exports
+
+```ts
+import {...} from '@rapidrest/auth';       // strategies, interfaces, shared types
+import {...} from '@rapidrest/auth/mongo'; // MongoDB model + route implementations
+import {...} from '@rapidrest/auth/sql';   // SQL (TypeORM) model + route implementations
+```
+
+The root export is database-agnostic (strategy logic, config types). The `/mongo` and `/sql` subpaths export the persisted model classes and the concrete base routes bound to them — pick whichever matches your project's datastore.
+
+## How it fits together
+
+1. **Strategies** ([Strategies](/docs/auth/strategies)) implement the actual verification logic for one login method each (password, TOTP, WebAuthn, OIDC, ...).
+2. **Models** ([Data Models](/docs/auth/data-models)) — `User`, `Alias`, `Secret`, `Profile` — persist accounts, credentials, and profile data.
+3. **Base routes** ([Base Routes](/docs/auth/routes)) wire a strategy or a model up to HTTP: subclass a `Base*Mongo`/`Base*SQL` route, add `@Route(path)`, and you have a working endpoint.
+4. **Configuration** ([Configuration](/docs/auth/configuration)) ties it together via `@rapidrest/core`'s config system — no dedicated config schema is shipped, it's the same `@Config` decorator you'd use anywhere else in a RapidREST project.
+
+## What's next
+
+- [Data Models](/docs/auth/data-models): `User`, `Alias`, `Secret`, `Profile`.
+- [Strategies](/docs/auth/strategies): the 7 supported login methods.
+- [Base Routes](/docs/auth/routes): wiring strategies and models up to HTTP endpoints.
+- [Configuration](/docs/auth/configuration): the `auth:*` config tree and the `session` requirement.

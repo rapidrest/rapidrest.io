@@ -9,9 +9,11 @@ The RapidREST [cli](/docs/cli-reference/) can generate two different deployment 
 colon-to-double-underscore convention `.env()` uses in [Configuration](/docs/core-concepts/configuration), e.g. `datastores__mongo__url`, not a
 separate deployment-specific config format.
 
+- **[Bun](/docs/deployment/bun)** - run the server on Bun instead of Node.js. This is a runtime switch, not a packaging format — it composes with
+either option below.
 - **[Docker](/docs/deployment/docker)** - a multi-stage `Dockerfile` and Compose setup, including debug and CPU-profiling variants.
 - **[Kubernetes (Helm)](/docs/deployment/kubernetes)** - a Helm chart with optional MongoDB/Redis subcharts, Gateway API routing, and auto-generated
 secrets.
 
-Both can be added to an existing project with the CLI. See [CLI Reference → Add-ons](/docs/cli-reference/addons) using `rapidrest generate docker` and
-`rapidrest generate k8s`.
+Docker and Kubernetes support can be added to an existing project with the CLI. See [CLI Reference → Add-ons](/docs/cli-reference/addons) using
+`rapidrest generate docker` and `rapidrest generate k8s`.

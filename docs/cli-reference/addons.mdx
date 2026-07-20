@@ -36,6 +36,29 @@ rapidrest generate k8s
 
 Same idempotent-regeneration behavior as `generate docker`.
 
+## `rapidrest generate default-route`
+
+Scaffolds one or more of the [default routes](/docs/default-routes) (`BaseAdminRoute`, `BaseMetricsRoute`, `BaseOpenAPIRoute`, `BaseStatusRoute`,
+`BasePushRoute`, `BaseACLRoute`, `BaseStaticRoute`) into an existing project.
+
+```bash
+rapidrest generate default-route
+rapidrest generate default-route --type admin --type metrics
+rapidrest generate default-route --type static --static-path public --api
+```
+
+| Flag | Description |
+|---|---|
+| `-f`, `--force` | Overwrite existing files |
+| `--api [version]` | Use `@ApiRoute` instead of `@Route` for the generated route(s). Pass a value to specify an API version |
+| `--author <name>` | |
+| `--output-dir <path>` | Defaults to `./src/routes` |
+| `-t`, `--type <name>` | One of `acl`, `admin`, `metrics`, `openapi`, `push`, `static`, `status`. Pass more than once to generate multiple route types |
+| `--static-path <path>` | Only meaningful with `--type static`. Path containing the static files to serve. Defaults to `public` |
+
+If `--type` is omitted, you're prompted interactively to check off which routes to generate (Admin, Metrics, OpenAPI, and Status are checked by
+default; ACL and Static aren't).
+
 ## `rapidrest generate react NAME`
 
 Adds [SSR React](/docs/ssr-react) support to an existing project.

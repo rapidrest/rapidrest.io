@@ -39,11 +39,11 @@ const config: Config = {
     locales: ['en'],
   },
 
-  // API reference docs are generated from the `core` and `service-core` sibling
-  // repos' TypeScript source (checked out alongside this repo — see
-  // .github/workflows/deploy.yml for how CI gets them). Run `yarn generate-typedoc`
-  // (or `yarn start`/`yarn build`, which do it for you) to (re)generate.
-  // `react` is intentionally not included yet — its API is still in flux.
+  // API reference docs are generated from the `core`, `service-core`, `auth`, and
+  // `react` sibling repos' TypeScript source (checked out alongside this repo —
+  // see .github/workflows/deploy.yml for how CI gets them). Run
+  // `yarn generate-typedoc` (or `yarn start`/`yarn build`, which do it for you)
+  // to (re)generate.
   plugins: [
     [
       'docusaurus-plugin-typedoc',
@@ -70,6 +70,50 @@ const config: Config = {
         tsconfig: '../service-core/tsconfig.json',
         out: './docs/api/service-core',
         readme: './api-readme/service-core.md',
+        sidebar: {autoConfiguration: true, pretty: true},
+        // `@author Name <email>` JSDoc tags render as a bare `<email@domain>`,
+        // which MDX's JSX-aware parser tries to read as a tag and fails on the
+        // `@`. The tag isn't useful in the reference itself (same author on
+        // every file), so drop it rather than fight MDX escaping.
+        excludeTags: ['@author'],
+        sanitizeComments: true,
+      },
+    ],
+    [
+      'docusaurus-plugin-typedoc',
+      {
+        id: 'api-auth',
+        // Three entry points mirror the package's own `.`/`./mongo`/`./sql`
+        // export map — one plugin instance produces a combined module tree
+        // instead of three separate `out` dirs/sidebar categories.
+        entryPoints: ['../auth/src/index.ts', '../auth/src/mongo.ts', '../auth/src/sql.ts'],
+        tsconfig: '../auth/tsconfig.json',
+        out: './docs/api/auth',
+        readme: './api-readme/auth.md',
+        sidebar: {autoConfiguration: true, pretty: true},
+        // `@author Name <email>` JSDoc tags render as a bare `<email@domain>`,
+        // which MDX's JSX-aware parser tries to read as a tag and fails on the
+        // `@`. The tag isn't useful in the reference itself (same author on
+        // every file), so drop it rather than fight MDX escaping.
+        excludeTags: ['@author'],
+        sanitizeComments: true,
+      },
+    ],
+    [
+      'docusaurus-plugin-typedoc',
+      {
+        id: 'api-react',
+        // Only the root `.` export is generated here. Unlike `auth`, `react`'s
+        // `./client` and `./vite` subpaths each have their own tsconfig that
+        // *excludes* the other entry files (they're built as separate `tsc`
+        // passes with different `lib`/`module` settings — see tsconfig.client.json
+        // and tsconfig.vite.json in the react repo), so they can't share a single
+        // TypeDoc program with index.ts. Both are documented narratively instead,
+        // with exact signatures, in SSR React → Hydration & Production Builds.
+        entryPoints: ['../react/src/index.ts'],
+        tsconfig: '../react/tsconfig.json',
+        out: './docs/api/react',
+        readme: './api-readme/react.md',
         sidebar: {autoConfiguration: true, pretty: true},
         // `@author Name <email>` JSDoc tags render as a bare `<email@domain>`,
         // which MDX's JSX-aware parser tries to read as a tag and fails on the

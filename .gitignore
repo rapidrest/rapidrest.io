@@ -21,6 +21,8 @@
 # and `yarn generate-typedoc`). Regenerated from source on every build/start.
 /docs/api/core/
 /docs/api/service-core/
+/docs/api/auth/
+/docs/api/react/
 
 # Misc
 .DS_Store

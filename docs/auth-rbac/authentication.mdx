@@ -5,10 +5,19 @@ sidebar_label: Authentication
 
 # Authentication
 
-RapidREST offers built-in authentication support using Passport.js inspired strategies. The framework offers the following strategies out-of-the-box:
+RapidREST offers built-in authentication support for all popular authentication protocols including:
 
-- **BasicStrategy** (`basic`) - Implements the HTTP `Basic` protocol for simple username and password authentication.
-- **JWTStrategy** (`jwt`) - Implements the JSON Web Token (JWT) protocol for secure, portable, inter-service authentication.
+- **BasicStrategy** - Simple id and password authentication [`@rapidrest/auth`]
+- **FIDO2Strategy** - FIDO2/WebAuthn hardware based authentication (e.g. YubiKey) [`@rapidrest/auth`]
+- **JWTStrategy** - JSON Web Token (JWT) protocol for secure, portable, inter-service authentication [`@rapidrest/service-core`]
+- **MFAStrategy** - Simple id and password + 2FA authentication [fido2|otp|totp] [`@rapidrest/auth`]
+- **OIDCStrategy** - OAuth 2.0 & OpenID Connect authentication [`@rapidrest/auth`]
+- **OTPStrategy** - One-Time Password (OTP) authentication (e.g. email, sms) [`@rapidrest/auth`]
+- **PasskeyStrategy** - WebAuthn based passkey authentication [`@rapidrest/auth`]
+- **TOTPStrategy** - RFC 6238 Time-Based One Time Password authentication (e.g. Google Authenticator, etc.) [`@rapidrest/auth`]
+
+The `JWTStrategy` ships as part of the `@rapidrest/service-core` library, everything else lives in the separate [`@rapidrest/auth`](/docs/auth)
+package. If you need a real login flow, see [Auth Server](/docs/auth) after reading this page.
 
 ## Setting up the default strategy
 
@@ -45,8 +54,6 @@ public endpointFunc() {
 }
 ```
 
-# Built-in Auth Strategies
-
 ## JWT (the default strategy)
 
 `JWTStrategy` looks for a token in three places, in this order. The last one found wins:
@@ -82,41 +89,17 @@ conf.defaults({
 });
 ```
 
-## Basic auth + issuing a JWT (a real login flow)
+## A real login flow
 
-Basic auth is typically used for exactly one endpoint, logging in, which then issues a JWT for every subsequent request:
+Since `service-core` only ships `JWTStrategy`, a real login flow (verify a password once, issue a JWT for every request after) comes from `@rapidrest/auth`. Its `BaseAuthBasicRoute` wraps `BasicStrategy`, verifies against a stored password `Secret`, and returns a signed JWT — no manual `AuthMiddleware.register()` wiring needed:
 
 ```ts
-import {AuthMiddleware, BasicStrategy, BasicStrategyOptions} from '@rapidrest/service-core';
-import {ObjectFactory, ObjectDecorators, JWTUtils} from '@rapidrest/core';
-const {Inject, Config, Init} = ObjectDecorators;
+import { RouteDecorators } from '@rapidrest/service-core';
+import { BaseAuthBasicRouteMongo } from '@rapidrest/auth/mongo';
+const { Route } = RouteDecorators;
 
-export class AuthRoute {
-  @Inject(AuthMiddleware) private authMiddleware?: AuthMiddleware;
-  @Inject(ObjectFactory) private objectFactory?: ObjectFactory;
-  @Config('auth') private jwtConfig?: any;
-
-  @Init
-  private async initialize() {
-    const options = new BasicStrategyOptions();
-    options.verify = async (name: string, password: string) => {
-      const user = await this.userService.findByName(name);
-      if (!user || !(await verifyPassword(user.password, password))) {
-        throw new Error('Invalid name or password');
-      }
-      return user;
-    };
-    const strategy = await this.objectFactory.newInstance(BasicStrategy, {name: 'default', args: [options]});
-    this.authMiddleware.register(strategy.name, strategy);
-  }
-
-  @Auth(['basic'])
-  @Get('/login')
-  async login(@User user: any) {
-    const token = await JWTUtils.createToken(this.jwtConfig, user);
-    return {token};
-  }
-}
+@Route('/auth/password')
+export class AuthBasicRoute extends BaseAuthBasicRouteMongo {}
 ```
 
-The client sends `Authorization: Basic <base64(name:password)>` once to `/login`, gets a token back, then sends `Authorization: Bearer <token>` on every subsequent request.
+The client sends `Authorization: Basic <base64(name:password)>` once to `/auth/password`, gets a token back, then sends `Authorization: Bearer <token>` on every subsequent request. See [Auth Server → Strategies](/docs/auth/strategies) and [Auth Server → Base Routes](/docs/auth/routes) for the full set of login methods (TOTP, WebAuthn, MFA, OIDC, and more).

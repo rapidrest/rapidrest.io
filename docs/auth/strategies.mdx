@@ -1,0 +1,69 @@
+---
+sidebar_position: 3
+sidebar_label: Strategies
+---
+
+# Strategies
+
+`@rapidrest/auth` ships seven `AuthStrategy` implementations. Each registers itself against `AuthMiddleware` under a name, and that name is what you pass to `@Auth([...])` on a route — the same mechanism [Authentication](/docs/auth-rbac/authentication) already documents for `JWTStrategy`.
+
+:::note[Session requirement]
+`FIDO2Strategy`, `PasskeyStrategy`, `OIDCStrategy`, `OTPStrategy`, and `MFAStrategy` all need `session` configured — they store challenge/state between the first and second request of a login flow. `BasicStrategy` and `TOTPStrategy` don't, since they verify in a single request. See [Configuration](/docs/auth/configuration).
+:::
+
+## `BasicStrategy` (`basic`)
+
+Simple ID and password authentication via the `Authorization: Basic` header, JSON body, or form-encoded body. Verifies against a stored `Secret` of type `PASSWORD` (argon2-hashed).
+
+## `FIDO2Strategy` (`fido2`)
+
+Hardware security key authentication (e.g. YubiKey) using WebAuthn/CTAP2. Configured via `@Config("auth:fido2")`, defaulting to `authenticatorAttachment: "cross-platform"` and non-discoverable credentials. Two-phase: a challenge step generates and stores WebAuthn assertion options, a verify step validates the signed assertion and enforces signature-counter monotonicity to detect cloned authenticators.
+
+## `PasskeyStrategy` (`passkey`)
+
+The same WebAuthn protocol as `FIDO2Strategy`, but for synced/software passkeys rather than hardware keys — supports a discoverable, "usernameless" flow. Configured via `@Config("auth:passkey")`.
+
+## `TOTPStrategy` (`totp`)
+
+RFC 6238 Time-Based One-Time Password (Google Authenticator, Authy, 1Password, etc.). Payload is `{id, token}`, checked against every TOTP secret registered to that user.
+
+## `OTPStrategy` (`otp`)
+
+Password-less login: a one-time code is sent to a verified contact (email or SMS, via `MessagingUtils`) and the user submits it back. Three phases: optional discovery (obfuscated contact list for a given ID, off by default via `allowDiscovery`), challenge (send the code), and verify.
+
+## `MFAStrategy` (`mfa`)
+
+Composable two-factor authentication: ID and password as the first factor, then a second factor chosen from `fido2`, `otp`, or `totp`. `require2FA` (default `true`) controls whether users with no registered second factor are rejected outright.
+
+```ts
+class MFAStrategyOptions {
+  require2FA = true;
+  fidoConfig?: PasskeyConfig; // required if fido2 is offered as a second factor
+}
+```
+
+## `OIDCStrategy` (default name `oauth`, configurable)
+
+A generic OAuth 2.0 / OpenID Connect client — **not** a set of vendor-specific presets. There's no built-in `GoogleStrategy` or `GitHubStrategy`; instead, you configure any OAuth2/OIDC-compliant provider via an `OIDCProvider` object:
+
+```ts
+interface OIDCProvider {
+  name: string;
+  authorizationURL: string;
+  clientID: string;
+  clientSecret: string;
+  tokenURL: string;
+  redirectURI: string | string[];   // exact-match enforced
+  scope: string[];
+  protocol: 'oauth2' | 'openid';
+  profileURL?: string;               // OAuth2 profile fetch
+  jwksURI?: string;                  // required for OpenID id_token verification
+  issuer?: string;                   // required for OpenID id_token verification
+  pkce?: boolean | 'S256' | 'plain';
+  profileMap?: Record<string, string>; // merged over the default field mapping
+}
+```
+
+Because the strategy name is set per-instance (`OIDCStrategyOptions.name`, defaulting to `"oauth"`), you can register multiple providers concurrently under different names — e.g. `"google"` and `"github"` — each behind its own `@Auth([...])`-protected route.
+
+Implements PKCE (`S256`/`plain`), CSRF-protected `state`, OpenID `nonce` replay protection, and `id_token` signature verification via `jwks-rsa` when `jwksURI`/`issuer` are set. On first login from a given provider identity, a local `User` + `Profile` (+ `Alias` records for the provider ID and any verified email/phone) is created automatically.

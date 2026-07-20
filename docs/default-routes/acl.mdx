@@ -50,6 +50,8 @@ Every endpoint requires an authenticated user who either:
 Bulk operations (`updateBulk`) have no single `:id` to check a per-record permission against, so they skip the second option entirely and require a
 trusted role unconditionally.
 
+See [Authorization](/docs/auth-rbac/authorization) for the current `ACLRecord`/`ACLAction` shape.
+
 ## Protection for `default_*` records
 
 RapidREST regenerates a `default_<uid>` record from your `@Protect` decorators on every server startup (see `ACLUtils.saveDefaultACL` in

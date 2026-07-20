@@ -25,12 +25,58 @@ async deletePet(@Param('id') id: string) {
 
 Requests from a user without a matching role are rejected before the handler runs.
 
+## `@RequiresScope` (route-level)
+
+A coarser, token-level check, distinct from ACLs: require the authenticated user's JWT to carry one or more scopes before the handler runs at all. This
+is checked *before* any per-resource ACL check, so it's a cheap way to reject requests from tokens that were never issued the right scope, without
+touching the database.
+
+```ts
+@RequiresScope('pets:write')
+@Delete('/:id')
+async deletePet(@Param('id') id: string) {
+  return this.petService.delete(id);
+}
+```
+
+Scopes live on `JWTUser.scopes` — set by whatever issued the token (for example, `@rapidrest/auth`'s `User.scopes`, built at runtime rather than
+stored). `ACLAction.FULL` (`"*"`) also satisfies any required scope.
+
+This is unrelated to the property-level `@RequiresScope` documented in [Models & Persistence](/docs/models-persistence/entities-columns#requiresscope),
+which hides individual fields from a response rather than gating an entire endpoint.
+
 ## Access Control Lists & `@Protect`
 
 When more fine-grained control is desired an [Access Control List](https://en.wikipedia.org/wiki/Access-control_list) (ACL) can be used. ACLs protect
 resources with an Inheritance based list of mapped permissions to user IDs and roles. Each ACL contains a unique identifier of the resource to protect,
 a list of `ACLRecord` entries detailing the list of permissions for each associated role and/or user `uid` and an optional
 `parent` association when inheritance is desired.
+
+Each `ACLRecord` grants a `userOrRoleId` an arbitrary list of `actions` — plain strings, not fixed boolean fields:
+
+```ts
+interface ACLRecord {
+  userOrRoleId: string;
+  actions: string[];
+}
+```
+
+`ACLAction` is a predefined set of conventional action strings recognized by the built-in CRUD routes, not a closed enum — `actions` may contain any
+custom string beyond these (e.g. `"publish"`) to express service-specific permissions:
+
+```ts
+const ACLAction = {
+  FULL: "*",      // grants every action, including any not otherwise listed
+  COUNT: "count",
+  CREATE: "create",
+  DELETE: "delete",
+  EXISTS: "exists",
+  LIST: "list",
+  READ: "read",
+  TRUNCATE: "truncate",
+  UPDATE: "update",
+};
+```
 
 Protected resources include:
 
@@ -53,21 +99,11 @@ The following is an example of how to define an initial ACL for the class `Pet`.
         records: [
             {
                 userOrRoleId: "anonymous",
-                create: false,
-                read: true,
-                update: false,
-                delete: false,
-                special: false,
-                full: false,
+                actions: [ACLAction.READ, ACLAction.LIST],
             },
             {
                 userOrRoleId: ".*",
-                create: false,
-                read: true,
-                update: false,
-                delete: false,
-                special: false,
-                full: false,
+                actions: [ACLAction.READ, ACLAction.LIST],
             }
         ]
     }
@@ -87,21 +123,11 @@ enable document-level ACL protection. This is shown in the example for the class
         records: [
             {
                 userOrRoleId: "anonymous",
-                create: true,
-                read: false,
-                update: false,
-                delete: false,
-                special: false,
-                full: false,
+                actions: [ACLAction.CREATE],
             },
             {
                 userOrRoleId: ".*",
-                create: false,
-                read: false,
-                update: false,
-                delete: false,
-                special: false,
-                full: false,
+                actions: [],
             }
         ]
     },
@@ -122,12 +148,13 @@ When using the built-in `CRUDRoute` or `ModelRoute` base classes for build REST 
 
 | Function | HTTP Verb/Path | Permission | Scope |
 |---|---|---|---|
+| count | `HEAD /` | `ACLAction.COUNT` | Class |
 | create | `POST /` | `ACLAction.CREATE` | Class |
 | delete | `DELETE /:id` | `ACLAction.DELETE` | Document |
-| exists | `HEAD /:id` | `ACLAction.READ` | Class |
-| find | `GET /` | `ACLAction.READ` | Class |
+| exists | `HEAD /:id` | `ACLAction.EXISTS` | Document |
+| find | `GET /` | `ACLAction.LIST` | Class |
 | findById | `GET /:id` | `ACLAction.READ` | Document |
-| truncate | `DELETE /` | `ACLAction.DELETE` | Class |
+| truncate | `DELETE /` | `ACLAction.TRUNCATE` | Class |
 | update | `PUT /:id` | `ACLAction.UPDATE` | Document |
 | updateBulk | `PUT /` | `ACLAction.UPDATE` | Class |
 | updateProperty | `PUT /:id/:property` | `ACLAction.UPDATE` | Document |

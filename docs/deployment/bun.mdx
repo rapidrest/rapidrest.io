@@ -1,0 +1,25 @@
+---
+sidebar_position: 2
+sidebar_label: Bun
+---
+
+# Bun
+
+RapidREST can run on [Bun](https://bun.sh) instead of Node.js. This is a runtime switch, not a separate deployment target — it's orthogonal to
+[Docker](/docs/deployment/docker) and [Kubernetes](/docs/deployment/kubernetes), and can be combined with either.
+
+Under the hood, `@rapidrest/service-core`'s HTTP layer has two backends: the default is built on [uWebSockets.js](https://github.com/uNetworking/uWebSockets.js)
+running under Node.js; the alternative is built directly on `Bun.serve()`. The server picks between them automatically based on which runtime it's
+executing under — there's nothing to configure in your project's code.
+
+## Running on Bun
+
+```bash
+rapidrest start --bun
+```
+
+This is only available on `rapidrest start` — there's no `rapidrest dev --bun` equivalent, since the dev workflow's hot-reload tooling (`tsx --watch`,
+`nodemon`) runs on Node.js regardless of which runtime your production build targets.
+
+`--bun` requires Bun v1.4.0 or later. If a compatible Bun isn't already installed, the CLI downloads one automatically before starting the server —
+no manual Bun install step is required. See [CLI Reference → Dev Workflow](/docs/cli-reference/dev-workflow) for the full flag reference.

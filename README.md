@@ -1,4 +1,4 @@
-# rapidrest.io
+# rapidrest.dev
 
 The documentation and marketing website for [RapidREST](https://github.com/rapidrest), a TypeScript framework for rapidly building REST APIs with first-class server-side-rendered React support. Built with [Docusaurus](https://docusaurus.io/).
 
@@ -10,7 +10,7 @@ The **API Reference** section generates its docs directly from `@rapidrest/core`
 cd ..
 git clone https://github.com/rapidrest/core.git
 git clone https://github.com/rapidrest/service-core.git
-cd rapidrest.io
+cd rapidrest.dev
 ```
 
 ```bash

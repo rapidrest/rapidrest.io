@@ -30,7 +30,7 @@ const config: Config = {
 
   // GitHub org/repo used for deployment + edit links
   organizationName: 'rapidrest',
-  projectName: 'rapidrest.io',
+  projectName: 'rapidrest.dev',
 
   onBrokenLinks: 'throw',
 
@@ -131,7 +131,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/rapidrest/rapidrest.io/tree/main/',
+          editUrl: 'https://github.com/rapidrest/rapidrest.dev/tree/main/',
         },
         blog: {
           showReadingTime: true,
@@ -139,7 +139,7 @@ const config: Config = {
             type: ['rss', 'atom'],
             xslt: true,
           },
-          editUrl: 'https://github.com/rapidrest/rapidrest.io/tree/main/',
+          editUrl: 'https://github.com/rapidrest/rapidrest.dev/tree/main/',
           onInlineTags: 'warn',
           onInlineAuthors: 'warn',
           onUntruncatedBlogPosts: 'warn',

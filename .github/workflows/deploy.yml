@@ -20,15 +20,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout rapidrest.io
+      - name: Checkout rapidrest.dev
         uses: actions/checkout@v4
         with:
-          path: rapidrest.io
+          path: rapidrest.dev
 
       # The API Reference section (docusaurus-plugin-typedoc, see
       # docusaurus.config.ts) generates docs directly from these packages'
       # TypeScript source, so it needs them checked out as siblings of
-      # rapidrest.io — matching the layout expected locally. Add another
+      # rapidrest.dev — matching the layout expected locally. Add another
       # checkout here (and a matching plugin entry in docusaurus.config.ts)
       # for any future package once its API is ready to include.
       - name: Checkout core
@@ -63,7 +63,7 @@ jobs:
         with:
           node-version: 24
           cache: yarn
-          cache-dependency-path: rapidrest.io/yarn.lock
+          cache-dependency-path: rapidrest.dev/yarn.lock
 
       # TypeDoc needs each package's own node_modules present to resolve its
       # types (ioredis, mongodb, winston, etc.) — install alongside the main
@@ -85,17 +85,17 @@ jobs:
         run: yarn install --immutable
 
       - name: Install dependencies
-        working-directory: rapidrest.io
+        working-directory: rapidrest.dev
         run: yarn install --immutable
 
       - name: Build
-        working-directory: rapidrest.io
+        working-directory: rapidrest.dev
         run: yarn build
 
       - name: Upload build artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: rapidrest.io/build
+          path: rapidrest.dev/build
 
   deploy:
     needs: build

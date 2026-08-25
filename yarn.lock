@@ -11228,9 +11228,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rapidrest.io@workspace:.":
+"rapidrest.dev@workspace:.":
   version: 0.0.0-use.local
-  resolution: "rapidrest.io@workspace:."
+  resolution: "rapidrest.dev@workspace:."
   dependencies:
     "@docusaurus/core": "npm:^3.10.2"
     "@docusaurus/faster": "npm:^3.10.2"

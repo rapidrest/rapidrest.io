@@ -5,40 +5,28 @@ sidebar_label: Defining Routes
 
 # Defining Routes
 
-## The Route Class (using `@Route`)
+## The route class
 
-In RapidREST, the `@Route()` decorator is used at the class level to identify a set of HTTP request handlers at a given base path. In other frameworks,
-the `@Route` class is equivalent to an app router. The `@Route` decorator takes a single `paths` argument which can be a single `string` or an
-`Array<string>` that includes each base path that the class' methods will respond to.
-
-The following is an example of a route class.
+`@Route(paths)` marks a class as owning one or more base paths, the closest equivalent to a router in other frameworks, except there's nothing to register it with, exporting the class is enough:
 
 ```ts
-import {RouteDecorators} from '@rapidrest/service-core';
-const {Route} = RouteDecorators;
+import { RouteDecorators } from '@rapidrest/service-core';
+const { Route } = RouteDecorators;
 
 @Route('/pets')
 export class PetRoute {}
 ```
 
-It should be noted that the the underlying HTTP engine does not yet have any bound request handlers for the `/pets` path. There must be at least
-one HTTP method function in a route class for the framework to register the endpoint.
-
-Below is an example of a route class that has multiple base paths configured. When multiple paths are configured, the framework automatically
-registers each HTTP request handler function for each of the desired base paths.
+On its own this registers nothing, a route class needs at least one HTTP method handler before anything actually binds to `/pets`. `paths` also accepts an array, registering every method on the class under each base path:
 
 ```ts
-import { RouteDecorators } from '@rapidrest/service-core';
-const {Route} = RouteDecorators;
-
-@Route(['/pet','/pets','/companions'])
+@Route(['/pet', '/pets', '/companions'])
 export class PetRoute {}
 ```
 
-## API-Versioned Routes (using `@ApiRoute`)
+### API-versioned routes
 
-`@ApiRoute(paths, version?)` is a drop-in alternative to `@Route` that prepends `/api` (or `/api/v{version}`, if a version is given) to every path.
-Everything else about the class — handler functions, sub-paths, `@Auth`, `@Protect` — works identically.
+`@ApiRoute(paths, version?)` is a drop-in replacement for `@Route` that prepends `/api` (or `/api/v{version}`, given a version) to every path. Everything else, handlers, sub-paths, `@Auth`, `@Protect`, works identically:
 
 ```ts
 import { RouteDecorators } from '@rapidrest/service-core';
@@ -47,23 +35,17 @@ const { ApiRoute } = RouteDecorators;
 @ApiRoute('/pets')
 export class PetRoute {}
 // GET /pets -> GET /api/pets
-```
 
-```ts
 @ApiRoute('/pets', 2)
 export class PetRouteV2 {}
 // GET /pets -> GET /api/v2/pets
 ```
 
-The CLI's `--api [version]` flag (available on `generate route`, `generate server`, and `generate default-route`) scaffolds classes using `@ApiRoute`
-instead of `@Route` — see [CLI Reference](/docs/cli-reference).
+The CLI can scaffold a route with `@ApiRoute` instead of `@Route` for you, see [CLI Reference](/docs/cli-reference) for the exact flags on `generate route` and `generate default-route`.
 
-## HTTP Handler Functions
+## Handler methods
 
-As mentioned above, RapidREST does not bind a route until a HTTP handler function is defined in a route class. To define an HTTP handler function
-it is as easy as decorator any function with the HTTP method (or verb) desired for a given endpoint.
-
-Let's update our previous example to add a basic `Get()` handler function.
+A method becomes an endpoint by decorating it with the HTTP verb it responds to:
 
 ```ts
 import { RouteDecorators } from '@rapidrest/service-core';
@@ -78,64 +60,49 @@ export class PetRoute {
 }
 ```
 
-Now that there exists a handler function in the `PetRoute` class the framework will automatically register and bind the HTTP route `GET /pets` to
-the `PetRoute.findPets()` function. Each HTTP method decorator takes an optional sub-path, which is appended to the class's `@Route` base path
-(shown below).
+That registers `GET /pets`, bound to `findPets`. Each verb decorator takes an optional sub-path, appended to the class's base path:
 
 ```ts
-import { RouteDecorators } from '@rapidrest/service-core';
-const { Get } = RouteDecorators;
-
 @Route('/pets')
 export class PetRoute {
   @Get()
-  async findPets() {
-    /* ... */
-  }
+  async findPets() { /* ... */ }
 
   @Get('/:id')
-  async findPet() {
-    /* ... */
-  }
+  async findPet() { /* ... */ }
 }
 ```
 
-You also can stack more than one HTTP-method decorator on the same handler if it should respond to multiple methods identically (shown below).
+Stack more than one verb decorator on the same method if it should handle several identically:
 
 ```ts
-import { RouteDecorators } from '@rapidrest/service-core';
-const { Post, Put } = RouteDecorators;
-
 @Route('/pets')
 export class PetRoute {
   @Post()
   @Put()
-  async createOrUpdate(obj: Pet) {
+  async createOrUpdate(pet: Pet) {
     /* ... */
   }
 }
 ```
 
-### HTTP Method Decorators
-
-The following table shows all HTTP methods that RapidREST provides a built-in decorator for.
+### Verb decorators
 
 | HTTP Method | Decorator |
 |---|---|
-| `DELETE` | @Delete(path: string)` |
-| `GET` | @Get(path: string)` |
-| `HEAD` | @Head(path: string)` |
-| `OPTIONS` | @Options(path: string)` |
-| `PATCH` | @Patch(path: string)` |
-| `POST` | @Post(path: string)` |
-| `PUT` | @Put(path: string)` |
+| `GET` | `@Get(path?)` |
+| `POST` | `@Post(path?)` |
+| `PUT` | `@Put(path?)` |
+| `PATCH` | `@Patch(path?)` |
+| `DELETE` | `@Delete(path?)` |
+| `HEAD` | `@Head(path?)` |
+| `OPTIONS` | `@Options(path?)` |
 
-Alternatively, the `@Method(method: string | string[], path: string)` decorator can be used for other HTTP methods that do not have their own
-decorator or if you'd like to register multiple methods at once.
+The sub-path is always optional, omit it and the handler responds at the class's base path directly. For anything without its own decorator, or to bind more than one method to the same handler at once, `@Method(method, path?)` takes the verb (or an array of verbs) explicitly.
 
 ## Handler return values
 
-A handler's return value becomes the JSON response body. Async handlers work as expected:
+Whatever a handler returns becomes the JSON response body, `async` handlers work exactly as you'd expect:
 
 ```ts
 @Get('/:id')
@@ -144,22 +111,4 @@ async getPet(@Param('id') id: string): Promise<Pet | null> {
 }
 ```
 
-Throwing inside a handler (or a `@Before`/`@Validate` step) results in an error response. See [Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation) for where in the pipeline that happens.
-
-## WebSocket Support
-
-RapidREST also supports WebSockets via the `@WebSocket(path?)` decorator. This decorator performs automatic upgrades of the connection instead
-of returning an HTTP response.
-
-```ts
-import { RouteDecorators } from '@rapidrest/service-core';
-const { Socket, WebSocket } = RouteDecorators;
-
-@Route('/connect')
-export class PetRoute {
-  @WebSocket()
-  async upgrade(@Socket socket: any) {
-    /* ... */
-  }
-}
-```
+Need more control than "return a value, get a 200"? `@Request`/`@Response` (see [Request Parameters](/docs/routing-controllers/request-parameters)) hand you the underlying objects directly, and [Streaming Responses](/docs/http-engine/streaming) and [WebSockets](/docs/http-engine/websockets) cover writing a response yourself instead of returning one. Throwing inside a handler produces an error response the same way as anywhere else, see [Error Handling](/docs/http-engine/error-handling) for exactly how, and [Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation) for where a thrown error can come from before your handler even runs.

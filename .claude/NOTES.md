@@ -136,3 +136,32 @@ Keep entries terse — this is a reference, not a transcript.
   TypeScript interface in `types.ts`, that's a gap in the framework's own typing, not the docs,
   don't "fix" the docs to match the interface if a method demonstrably exists on both concrete
   response classes.
+- Full rewrite of Routing & Controllers (5 pages now, was 4): Overview, Defining Routes, Request
+  Parameters, Lifecycle & Validation, **API Documentation** (new). Two real fixes surfaced by
+  verifying against `service-core/src/decorators/RouteDecorators.ts` and `RouteUtils.ts` rather
+  than trusting the existing page text:
+  1. **The request-lifecycle pipeline diagram was missing three stages.** The old diagram read
+     `auth strategies → @RequiresRole → ACL check → @Validate → @Before → handler → @After`.
+     The actual order, read straight out of `RouteUtils.ts`'s route-registration code (which
+     pushes middleware in this exact sequence, then registers as
+     `app[verb](path, authMw, ...middleware)`), is: auth strategies → `@RequiresElevation` →
+     `@RequiresTrustedRole` → `@RequiresRole` → `@RequiresScope` → ACL check → `@Validate` →
+     `@Before` → handler → `@After`. Note the source file's own comment above that code lists
+     a *different*, wrong order ("1. Requires Elevation, 2. Auth Strategies...") — don't trust
+     that comment either, `authMw` is prepended separately and always runs first.
+  2. **`@Body()` does not exist.** Grepped every exported decorator in `RouteDecorators.ts`
+     directly — there is no `Body` export. The request body is always the first *undecorated*
+     handler argument. This had already been correctly documented in
+     `docs/routing-controllers/request-parameters.mdx`, but I'd introduced a `@Body()` in a
+     code example on `docs/core-concepts/aspect-oriented-programming.mdx` in an earlier session
+     turn without re-checking it against source, now fixed there too. Lesson: an example
+     written from memory in one page, even by me, needs the same source verification as a page
+     being rewritten from scratch.
+  - New "API Documentation" page covers `@Summary`/`@Description`/`@Returns`/`@TypeInfo`/
+    `@Example`/`@Default`/`@Format`/`@Tags` (from `service-core/src/decorators/DocDecorators.ts`)
+    — real, exported, used throughout the framework's own `CRUDRoute`/`ModelRoute`, but not
+    documented anywhere on the site before this.
+  - Trimmed the WebSocket example duplicated across `defining-routes.mdx` and
+    `request-parameters.mdx` down to a cross-link, full coverage now lives at
+    `docs/http-engine/websockets.mdx` (written in the HTTP Engine pass) rather than in two
+    places that could drift apart from each other.

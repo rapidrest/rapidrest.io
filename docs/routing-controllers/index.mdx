@@ -5,10 +5,21 @@ sidebar_label: Overview
 
 # Routing & Controllers
 
-Routes in RapidREST are composed of plain classes decorated with `@Route` and one or more methods that have been decoratored with at least one desired
-HTTP-method (e.g. `@Get`, `@Post`, `@Put`). There's no separate router file. A route class is discovered and registered the moment it's exported
-anywhere under `src/` (see [Auto-Discovery](/docs/core-concepts/auto-discovery)).
+A route in RapidREST is a plain class decorated with `@Route`, with one method per endpoint, each decorated with the HTTP verb it handles. There's no router file, no `app.get(path, handler)` calls to make, the class is discovered and registered the moment it's exported anywhere under `src/` (see [Auto-Discovery](/docs/core-concepts/auto-discovery)).
 
-- **[Defining Routes](/docs/routing-controllers/defining-routes)** - `@Route`, the HTTP method decorators, and how handlers get called.
-- **[Request Parameters](/docs/routing-controllers/request-parameters)** - pulling data out of the request with `@Param`, `@Query`, `@Header`, and friends, plus the request body (no decorator needed).
-- **[Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation)** - `@Before`/`@After` middleware chains, `@Validate`, and `@ContentType`.
+```ts
+@Route('/pets')
+export class PetRoute {
+  @Get('/:id')
+  async findPet(@Param('id') id: string) {
+    // ...
+  }
+}
+```
+
+This section covers how that works in full:
+
+- **[Defining Routes](/docs/routing-controllers/defining-routes)** — `@Route`, the HTTP method decorators, and how a class turns into registered endpoints.
+- **[Request Parameters](/docs/routing-controllers/request-parameters)** — pulling data out of the request by declaring what a handler needs, `@Param`, `@Query`, `@Header`, and the request body.
+- **[Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation)** — the fixed pipeline every request runs through before and after your handler, and where `@Validate`/`@Before`/`@After` fit into it.
+- **[API Documentation](/docs/routing-controllers/api-documentation)** — annotating a route so it shows up correctly in the auto-generated OpenAPI spec.

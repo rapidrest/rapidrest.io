@@ -109,8 +109,8 @@ You can stack several decorators on the same thing. Each one adds its own indepe
 @RequiresRole('admin')
 @Validate('validateCreate')
 @Post('/')
-async createPet(@Body() pet: Pet) {
-  // ...
+async createPet(pet: Pet) {
+  // `pet` is the parsed request body, the first undecorated argument, no `@Body()` needed
 }
 ```
 

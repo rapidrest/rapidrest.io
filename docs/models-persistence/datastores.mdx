@@ -10,8 +10,8 @@ sidebar_label: Datastores & Connections
 Every entity must declare which configured datastore it belongs to:
 
 ```ts
-import { PersistenceDecorators } from '@rapidrest/service-core';
-const { DataStore } = PersistenceDecorators;
+import { ModelDecorators } from '@rapidrest/service-core';
+const { DataStore } = ModelDecorators;
 
 @DataStore('mongo')
 export class Pet extends BaseMongoEntity {}
@@ -39,26 +39,112 @@ Most of the time you won't need this. [Auto CRUD Routes](/docs/auto-crud-routes)
 
 ```ts
 import { DatabaseDecorators } from '@rapidrest/service-core';
-const { Repository, MongoRepository, RedisConnection } = DatabaseDecorators;
+import type { MongoRepository } from '@rapidrest/service-core';
+const { Repository } = DatabaseDecorators;
 
 export class PetService {
-  @MongoRepository(Pet)
+  @Repository(Pet)
   private repo!: MongoRepository<Pet>;
 }
 ```
 
 ```ts
 import { DatabaseDecorators } from '@rapidrest/service-core';
-import type {Redis} from 'ioredis';
-const { Repository, MongoRepository, RedisConnection } = DatabaseDecorators;
+import type { RedisClientType } from 'redis';
+const { Redis } = DatabaseDecorators;
 
 export class SessionService {
-  @RedisConnection('cache')
-  private redis?: Redis;
+  @Redis('cache')
+  private redis?: RedisClientType;
 }
 ```
 
-`@Repository` injects a TypeORM `Repository` for SQL-backed entities; `@MongoRepository` injects a MongoDB-flavored equivalent; `@RedisConnection(name)` injects the named `ioredis` connection directly, most commonly used for the connection named `"cache"`.
+| Decorator | What it does |
+|---|---|
+| `@DataSource(name, required?)` | Injects the raw datasource connection with the given name. |
+| `@Repository(type, required?)` | Injects the repository for the given entity type. This results in a TypeORM `Repository` for a SQL-backed entity, or a `MongoRepository` for a Mongo-backed one. |
+| `@Redis(name?, required?)` | Shorthand for `@DataSource`, defaulting `name` to `"redis"`. Injects a `RedisClientType` connection (from the `redis` package). |
+| `@EntityManager(nameOrType?)` | Method-argument decorator used to inject the active TypeORM `EntityManager` established by an enclosing `@Transactional`. |
+| `@MongoSession(nameOrType?)` | Method-argument decorator used to inject the active MongoDB `ClientSession` established by an enclosing `@Transactional`. |
+
+## `@Transactional`
+
+Apply `@Transactional()` to a method to run everything it does inside a single database transaction — a MongoDB session wrapped in `session.withTransaction()`, or a TypeORM transaction wrapped in `datasource.transaction()`, depending on which datastore the resolved source uses. The method must be `async`.
+
+```ts
+import { DatabaseDecorators } from '@rapidrest/service-core';
+const { Transactional, MongoSession, Repository } = DatabaseDecorators;
+
+export class PetService {
+  @Repository(Pet)
+  private repo!: MongoRepository<Pet>;
+
+  @Transactional()
+  public async adopt(pet: Pet, @MongoSession() session?: any) {
+    pet.adopted = true;
+    await this.repo.save(pet, { session });
+  }
+}
+```
+
+If no `source` argument is given, the datasource is inferred from `this.modelClass` (set when `@Model`/`@DataStore` is applied to the owning class); otherwise pass either a datasource name or an entity class explicitly: `@Transactional(Pet)`.
+
+The active session/entity manager is made available for the duration of the call via an `AsyncLocalStorage`-backed context, and can optionally be injected into an argument decorated with `@MongoSession()` or `@EntityManager()`.
+
+### Nesting: `TransactionalMode.CREATE` vs `TransactionalMode.MERGE`
+
+If a `@Transactional` method calls another `@Transactional` method (for the same datasource) further down the call stack, the inner call **merges** into the outer transaction by default rather than opening a second, nested one:
+
+```ts
+import { DatabaseDecorators } from '@rapidrest/service-core';
+const { Transactional, TransactionalMode } = DatabaseDecorators;
+
+export class PetService {
+  @Transactional()
+  public async adopt(pet: Pet) {
+    // Reuses `adopt`'s transaction instead of starting a new one.
+    await this.auditUtils.record(pet);
+  }
+}
+
+export class AuditUtils {
+  // Explicitly always opens its own, independent transaction, even when called from inside another one.
+  @Transactional(undefined, { mode: TransactionalMode.CREATE })
+  public async record(pet: Pet) {
+    /* ... */
+  }
+}
+```
+
+| Mode | Behavior |
+|---|---|
+| `TransactionalMode.MERGE` (default) | Reuses an existing transactional context from earlier in the call stack, if one is active for the same datasource. If the outer context belongs to a *different* datasource, this call still opens its own independent transaction rather than merging into it. |
+| `TransactionalMode.CREATE` | Always opens a brand-new transaction for this call, ignoring any transactional context already active in the call stack. |
+
+If the resolved connection doesn't support transactions at all (logged as a warning at startup), `@Transactional` falls back to calling the method directly, non-transactionally.
+
+### `registerRollbackHook(hook)`
+
+Sometimes a `@Transactional` method needs to commit a side effect on a *different* connection than the one its own transaction is running against — that write can't be undone by the transaction's own abort if something later in the method fails. `registerRollbackHook()` registers a best-effort compensating action to run in that case:
+
+```ts
+import { DatabaseDecorators } from '@rapidrest/service-core';
+const { Transactional, registerRollbackHook } = DatabaseDecorators;
+
+export class PetService {
+  @Transactional()
+  public async adopt(pet: Pet) {
+    await this.auditLog.record(pet.uid); // committed on its own connection, outside this transaction
+    registerRollbackHook(async () => {
+      await this.auditLog.revert(pet.uid);
+    });
+
+    await this.repo.save(pet); // if this throws, the hook above runs to undo the audit-log write
+  }
+}
+```
+
+The hook only runs if the currently active transaction ultimately fails; it's a no-op when called with no active transaction. Hooks are responsible for catching and logging their own errors — a hook that throws anyway is swallowed (via `Promise.allSettled`) rather than masking the original failure that triggered the rollback.
 
 ## `RepoUtils`
 

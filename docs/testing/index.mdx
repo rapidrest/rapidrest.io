@@ -148,6 +148,50 @@ it('runs without error', async () => {
 });
 ```
 
+# Testing `@Transactional` methods
+
+A [`@Transactional`](/docs/models-persistence/datastores#transactional) method is only meaningfully tested against a real (if in-memory, per the section below) datastore — the point of the decorator is the real session/transaction semantics of MongoDB or TypeORM, which a mocked repository can't reproduce. The most useful thing to assert is that a failure partway through leaves no partial writes behind:
+
+```ts
+import { vi } from 'vitest';
+import { AdoptionService } from '../src/services/AdoptionService.js';
+
+it('rolls back both writes when the second one fails', async () => {
+  const created = await request(server.getApplication())
+    .post('/pets')
+    .send({name: 'Rex', species: 'Dog'});
+
+  // Force the second half of a @Transactional method to fail after the first half has run.
+  vi.spyOn(AdoptionService.prototype, 'reserveSupplies').mockRejectedValueOnce(new Error('boom'));
+
+  await request(server.getApplication())
+    .post(`/pets/${created.body.uid}/adopt`)
+    .expect(500);
+
+  // The `adopted` write happened inside the same transaction, so it must not have been committed either.
+  const pet = await request(server.getApplication()).get(`/pets/${created.body.uid}`);
+  expect(pet.body.adopted).toBe(false);
+});
+```
+
+If the method under test also calls `registerRollbackHook()` to compensate for a write it already committed on a *different* connection, assert that the compensating action actually ran once the transaction fails, the same way as above but asserting on whatever that hook undoes.
+
+# Testing event listeners
+
+`@OnEvent` only attaches metadata to a method — registering it with `EventListenerManager` doesn't wrap or otherwise change how it's called — so the most direct way to test a handler is to instantiate the listener class and call the method yourself, no running `Server` required:
+
+```ts
+import { PetEventHandler } from '../src/events/PetEventHandler.js';
+
+it('marks the pet as processed', async () => {
+  const handler = new PetEventHandler();
+  await handler.onPetCreated({ type: 'pet.created', data: { uid: 'abc' } } as any);
+  // assert whatever side effect onPetCreated performs
+});
+```
+
+This covers the handler logic itself. To test the full path — that an event published on the configured Redis channel actually reaches a `@EventListener()`-decorated class — start the `Server` against a real (or fake) Redis connection, publish to the same channel configured under `events:channels`, and assert on the resulting side effect; see [Events](/docs/events-notifications/events#configuring-the-event-bus) for how the channel/type routing is configured.
+
 # In-memory datastores
 
 For tests that touch a real datastore, use an in-memory server instead of a shared test database. [`mongodb-memory-server`](https://github.com/typegoose/mongodb-memory-server) is what `rapidrest dev` itself uses for local development (see [Getting Started](/docs/getting-started)), and it works the same way in tests:

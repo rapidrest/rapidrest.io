@@ -7,7 +7,7 @@ sidebar_label: Dependency Injection
 
 Every exported data model, job, route, and service in RapidREST is automatically detected by the `ClassLoader` and instances managed by
 `ObjectFactory`. The `ObjectFactory` creates class instances, resolves their dependencies, and runs lifecycle hooks. All of this is driven by property and
-method decorators from the `@rapidrest/core` library.
+method decorators from the `@rapidrest/core` and `@rapidrest/service-core` libraries.
 
 # `ObjectFactory`
 
@@ -16,18 +16,17 @@ qualified name. The `ObjectFactory` manages instances of each class and controls
 
 Objects can be instantiated by either calling the `newInstance` function or by reference from another class using the `@Inject` decorator. In either
 case, `newInstance` or `@Inject` accepts either the actual type to instantiate or the fully qualified name of the class. During object instantiation,
-the `ObjectFactory` automatically injects class dependencies for each variable that has been decorated with one of the framework's injection
+the `ObjectFactory` automatically injects class dependencies for each class member that has been decorated with one of the framework's injection
 decorators. After instantiation, the `ObjectFactory` will then call all functions that have been decorated with `@Init` so that the object may
 perform post-construction initialization.
 
-The supported injection decorators are:
+The injection decorators exported from `@rapidrest/core` are:
 
 - `@Inject` - Provides generic dependency injection for any registered class type
 - `@Config` - Injects the value of the config key at the specified path (e.g. `auth:strategy`)
 - `@Logger` - Injects the application logger utility (e.g. Winston)
-- `@Repository` - Injects the SQL-compatible datastore repository of the given name
-- `@MongoRepository` - Injects the Mongo-compatible datastore repository of the given name
-- `@RedisConnection` - Injects the Redis datastore connection of the given name
+
+`@rapidrest/service-core` adds a further set of persistence-related injection decorators on top of these (see [Datastores & Connections](/docs/models-persistence/datastores#direct-repository-and-connection-injection)).
 
 A reference to each object that has been constructed by the `ObjectFactory` is stored in an internal map by a unique instance name. This makes it
 easy to support singleton instances for a given class. When using `@Inject`, the default unique instance is always `default` unless explicitly
@@ -44,6 +43,6 @@ You rarely construct these classes with `new` yourself. Instead:
 
 1. RapidREST's `ClassLoader` discovers every exported class under your source tree (see [Auto-Discovery](/docs/core-concepts/auto-discovery)).
 2. Each discovered class is registered with the `ObjectFactory`.
-3. When a route, model, or another service is instantiated, the `ObjectFactory` walks its `@Inject`/`@Config`/`@Logger` properties, resolves them, and finally runs any `@Init` methods.
+3. When a route, model, or another service is instantiated, the `ObjectFactory` walks its injection decorated properties, resolves them, and finally runs any `@Init` methods.
 
 This means a plain service class with no decorators at all, like a `PetService` that wraps some business logic, is automatically available for injection anywhere in your project, as long as it's exported from a file somewhere under `src/`.

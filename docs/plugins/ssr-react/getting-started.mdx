@@ -13,14 +13,14 @@ yarn add @rapidrest/react
 
 `@rapidrest/react` requires `@rapidrest/core`, `@rapidrest/service-core`, React 19, and React DOM 19 as peer dependencies. `vite`, `@vitejs/plugin-react`, and `tsx` are optional peers, only needed if you use client-side hydration or the dev CLI.
 
-If you generated your project with `rapidrest generate server` and selected the React feature, all of this is already wired up. Skip to [App Directory Convention](/docs/ssr-react/app-convention).
+If you generated your project with `rapidrest generate server` and selected the React feature, all of this is already wired up. Skip to [App Directory Convention](/docs/plugins/ssr-react/app-convention).
 
 ## Minimal setup by hand
 
-**1. Create the app directory** (the default is `apps/app`):
+**1. Create the app directory** (the default is `app`):
 
 ```text
-apps/app/
+app/
 ├── _layout.tsx    ← required HTML wrapper
 └── index.tsx      ← page: GET /
 ```
@@ -28,7 +28,7 @@ apps/app/
 **2. Write the layout**
 
 ```tsx
-// apps/app/_layout.tsx
+// app/_layout.tsx
 import type {PropsWithChildren} from 'react';
 
 export default function Layout({children}: PropsWithChildren) {
@@ -44,7 +44,7 @@ export default function Layout({children}: PropsWithChildren) {
 **3. Write a page**
 
 ```tsx
-// apps/app/index.tsx
+// app/index.tsx
 export default function HomePage() {
   return <h1>Hello from RapidREST React!</h1>;
 }
@@ -71,7 +71,7 @@ A named prefix like `/app` (rather than a bare `/`) is important: RapidREST also
 npx rapidreact dev
 ```
 
-The page at `apps/app/index.tsx` is now served at `/app/`. See [Dev Mode](/docs/ssr-react/dev-mode) for what this command actually runs.
+The page at `app/index.tsx` is now served at `/app/`. See [Dev Mode](/docs/plugins/ssr-react/dev-mode) for what this command actually runs.
 
 :::note[Changing the app directory]
 The app directory isn't configured via nconf. Override the `appDir` property on your route subclass instead:
@@ -83,3 +83,5 @@ export class AppRouter extends ReactRoute {
 }
 ```
 :::
+
+If you're mounting more than one React app in the same project (e.g. a public app and an admin app, each with its own `appDir`), see [Multiple Apps](/docs/plugins/ssr-react/hydration#multiple-apps) in the Hydration guide.

@@ -9,7 +9,7 @@ Where events are for services talking to each other, `NotificationUtils` is for 
 
 ```ts
 class NotificationUtils {
-  constructor(redis: Redis);
+  constructor(redis: RedisClientType);
   sendMessage(uids: string | string[], type: string, action: string, data: any): void;
 }
 ```
@@ -21,13 +21,13 @@ Because its constructor takes a Redis connection directly rather than using prop
 ```ts
 import {ObjectDecorators} from '@rapidrest/core';
 import {NotificationUtils, DatabaseDecorators} from '@rapidrest/service-core';
-import type {Redis} from 'ioredis';
+import type {RedisClientType} from 'redis';
 const {Inject} = ObjectDecorators;
-const {RedisConnection} = DatabaseDecorators;
+const {Redis} = DatabaseDecorators;
 
 export class PetService {
-  @RedisConnection('cache')
-  private redis?: Redis;
+  @Redis('cache')
+  private redis?: RedisClientType;
 
   @Inject(ObjectFactory)
   private objectFactory?: ObjectFactory;

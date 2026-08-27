@@ -38,13 +38,13 @@ An authentication secret tied to a user — a hashed password, a TOTP seed, or a
 
 | Field | Type | Notes |
 |---|---|---|
-| `data` | `any` | Shape depends on `type`: a password hash string, a `TOTPSecret` object, or a `StoredPasskeyCredential` object. |
-| `type` | `SecretType` | `FIDO2`, `PASSKEY`, `PASSWORD`, or `TOTP`. |
+| `data` | `any` | Shape depends on `type`: a password hash string, a `TOTPSecret` object, a `StoredPasskeyCredential` object, or a `RecoveryCodesSecret` object. |
+| `type` | `SecretType` | `FIDO2`, `PASSKEY`, `PASSWORD`, `RECOVERY_CODES`, or `TOTP`. |
 | `userUid` | `string` | |
 
 For WebAuthn secrets (`fido2`/`passkey`), the `Secret`'s own `uid` is set equal to the WebAuthn credential ID, so login-time verification can look it up directly by credential ID rather than scanning a user's secrets.
 
-`data` is always stripped from API responses — see [`BaseSecretRoute`](/docs/auth/routes) for how secrets are created and returned safely.
+`data` is always stripped from API responses — see [`BaseSecretRoute`](/docs/plugins/auth-library/routes) for how secrets are created and returned safely.
 
 ## `Profile`
 
@@ -72,4 +72,4 @@ interface AuthResult {
 }
 ```
 
-`token` is a JWT minted via `JWTUtils.createToken`, using the same `auth` config every other part of the framework uses (see [Configuration](/docs/auth/configuration)).
+`token` is a JWT minted via `JWTUtils.createToken`, using the same `auth` config every other part of the framework uses (see [Configuration](/docs/plugins/auth-library/configuration)).

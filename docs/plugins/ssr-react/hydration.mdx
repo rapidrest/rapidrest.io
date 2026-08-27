@@ -5,7 +5,7 @@ sidebar_label: Hydration & Production Builds
 
 # Hydration & Production Builds
 
-Everything in [Getting Started](/docs/ssr-react/getting-started) through [Dev Mode](/docs/ssr-react/dev-mode) renders pages entirely on the server. This page covers making them interactive in the browser (client-side hydration) and what changes in production.
+Everything in [Getting Started](/docs/plugins/ssr-react/getting-started) through [Dev Mode](/docs/plugins/ssr-react/dev-mode) renders pages entirely on the server. This page covers making them interactive in the browser (client-side hydration) and what changes in production.
 
 ## Vite configuration
 
@@ -15,24 +15,45 @@ Everything in [Getting Started](/docs/ssr-react/getting-started) through [Dev Mo
 // vite.config.ts
 import { createViteConfig } from '@rapidrest/react/vite';
 
-export default createViteConfig({ appDir: 'apps/app' });
+export default createViteConfig({ appDir: 'app' });
 ```
 
 ```ts
 export interface RapidRestViteOptions {
-  appDir?: string;   // default: "app"
-  outDir?: string;   // default: "dist/public"
-  plugins?: any[];   // additional Vite plugins, e.g. @tailwindcss/vite
+  appDir?: string | string[];   // default: "app"
+  outDir?: string;              // default: "dist/public"
+  plugins?: any[];              // additional Vite plugins, e.g. @tailwindcss/vite
 }
 ```
 
-:::note[`appDir` defaults don't match]
-`createViteConfig`'s `appDir` defaults to `"app"`, but `ReactRoute.appDir` (the property you'd override on your route subclass, see [Getting
-Started](/docs/ssr-react/getting-started)) defaults to `"apps/app"`. If you're following this doc set's convention of an
-`apps/app` directory, pass `appDir: 'apps/app'` to `createViteConfig` explicitly — the two defaults aren't wired together.
-:::
+`createViteConfig`'s `appDir` defaults to `"app"`, which matches `ReactRoute.appDir`'s own default — so a single-app project needs no `appDir` configuration on either side as long as it uses the default directory name.
 
 `outDir` (default `dist/public`) should resolve to the directory RapidREST auto-serves static files from in production.
+
+## Multiple apps
+
+A project can mount more than one `ReactRoute` subclass — e.g. a public app at `/` and an admin app at `/admin` — each pointed at its own `appDir`:
+
+```ts
+@Route('/')
+export class WwwRoute extends ReactRoute {
+  protected override readonly appDir = 'apps/www';
+}
+
+@Route('/admin')
+export class AdminRoute extends ReactRoute {
+  protected override readonly appDir = 'apps/admin';
+}
+```
+
+`RapidRestViteOptions.appDir` accepts an array for exactly this case — pass every app's directory and `createViteConfig` builds all of their hydration entries into a single Vite build and manifest:
+
+```ts
+// vite.config.ts
+export default createViteConfig({ appDir: ['apps/www', 'apps/admin'] });
+```
+
+Each app's entries are keyed in the manifest by a path that already includes its own `appDir` (e.g. `apps/www/index.tsx`, `apps/admin/index.tsx`), so entries from different apps can never collide even though they share one manifest. Point every route's `react:manifestPath` at that same generated manifest file — there's only one to build, regardless of how many apps feed into it.
 
 ## Enabling hydration
 
@@ -83,14 +104,13 @@ When `NODE_ENV=production` and `react:manifestPath` is set, `ReactRoute` reads t
 
 ## Production: Redis response caching
 
-`ReactRoute` already declares `cacheClient` for you, bound to a `cache` datastore via `@RedisConnection("cache")`:
+`ReactRoute` already declares `cache` for you — nothing you need to write on your subclass:
 
 ```ts
-// on ReactRoute itself, nothing you need to write:
-@RedisConnection("cache")
-protected cacheClient?: Redis;
+@Inject(RedisStore, { args: ["react.cache"] })
+protected cache?: RedisStore;
 
 protected readonly cacheTTL: number = 60; // seconds, override on your subclass if needed
 ```
 
-When `NODE_ENV=production` and a `cache` datastore is configured (see [Datastores & Connections](/docs/models-persistence/datastores)), `ReactRoute` caches the fully rendered HTML for a request (keyed by a hash of the request) for `cacheTTL` seconds, and serves the cached response on subsequent matching requests instead of re-rendering. Without a `cache` datastore, `cacheClient` is `undefined` and caching is simply skipped.
+When `NODE_ENV=production` and a `RedisStore` is available for injection (see [Datastores & Connections](/docs/models-persistence/datastores)), `ReactRoute` caches the fully rendered HTML for a request (keyed by a hash of the request) for `cacheTTL` seconds, and serves the cached response on subsequent matching requests instead of re-rendering. Without Redis configured, `cache` is `undefined` and caching is simply skipped.

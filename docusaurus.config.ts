@@ -195,7 +195,7 @@ const config: Config = {
             },
             {
               label: 'SSR React',
-              to: '/docs/ssr-react',
+              to: '/docs/plugins/ssr-react',
             },
             {
               label: 'CLI Reference',

@@ -5,19 +5,7 @@ sidebar_label: Authentication
 
 # Authentication
 
-RapidREST offers built-in authentication support for all popular authentication protocols including:
-
-- **BasicStrategy** - Simple id and password authentication [`@rapidrest/auth`]
-- **FIDO2Strategy** - FIDO2/WebAuthn hardware based authentication (e.g. YubiKey) [`@rapidrest/auth`]
-- **JWTStrategy** - JSON Web Token (JWT) protocol for secure, portable, inter-service authentication [`@rapidrest/service-core`]
-- **MFAStrategy** - Simple id and password + 2FA authentication [fido2|otp|totp] [`@rapidrest/auth`]
-- **OIDCStrategy** - OAuth 2.0 & OpenID Connect authentication [`@rapidrest/auth`]
-- **OTPStrategy** - One-Time Password (OTP) authentication (e.g. email, sms) [`@rapidrest/auth`]
-- **PasskeyStrategy** - WebAuthn based passkey authentication [`@rapidrest/auth`]
-- **TOTPStrategy** - RFC 6238 Time-Based One Time Password authentication (e.g. Google Authenticator, etc.) [`@rapidrest/auth`]
-
-The `JWTStrategy` ships as part of the `@rapidrest/service-core` library, everything else lives in the separate [`@rapidrest/auth`](/docs/auth)
-package. If you need a real login flow, see [Auth Server](/docs/auth) after reading this page.
+`@rapidrest/service-core` ships one authentication strategy out of the box, `JWTStrategy`. It verifies a token that was already issued by an authentication provider. This provides maximum flexibility to create interoperable backend services.
 
 ## Setting up the default strategy
 
@@ -89,17 +77,6 @@ conf.defaults({
 });
 ```
 
-## A real login flow
-
-Since `service-core` only ships `JWTStrategy`, a real login flow (verify a password once, issue a JWT for every request after) comes from `@rapidrest/auth`. Its `BaseAuthBasicRoute` wraps `BasicStrategy`, verifies against a stored password `Secret`, and returns a signed JWT — no manual `AuthMiddleware.register()` wiring needed:
-
-```ts
-import { RouteDecorators } from '@rapidrest/service-core';
-import { BaseAuthBasicRouteMongo } from '@rapidrest/auth/mongo';
-const { Route } = RouteDecorators;
-
-@Route('/auth/password')
-export class AuthBasicRoute extends BaseAuthBasicRouteMongo {}
-```
-
-The client sends `Authorization: Basic <base64(name:password)>` once to `/auth/password`, gets a token back, then sends `Authorization: Bearer <token>` on every subsequent request. See [Auth Server → Strategies](/docs/auth/strategies) and [Auth Server → Base Routes](/docs/auth/routes) for the full set of login methods (TOTP, WebAuthn, MFA, OIDC, and more).
+:::note[Need to build a login provider?]
+See the [Auth Library](/docs/plugins/auth-library) plugin to build your own custom auth server, or utilize [Auth Server](/docs/auth-server) for a turn-key server project that is production-ready.
+:::

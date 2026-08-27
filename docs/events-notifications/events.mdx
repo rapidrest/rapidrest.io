@@ -65,12 +65,12 @@ There isn't a dedicated "publish an event" helper. An event is just a JSON messa
 
 ```ts
 import {DatabaseDecorators} from '@rapidrest/service-core';
-import type {Redis} from 'ioredis';
-const {RedisConnection} = DatabaseDecorators;
+import type {RedisClientType} from 'redis';
+const {Redis} = DatabaseDecorators;
 
 export class PetService {
-  @RedisConnection('events')
-  private redis?: Redis;
+  @Redis('events')
+  private redis?: RedisClientType;
 
   async create(pet: Pet) {
     const created = await this.repo.create(pet);

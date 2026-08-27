@@ -5,10 +5,14 @@ sidebar_label: Overview
 
 # Authentication & Authorization
 
-RapidREST's included auth system combines JWT-based authentication with a powerful Roles Based Access Control (RBAC) authorization system. The RBAC
-system has two levels of control; simple role checks per endpoint or fine-grained Access Control Lists per resource.
+RapidREST's included auth system utilizes industry standard JSON Web Tokens (JWT) with a powerful Roles Based Access Control (RBAC) authorization system, allowing
+easy integration with existing authentication providers. The RBAC system has two levels of control; simple role checks per endpoint or fine-grained Access Control Lists per resource.
 
 ## What's Next
 
 - **[Authentication](/docs/auth-rbac/authentication)**
 - **[Authorization & RBAC](/docs/auth-rbac/authorization)**
+
+:::note[Need to build a login provider?]
+See the [Auth Library](/docs/plugins/auth-library) plugin to build your own custom auth server, or utilize [Auth Server](/docs/auth-server) for a turn-key server project that is production-ready.
+:::

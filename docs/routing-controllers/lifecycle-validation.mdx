@@ -8,10 +8,21 @@ sidebar_label: Lifecycle & Validation
 Every HTTP request in RapidREST runs through a fixed pipeline before your handler code executes, and again afterward before the response is sent:
 
 ```text
-auth strategies → @RequireRole → ACL permission check → @Validate → @Before → handler → @After
+auth strategies → @RequiresRole → ACL permission check → @Validate → @Before → handler → @After
 ```
 
 Authentication, role checks, and ACL permissions are covered in [Auth & RBAC](/docs/auth-rbac).
+
+## Guard decorators
+
+Beyond authentication itself, these route decorators gate access to a handler before it runs:
+
+| Decorator | What it does |
+|---|---|
+| `@RequiresRole(roles)` | Requires the authenticated user to have at least one of the given role(s). |
+| `@RequiresScope(scopes)` | Requires the authenticated token to carry at least one of the given OAuth-style scope(s) — a coarse, token-level check performed before the per-resource ACL check. |
+| `@RequiresElevation(lastStart?)` | Requires the user to have recently confirmed an elevated-permissions session (e.g. a re-authentication step), within `lastStart` seconds. |
+| `@RequiresTrustedRole()` | Requires the authenticated user to have at least one role marked as trusted. |
 
 ## `@Validate(func)`
 

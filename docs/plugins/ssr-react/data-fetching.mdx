@@ -13,12 +13,31 @@ props = { user, userUid, ...pageProps, ...serviceProps, ...routeProps }
 
 Later sources win on overlapping keys. A route-class override can always override a service, which can always override the page itself. `user`/`userUid` come from the authenticated request, if any, before either of the sources below run.
 
+## Controlling which `user` fields are exposed
+
+`userUid` (just `req.user?.uid`) is always passed to page props when a request is authenticated. The full `user` prop, however, is allow-listed: `ReactRoute` won't expose any `req.user` fields as `props.user` unless you opt in on your route subclass with `userFields`:
+
+```ts
+@Route('/app')
+export class AppRouter extends ReactRoute {
+  protected override readonly userFields: string[] | null = ['uid', 'email'];
+}
+```
+
+| Property | Type | Default | What it controls |
+|---|---|---|---|
+| `userFields` | `string[] \| null` | `null` | Names of `req.user` fields to copy onto `props.user`. `null` means no `user` prop is exposed at all — only the scalar `userUid`. |
+
+With `userFields` left at its default `null`, pages and the hydration payload only ever see `userUid`, not the rest of `req.user` — useful when a page just needs to know *who* is logged in without leaking the full user record (roles, hashed credentials, etc.) into client-visible props. Set `userFields` to the specific field names a page actually needs (e.g. `['uid', 'email', 'displayName']`); fields not present on `req.user` are silently skipped rather than showing up as `undefined`.
+
+Because `userFields` is a property on the route class, it applies to every page served by that route — there's no per-page override.
+
 ## Page-level `fetchProps`
 
 The simplest option: export an async `fetchProps` function from the page file itself.
 
 ```tsx
-// apps/app/pets.tsx
+// app/pets.tsx
 import type {HttpRequest} from '@rapidrest/service-core';
 
 export async function fetchProps(req: HttpRequest) {

@@ -5,7 +5,7 @@ sidebar_label: Sessions
 
 # Sessions
 
-Server-side sessions are opt-in: they're only active when a `session` config block is present. If you're only using stateless JWT auth, you don't need this at all — it's for anything that needs short-lived state between requests, most notably the challenge/response flows in [`@rapidrest/auth`](/docs/auth) (FIDO2, Passkey, OIDC, OTP, and MFA all require it — see [Auth Server → Strategies](/docs/auth/strategies) and [Auth Server → Configuration](/docs/auth/configuration)).
+Server-side sessions are opt-in: they're only active when a `session` config block is present. If you're only using stateless JWT auth, you don't need this at all — it's for anything that needs short-lived state between requests, most notably the challenge/response flows in [`@rapidrest/auth`](/docs/plugins/auth-library).
 
 ```ts
 conf.defaults({

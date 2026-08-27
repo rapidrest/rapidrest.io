@@ -82,18 +82,29 @@ additional decorators it implements.
 | HTTP Verb+Path | Calls Function | Addtl. Decorators |
 |---|---|---|
 | `HEAD /<path>` | `doCount` | `none` |
-| `POST /<path>` | `doCreate` | `@Validate("validateCreate")` |
-| `DELETE /<path/:id` | `doDelete` | `none` |
+| `POST /<path>` | `doCreate` | `@Validate("validateCreateBulk")` |
+| `DELETE /<path>/:id` | `doDelete` | `@Transactional()` |
 | `HEAD /<path>/:id` | `doExists` | `none` |
 | `GET /<path>` | `doFind` | `none` |
 | `GET /<path>/:id` | `doFindById` | `none` |
-| `DELETE /<path>` | `doTruncate` | `none` |
+| `DELETE /<path>` | `doTruncate` | `@Transactional()` |
 | `PUT /<path>` | `doBulkUpdate` | `@Validate("validateUpdateBulk")` |
-| `PUT /<path>/:id` | `doUpdate` | `@Validate("validateUpdate")` |
-| `PUT /<path>/:id/:property` | `doUpdateProperty` | `none` |
+| `PUT /<path>/:id` | `doUpdate` | `@Validate("validateUpdate")`, `@Transactional()` |
+| `PUT /<path>/:id/:property` | `doUpdateProperty` | `@Transactional()` |
 
 Note that while none of the above endpoints implements authorization explicitly, the user's action will be verified against the class and/or document
 ACL when it is decorated with the `@Protect` decorator.
+
+### `DELETE /<path>/:id` query parameters
+
+The `delete` handler accepts two query parameters that `doDelete` uses to control exactly what gets removed:
+
+| Query param | What it does |
+|---|---|
+| `?version=` | Optimistic-concurrency guard. Scopes the delete to the exact document version given. If the record has since changed (or been deleted) so that no row matches both the `id` and the `version`, the request fails with a `404` rather than deleting the wrong version out from under a concurrent writer. |
+| `?purge=true` | For a `RecoverableBaseEntity`/`RecoverableBaseMongoEntity` model (see [Base Entities & Caching](/docs/models-persistence/base-entities)), a plain `DELETE` only soft-deletes the record — it's flagged `deleted: true` (and its ACL is left intact) rather than removed. `?purge=true` permanently removes the record from the datastore and clears its ACL instead. For a non-recoverable model, every delete is effectively a purge regardless of this flag. |
+
+A soft-deleted record is excluded from normal `find`/`findById` lookups. Restoring one is a normal `update` (`PUT /<path>/:id`) that sets `deleted: false` — viewing or restoring a soft-deleted record requires both `DELETE` and `UPDATE` permission on it, since those are the two actions actually involved.
 
 You may optionally override any of endpoint functions defined in `CRUDRoute` to apply additional decorators. It is not necessary to duplicate all of
 the decorators in the base class. For example, if you want to apply the `@Auth` decorator to require authentication to the `create` endpoint, all

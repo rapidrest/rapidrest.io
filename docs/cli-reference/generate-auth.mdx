@@ -1,0 +1,69 @@
+---
+sidebar_position: 3
+sidebar_label: Auth
+---
+
+# `rapidrest generate auth`
+
+Adds login/session scaffolding to an existing project, backed by [`@rapidrest/auth`](/docs/plugins/auth-library): self-service registration, admin user management, and one or more selectable authentication methods (HTTP Basic, OTP, TOTP, Passkey, FIDO2, MFA, and OAuth 2.0/OpenID Connect). Opt-in — nothing in the base `generate server` template depends on it.
+
+```bash
+rapidrest generate auth
+rapidrest generate auth --datastore-type sql --sql-type better-sqlite3 --method basic
+rapidrest generate auth --datastore-type mongo --default-accounts --method basic --method mfa
+rapidrest generate auth --method oidc --oidc-provider google --oidc-provider apple
+```
+
+| Flag | Description |
+|---|---|
+| `--datastore-type <name>` | Which datastore backs authentication data. One of `sql`, `mongo` |
+| `--sql-type <name>` | When `--datastore-type sql` and no `sql` datastore exists yet, which SQL database to create it as. One of `postgres`, `better-sqlite3` |
+| `--default-accounts` | Also provision a default admin account the first time the server boots against an empty user table |
+| `--method <name>` | Which authentication method(s) to enable. One of `basic`, `otp`, `totp`, `passkey`, `fido2`, `mfa`, `oidc`. Repeatable |
+| `--oidc-provider <name>` | When `oidc` is among `--method`, which third-party OIDC/OAuth provider(s) to configure. One of `google`, `apple`, `facebook`, `microsoft`, `custom`. Repeatable |
+| `--author <name>` | |
+| `--output-dir <path>` | Defaults to the current directory |
+| `-f`, `--force` | Overwrite existing files |
+
+If `--datastore-type`, `--method`, or `--oidc-provider` are omitted, you're prompted interactively — the same checkboxes/selects as before these flags existed. `basic` is checked by default in the method checkbox; `google` is checked by default in the OIDC provider checkbox.
+
+## What gets generated
+
+`@rapidrest/auth` ships ready-made model and route base classes — this command doesn't hand-write a `User` model, it generates thin subclasses that wire them up.
+
+| File | Generated when |
+|---|---|
+| `src/models/auth.ts` | always — re-exports `User`/`Alias`/`Secret`/`Profile` (SQL or Mongo variant) |
+| `src/routes/RegistrationRoute.ts` | always — self-service sign-up (creates a user + login alias, issues a token) |
+| `src/routes/UserRoute.ts` | always — admin CRUD over user accounts (deny-by-default ACL) |
+| `src/routes/AuthLogoutRoute.ts` | always — clears the session cookie |
+| `src/routes/SecretRoute.ts` | always — password changes and TOTP/Passkey/FIDO2 enrollment |
+| `src/routes/AuthBasicRoute.ts` | `--method basic` |
+| `src/routes/AuthOTPRoute.ts` | `--method otp` |
+| `src/routes/AuthTOTPRoute.ts` | `--method totp` |
+| `src/routes/AuthPasskeyRoute.ts` | `--method passkey` |
+| `src/routes/AuthFIDO2Route.ts` | `--method fido2` |
+| `src/routes/AuthMFARoute.ts` | `--method mfa` |
+| `src/routes/Auth<Provider>Route.ts` | one per selected `--oidc-provider` |
+| `src/jobs/DefaultAccounts.ts` | `--default-accounts` |
+
+**The datastore name matters.** `@rapidrest/auth`'s `User`/`Alias`/`Secret` model classes have a fixed datastore binding baked in — literally named `sql` or `mongo` — so this command reuses an existing datastore with that exact name if one exists, or creates one (patching `src/config.ts`) if not. This is unlike `generate model`, where a datastore can be named anything.
+
+## Wiring into the project
+
+`src/config.ts` is patched to add the config block(s) your selection needs under `auth:` — `auth.totp` and/or `auth.fido2` when `totp`/`fido2` (or `mfa`, which needs both under the hood) is selected, `auth.passkey` when `passkey` is selected, and `auth.oidc_<provider>` for each selected OIDC provider. OIDC Client ID/Secret are written in as plain strings, matching this file's existing convention for every other secret-shaped value — override them via the environment in a real deployment (e.g. `AUTH__OIDC_GOOGLE__CLIENTSECRET`).
+
+`package.json` is updated automatically via a JSON merge (no manual edit needed):
+
+- `@rapidrest/auth` and `argon2` (password hashing) — always
+- `otplib` — when `otp`, `totp`, or `mfa` is selected
+- `@simplewebauthn/server` — when `passkey`, `fido2`, or `mfa` is selected
+- `jwks-rsa` — when a selected OIDC provider uses OpenID Connect (all current presets except Facebook)
+
+Install dependencies after running this command.
+
+**OIDC providers.** Selecting `oidc` prompts for one or more third-party providers when `--oidc-provider` isn't passed. Google, Apple, Facebook, and Microsoft come with preset, well-known endpoints (verify these against the provider's current `.well-known/openid-configuration` before deploying — they can change); `custom` prompts for every endpoint (authorization/token/profile URLs, protocol, issuer, JWKS URI, scopes) by hand. Selecting more than one provider is fully supported — each gets its own route file and a distinct registered strategy name, so they don't collide.
+
+:::note[Out of scope]
+Not scaffolded by this command, though all real, working parts of `@rapidrest/auth`: session refresh, account elevation, auth-method discovery, and direct Profile/Account/Alias management routes. Add those by hand, following the same thin-subclass pattern as the routes this command generates. See [Auth Library](/docs/plugins/auth-library) for the library's full capabilities.
+:::

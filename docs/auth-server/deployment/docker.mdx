@@ -1,0 +1,90 @@
+---
+sidebar_position: 1
+sidebar_label: Docker Compose
+---
+
+# Docker Compose
+
+A pre-built image for each tagged release is published to [GitHub](https://github.com/orgs/rapidrest/packages) as `ghcr.io/rapidrest/auth-server:1.0.0`.
+
+## Architecture
+
+Compose builds the image from the repository's `Dockerfile` and starts three containers on one network: `server` (the `auth-server` API), `redis` (cache, events, and log streaming), and either `mongo` or `postgres` (the primary datastore, depending on the compose file chosen).
+
+```text
+      -----------------------------------------------------
+     |                  compose network                     |
+     |                                                       |
+     |   ------------      ------------      --------------- |
+     |  |   server   |<-->|   redis    |    | mongo/postgres| |
+     |  | (built from|    |  (cache,   |    |  (primary     | |
+     |  | Dockerfile)|    |  events,   |    |   datastore)  | |
+     |   ------------      |  logs)    |     --------------- |
+     |        |             ------------                     |
+      -----------------------------------------------------
+              |
+     host:3000 (API)        host:9229 (Node inspector)
+```
+
+The `Dockerfile` builds in two stages: a `builder` stage installs dependencies and compiles the project, and a `runner` stage copies over just the compiled output, running as a non-root `node` user with a healthcheck against `/`.
+
+## Prerequisites
+
+- [Docker](https://www.docker.com/) Engine with the Compose plugin
+
+## Running the Stack
+
+1. Clone the repository.
+   ```bash
+   git clone https://github.com/rapidrest/auth-server.git
+   cd auth-server
+   ```
+2. Run `docker compose up` using the database specific yaml (`docker-compose.mongo.yml` for Mongo, `docker-compose.sql.yml` for SQL).
+   ```bash
+   # MongoDB
+   docker compose -f docker-compose.mongo.yml up
+   
+   # PostgreSQL
+   docker compose -f docker-compose.sql.yml up
+   ```
+3. Open a browser to [http://localhost:3000](http://localhost:3000).
+
+## Configuration and installation details
+
+### Debug and override overlays
+
+Two optional yaml files layer on top of either datastore variant to aid during debugging.
+
+| File | Adds |
+|---|---|
+| `docker-compose.override.yml` | Publishes the datastore ports (`5432` for Postgres, `6379` for Redis) to the host. |
+| `docker-compose.debug.yml` | Runs `yarn debug` instead of the built server and bind-mounts `./src` and `./apps`, so edits on the host take effect without rebuilding the image. Exposes port `9229` for remote debugging. |
+
+For example, a live-reloading SQL setup with datastore ports exposed:
+
+```bash
+docker compose -f docker-compose.sql.yml -f docker-compose.override.yml -f docker-compose.debug.yml up
+```
+
+### Environment variable overrides
+
+The server [configuration](/docs/core-concepts/configuration) can be overridden in docker by modifying the `environment` section of the yaml file. Nested config variables can be referenced by replacing `:` with double underscore `__` (e.g. `datastores:mongo:url` becomes `datastores__mongo__url`).
+
+For example, overriding the mongo and cache datastores is done as follows:
+
+```bash
+services:
+  server:
+    environment:
+      datastores__mongo__url=mongodb://mongo
+      datastores__cache__url=redis://redis
+```
+
+### Production secrets
+
+`auth-server` ships with fixed development defaults for `cookie_secret`, `auth:secret`, and `session:secret`. It refuses to start in production if any of the three are still at their default value, so set `COOKIE_SECRET`, `AUTH__SECRET`, and `SESSION__SECRET` to unique values before deploying for real. It also warns, without refusing to start, if the placeholder OIDC `clientID`/`clientSecret` are still active and OIDC sign-in is enabled.
+
+## See also
+
+- [Configuration](/docs/plugins/auth-library/configuration) for the full `auth:*`/`session` config tree.
+- [Strategies → Security Features](/docs/plugins/auth-library/strategies#security-features) for what to double-check before exposing a deployment publicly.

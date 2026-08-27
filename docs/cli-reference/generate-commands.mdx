@@ -18,8 +18,50 @@ rapidrest generate server my-api --output-dir ~/projects/my-api
 |---|---|
 | `--output-dir <path>` | Directory to write into. Defaults to `./<NAME>` |
 | `--force` | Overwrite existing files |
+| `--answers <path>` | Path to a JSON file supplying any of the flags below, for reuse across projects (schema below). Flags always take precedence over the file; either takes precedence over the interactive prompts |
+| `--description <text>` | Short description of the project |
+| `--author <name>` | Falls back to your Git config, then prompts |
+| `--pkg-manager <name>` | One of `npm`, `yarn` |
+| `--db <name>` | A database feature to enable. One of `mongodb`, `postgresql`, `redis`, `sqlite`. Repeatable |
+| `--route <name>` | A default route to include. One of `acl`, `admin`, `metrics`, `openapi`, `push`, `status`. Repeatable |
+| `--react` / `--no-react` | Include React frontend support |
+| `--docker` / `--no-docker` | Include Docker support |
+| `--k8s` / `--no-k8s` | Include Kubernetes (Helm) support |
+| `--api-route` / `--no-api-route` | Prefix all non-React routes with `/api` |
+| `--api-version <value>` | API version segment when `--api-route` is set (e.g. `1` for `/api/v1`) |
+| `--scm <name>` | Source control manager. One of `github`, `gitlab`, `git`, `p4`, `svn`, `none` |
 
-Everything else is interactive: project description, author (auto-filled from Git config when available), package manager (`yarn`/`npm`), databases (MongoDB and Redis checked by default; PostgreSQL and SQLite also available), additional features (React, Docker, checked by default, Kubernetes/Helm), and source control (GitHub, GitLab, Git, Perforce, Subversion, or none).
+Each flag stands in for one interactive prompt — pass it (or supply it via `--answers`) to skip that prompt; omit both to be asked interactively, exactly as before these flags existed. `--route`/`--react`/`--docker`/`--k8s` all stand in for the same single "additional features" checkbox, so they're treated as one group: passing **any one** of them (or its `--answers` equivalent) skips that checkbox entirely, and any of the four you didn't specify falls back to that checkbox's own default (`--route` → none, `--react` → off, `--docker` → **on**, `--k8s` → off) rather than prompting for just the rest.
+
+Any default routes selected are generated via [`generate default-route`](/docs/cli-reference/addons#rapidrest-generate-default-route) immediately after the project is scaffolded, using the same author and API prefix chosen here.
+
+**`--answers <file>`** — a JSON file with any of the flags above as camelCase keys, every key optional:
+
+```json
+{
+  "description": "A product catalog service",
+  "author": "Jane Doe <jane@example.com>",
+  "pkgManager": "npm",
+  "db": ["mongodb", "redis"],
+  "route": ["admin", "status"],
+  "react": false,
+  "docker": true,
+  "k8s": false,
+  "apiRoute": true,
+  "apiVersion": "1",
+  "scm": "github"
+}
+```
+
+```bash
+# Fully non-interactive, via flags
+rapidrest generate server my-api --description "A product catalog service" --pkg-manager npm \
+  --db mongodb --db redis --route admin --route status \
+  --docker --api-route --api-version 1 --scm github
+
+# Fully non-interactive, via a reusable profile
+rapidrest generate server my-api --answers ./server-profile.json
+```
 
 ## `rapidrest generate model NAME`
 
@@ -38,7 +80,15 @@ rapidrest generate model Product --datastore mongo --cache 120 --protect
 | `--datastore <name>` | The configured datastore this model binds to |
 | `--cache [ttl]` | Enables `@Cache`. Bare `--cache` defaults to a TTL of `60` |
 | `-p`, `--protect` | Enables RBAC protection on the model. Interactively defaults to **on** |
+| `--property <name:type>` | Add a typed property to the model, as `name:type` (e.g. `quantity:number`). Append `?` to the type to make it optional (e.g. `bio:string?`). Repeatable |
 | `--force` | Overwrite existing files |
+
+Every model already has a `name: string` field (its `@Identifier`) — `--property`/the interactive prompt add further data properties alongside it, not instead of it. An optional property (`type?`) is declared as `type | undefined` with `@Nullable` and defaults to `undefined`; a required property gets a type-appropriate zero value (`""`, `0`, `false`, `[]`, `new Date()`).
+
+```bash
+rapidrest generate model Product --datastore mongo --cache --protect \
+  --property quantity:number --property tags:string[] --property "bio:string?"
+```
 
 If you configure a brand-new datastore while adding a model, and Docker or Helm add-ons already exist in the project, you'll be prompted to regenerate them so the new datastore is reflected.
 
@@ -60,7 +110,7 @@ rapidrest generate route ProductRoute --api 2
 | `--path <route-path>` | Base path, e.g. `/api/v1/products` |
 | `--model <name>` | Bind to a model, generates a `CRUDRoute` (see [Auto CRUD Routes](/docs/auto-crud-routes)) |
 | `--no-model` | Skip all prompts about associating a model |
-| `--api [version]` | Use `@ApiRoute` instead of `@Route` (see [Routing & Controllers](/docs/routing-controllers/defining-routes#api-versioned-routes-using-apiroute)). Pass a version to prefix the path with `/api/v<version>`; bare `--api` prefixes with `/api` only |
+| `--api <version>` | Use `@ApiRoute` instead of `@Route` (see [Routing & Controllers](/docs/routing-controllers/defining-routes#api-versioned-routes-using-apiroute)). Pass a version to prefix the path with `/api/v<version>`. **Requires a value** — a bare `--api` fails with `Flag --api expects a value`; to get an unversioned `/api` prefix, omit the flag and answer the interactive prompts (confirm "Is this an API route?", then leave the version blank) |
 | `-p`, `--protect` | Enables RBAC protection. Interactively defaults to **off** (opposite of `generate model`) |
 | `-f`, `--force` | Overwrite existing files |
 

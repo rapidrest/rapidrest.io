@@ -42,6 +42,10 @@ You can also skip straight to a non-interactive run for the parts you already kn
 rapidrest generate server my-api --output-dir ~/projects/my-api
 ```
 
+:::note[Scripting or CI?]
+Every prompt above has a matching flag that skips the interactive prompt. Alternatively you can provide an answers file (`--answers <file>`), allowing you to scaffold identically-configured projects without any prompts at all. See [Generate Commands](/docs/cli-reference/generate-commands#rapidrest-generate-server-name) for the full non-interactive flag reference.
+:::
+
 ## Install dependencies
 
 ```bash
@@ -116,5 +120,6 @@ This gives you a full set of CRUD endpoints for `Pet`. See [Auto CRUD Routes](/d
 - [Core Concepts](/docs/core-concepts): dependency injection, auto-discovery, and configuration
 - [Routing & Controllers](/docs/routing-controllers): writing your own endpoints
 - [Default Routes](/docs/default-routes): what the generated `AdminRoute`, `MetricsRoute`, `OpenAPIRoute`, `StatusRoute` and `PushRoute` files actually do
-- [SSR React](/docs/ssr-react): server-rendered pages in the same project
+- [SSR React](/docs/plugins/ssr-react): server-rendered pages in the same project
+- [Auth Library](/docs/plugins/auth-library) and [`rapidrest generate auth`](/docs/cli-reference/generate-auth): add login/session scaffolding — self-service registration, admin user management, and HTTP Basic, OTP, TOTP, Passkey, FIDO2, MFA, or OAuth 2.0/OIDC login
 - [CLI Reference](/docs/cli-reference): every `generate` command in detail

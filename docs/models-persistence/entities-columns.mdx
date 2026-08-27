@@ -99,7 +99,7 @@ contacts: Contact[] = [];
 ```
 
 This is enforced automatically inside `RepoUtils.find()`/`findOne()` via `ObjectUtils.deleteScopedProps` — no extra wiring needed in your route. It's
-how `@rapidrest/auth`'s [`Profile`](/docs/auth/data-models#profile) model protects `contacts` and `preferences` behind `profile:email` and
+how `@rapidrest/auth`'s [`Profile`](/docs/plugins/auth-library/data-models#profile) model protects `contacts` and `preferences` behind `profile:email` and
 `profile:preferences` scopes.
 
 This is unrelated to the route-level `@RequiresScope` documented in [Authorization](/docs/auth-rbac/authorization#requiresscope-route-level), which

@@ -1,0 +1,52 @@
+---
+sidebar_position: 6
+sidebar_label: Maintenance
+---
+
+# Maintenance Commands
+
+## `rapidrest doctor`
+
+Validates an existing project against a set of known issues and, where possible, fixes them.
+
+```bash
+rapidrest doctor          # report findings
+rapidrest doctor --fix    # apply automatic fixes, then report what remains
+rapidrest doctor --json   # machine-readable output, e.g. for CI
+```
+
+| Flag | Description |
+|---|---|
+| `--fix` | Automatically apply fixes for findings that support it |
+| `--json` | Output findings as JSON instead of a formatted report |
+
+Run this from the root of a generated project to check it against known bug patterns that have been found to break generated projects — a datastore's `type` using this CLI's own feature-flag name instead of TypeORM's driver literal, a missing `vitest.config.ts`, `typeorm`/`redis` not resolvable for type-checking, an `eslint-plugin-import` + `eslint@10` conflict, the old boolean-flag `ACLRecord` shape, and a few others. This is useful for projects scaffolded a while ago that may have drifted from what the currently installed `@rapidrest/*` libraries expect, not just freshly generated ones.
+
+Each finding is reported with a severity (`error` or `warning`) and, where the fix is mechanical and safe to apply automatically, a note that `--fix` can resolve it. Findings without a safe automatic fix (e.g. the old ACL format, which needs a per-record judgment call to migrate correctly) are reported for you to address by hand.
+
+`doctor` exits with a non-zero code if any `error`-severity finding remains after fixing (or immediately, if `--fix` wasn't passed) — useful as a CI gate.
+
+## `rapidrest upgrade`
+
+Refreshes an existing project's generator-owned boilerplate files and dependency versions against the currently installed CLI's templates.
+
+```bash
+rapidrest upgrade          # report what would change
+rapidrest upgrade --write  # apply it
+rapidrest upgrade --json   # machine-readable output, e.g. for CI
+```
+
+| Flag | Description |
+|---|---|
+| `--write` | Apply the changes. Without this flag, only reports what would change |
+| `--json` | Output the plan as JSON instead of a formatted report |
+
+Run this from the root of a generated project. Unlike [`doctor`](#rapidrest-doctor), which detects a fixed set of known-bad patterns, `upgrade` re-syncs a project against whatever the currently installed CLI's templates actually contain — dependency version bumps, config/build-file fixes, new boilerplate — the same way you'd get by hand-diffing a fresh scaffold against your existing project, but automated.
+
+It only ever touches a file that already exists in the project, and never creates a new one — a project that never opted into Docker/Kubernetes/a given default route simply doesn't have that file on disk, so nothing is added on its behalf. `src/config.ts` and `test/config.ts` are never touched at all (they're user-edited and mutated by `generate model`/`generate route`/`generate auth`'s patches, so they need surgical handling — see `doctor`), and `package.json` is never overwritten wholesale: only known dependency version pins are updated or added, your own added dependencies and `scripts` are left exactly as they are.
+
+:::note[Known limitations]
+- Copyright-year headers (`Copyright (C) {{year}} {{author}}`) will show as "changed" every time the calendar year rolls over — harmless, but expect a one-line diff on otherwise-unchanged files each January.
+- If `src/routes/HelloRoute.ts` was deleted, the API route prefix can't be recovered, which can cause a false-positive diff on any surviving default-route file's decorator line.
+- Dependency sync never *removes* a stale or renamed dependency (e.g. a package the template dropped) — that's [`doctor`](#rapidrest-doctor)'s job.
+:::

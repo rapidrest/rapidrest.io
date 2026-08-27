@@ -1,15 +1,21 @@
 ---
-sidebar_position: 5
+sidebar_position: 7
 sidebar_label: Global Middleware
 ---
 
 # Global Middleware
 
-Most middleware-like behavior in RapidREST is per-route, expressed with decorators — auth strategies, `@RequiresRole`/ACL checks, `@Validate`, `@Before`/`@After` — all covered in [Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation). That's what you want for almost everything.
+**Middleware** is code that runs between "a request arrived" and "your route handles it", a checkpoint every request passes through first, free to inspect the request, change it, reject it outright, or let it continue.
 
-Separately, the underlying router also supports Express-style global middleware via `.use()`, registered once and run for every request before route matching. The framework uses this itself, internally, to implement [CORS](/docs/http-engine/cookies-cors), [Sessions](/docs/http-engine/sessions), global response [headers](/docs/http-engine/cookies-cors#global-response-headers), Prometheus metrics, and top-level error handling — none of which are tied to any single route.
+RapidREST already gives you a way to attach checkpoint-like behavior to one specific route: decorators, an auth strategy, `@RequiresRole`, `@Validate`, all covered in [Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation). Reach for that first, it keeps a rule attached to exactly the endpoint it governs. Global middleware is for the rarer case where a rule genuinely doesn't belong to any one route at all.
 
-If you're wiring `service-core` into a project by hand and need something to run on every request regardless of route, you can register it the same way:
+## What's already running on every request
+
+Every page in this section so far is, internally, exactly this: middleware RapidREST registers once and runs for every request before route matching even happens. [Error Handling](/docs/http-engine/error-handling) sits at the end of the chain catching whatever the rest of it didn't. [Cookies & CORS](/docs/http-engine/cookies-cors) and [Sessions](/docs/http-engine/sessions) run early, before your route sees the request. Prometheus metrics (see [Default Routes → Metrics](/docs/default-routes/metrics)) are recorded the same way. None of these are things you wire up, they're already running, this is just what they're built from.
+
+## Writing your own
+
+The only time you'd reach for this yourself is assembling `service-core` into a project by hand and needing something to run unconditionally on every request, regardless of route:
 
 ```ts
 server.getApplication().use(async (req, res, next) => {
@@ -18,4 +24,8 @@ server.getApplication().use(async (req, res, next) => {
 });
 ```
 
-Reach for this only for genuinely cross-cutting, route-independent concerns — for anything scoped to a specific route or set of routes, the per-route lifecycle pipeline in [Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation) is almost always the better fit.
+The `(req, res, next)` shape is the same convention Express middleware uses, and [Error Handling](/docs/http-engine/error-handling#where-this-runs) covers the four-argument error-handler variant of it.
+
+## Deciding which one to reach for
+
+Is the rule about one route, a handful of related routes, or genuinely everything? For anything scoped to specific routes, even a lot of them, decorators are almost always the better fit, the rule stays visible right next to the code it affects instead of living in a separate file a reader has to already know to check. Global middleware earns its keep only for the rare rule that has nothing to do with which route is being called at all.

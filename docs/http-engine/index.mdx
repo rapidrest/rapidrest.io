@@ -5,70 +5,65 @@ sidebar_label: Overview
 
 # HTTP Engine
 
-`@rapidrest/service-core` has two HTTP backends: the default is built on [uWebSockets.js](https://github.com/uNetworking/uWebSockets.js) (uWS) running under Node.js, the alternative is built directly on Bun's `Bun.serve()`. Which one runs is auto-detected at startup — there's nothing to configure in your project's code, and see [Deployment → Bun](/docs/deployment/bun) if you want to opt into the Bun engine.
+Every request your API receives arrives the same way underneath: a stream of raw bytes over a network connection, following the HTTP protocol. Something has to sit at the bottom of your server and do the unglamorous work of reading those bytes, figuring out what the caller is asking for, and sending bytes back. That piece of software is the **HTTP engine**, and it's the foundation every route you write, and every other page in this section, ultimately sits on top of.
 
-## Why two engines, and why it doesn't matter to you
+You'll almost never touch this layer directly. You write `@Get('/pets')` and a function, and by the time your code runs, the request has already been parsed into something easy to work with. This page covers what that foundation actually is, what it hands you on every request, and a few server-level settings that live here rather than on any one route.
 
-`Server.ts` picks a backend once, at boot:
+## Two engines, one interface
 
-```ts
-if (isBunRuntime()) {
-  // Bun.serve()-backed router
-} else {
-  // uWebSockets.js-backed router
-}
-```
+Most Node.js HTTP frameworks are built directly on Node's own built-in HTTP handling. It's a reasonable, well-worn choice, but not the fastest one available, and a meaningful slice of your server's total throughput is decided before your code ever runs, purely by how efficiently the layer underneath it accepts connections and parses requests.
 
-Both are loaded via a dynamic `import()`, specifically so the uWS native binary is never touched when running under Bun, and vice versa.
+RapidREST runs on one of two engines instead:
 
-The important part isn't which one is picked — it's that **everything else in the framework is built against one shared abstraction**, `IHttpRouter`, and the request/response types `HttpRequest`/`HttpResponse`. Routing, CORS, sessions, JWT auth, RBAC/ACL, Prometheus metrics, error handling, static files, and WebSocket connections are all implemented once, purely in terms of that abstraction — none of it references uWS or Bun directly. That's why every other page in these docs (routing, auth, default routes, and the rest of this section) applies identically no matter which engine is running underneath.
+- **[uWebSockets.js](https://github.com/uNetworking/uWebSockets.js)** (uWS), a C++ networking library with Node.js bindings, built to be dramatically faster than Node's own HTTP handling. This is the default under Node.
+- **[Bun](https://bun.sh)**'s own built-in server, for projects running on the Bun runtime, which has its own from-scratch, high-performance HTTP implementation.
 
-A few things do differ only in the internal plumbing, transparent to you as a user:
-- **Route matching** — uWS uses its native trie router; the Bun backend hand-rolls an equivalent matcher built to reproduce uWS's exact precedence rules (static path beats `:param` beats `/*` wildcard).
-- **SSL config** — you write the same `ssl` block either way (see below); uWS consumes it as file *paths*, the Bun adapter reads the same paths into file contents internally.
-- **Request body size enforcement** — both enforce `max_body_size`, uWS by counting streamed chunks, Bun by also fast-rejecting on an oversized declared `Content-Length` first.
+Which one runs is auto-detected at startup, Node gets uWS, Bun gets Bun's server, with nothing to configure in your own code either way. See [Deployment → Bun](/docs/deployment/bun) if you want to run under Bun specifically.
 
-None of this changes how you write a route, a strategy, or a config file.
+What actually matters here isn't which engine is faster, it's that **routing, cookies, sessions, auth, permissions, metrics, and error handling are each written exactly once**, against a shared interface both engines implement, not duplicated per engine. Every route class and every page in this section works identically regardless of which one is running underneath. A few real implementation details do differ between them (how a URL gets matched to a route, how TLS certificate files get read), but none of it is visible from your code. You're not writing "the uWS version" of anything.
 
-## The request/response objects
+## The request and response objects
 
-`HttpRequest` and `HttpResponse` are the same shape regardless of engine — this is what `@Request`/`@Response` inject into your handlers (see [Request Parameters](/docs/routing-controllers/request-parameters)):
+Every route you write receives a consistent pair of objects, regardless of which engine produced them:
 
 ```ts
 interface HttpRequest {
-  method: string;
-  path: string;
+  method: string;                                    // "GET", "POST", etc.
+  path: string;                                       // "/pets/123"
   headers: Record<string, string | string[] | undefined>;
-  params: Record<string, string>;
-  query: Record<string, string | string[]>;
-  body: any;
+  params: Record<string, string>;                     // values from the URL, like the "123" in "/pets/:id"
+  query: Record<string, string | string[]>;           // ?key=value pairs
+  body: any;                                           // the parsed request body, for POST/PUT/etc.
   cookies: Record<string, string>;
-  session?: Record<string, any>; // only set when session middleware is registered, see Sessions
-  user?: any;                    // set by JWT auth middleware
-  // ...
+  session?: Record<string, any>;                      // see Sessions
+  user?: any;                                          // set once someone is authenticated
 }
 
 interface HttpResponse {
   statusCode: number;
   status(code: number): this;
-  setHeader(key: string, value: string | number): this;
+  setHeader(key: string, value: string | number | string[]): this;  // replaces any existing value(s)
+  appendHeader(key: string, value: string | number): this;          // adds a value without clobbering
+  getHeader(key: string): string | string[] | undefined;
   json(data: any): void;
   send(data?: any): void;
   end(data?: any): void;
-  // ...
+  onFinish(handler: () => void | Promise<void>): void;              // fires once, when the response completes
 }
 ```
 
-The rest of this section covers what's built directly into this layer: [Sessions](/docs/http-engine/sessions), [Cookies & CORS](/docs/http-engine/cookies-cors), [Streaming Responses](/docs/http-engine/streaming), and [Global Middleware](/docs/http-engine/middleware).
+`setHeader()` versus `appendHeader()` matters the moment more than one thing might want to set the same header, `Set-Cookie` being the common case: see [Cookies & CORS](/docs/http-engine/cookies-cors). `@Request`/`@Response` are the decorators that hand these objects to your route functions, covered properly in [Request Parameters](/docs/routing-controllers/request-parameters). The rest of this section covers what's built into this layer: [Error Handling](/docs/http-engine/error-handling), [Sessions](/docs/http-engine/sessions), [Cookies & CORS](/docs/http-engine/cookies-cors), [Streaming Responses](/docs/http-engine/streaming), [WebSockets](/docs/http-engine/websockets), and [Global Middleware](/docs/http-engine/middleware).
 
-## Server configuration
+## Basic server settings
 
-| Key | Default | Purpose |
+A small number of settings control the server itself rather than any one route, set under [Configuration](/docs/core-concepts/configuration):
+
+| Key | Default | What it controls |
 |---|---|---|
-| `port` | `3000` | Listen port |
-| `listen_host` | `0.0.0.0` | Bind host. Use `::` to bind all interfaces including IPv6 |
-| `ssl.key` / `ssl.cert` / `ssl.ca` / `ssl.passphrase` | — | File paths enabling HTTPS/TLS. Same shape on both engines |
-| `max_body_size` | `10485760` (10 MiB) | Maximum request body size before the request is rejected with `413 Payload Too Large` |
+| `port` | `3000` | Which port your server listens on |
+| `listen_host` | `0.0.0.0` | Which network interfaces to accept connections on. `0.0.0.0` means "any" |
+| `ssl.key` / `ssl.cert` / `ssl.ca` / `ssl.passphrase` | none | File paths that turn on HTTPS, if you're terminating TLS in the app itself rather than in front of it |
+| `max_body_size` | `10485760` (10 MiB) | The largest request body accepted before the request is rejected with `413 Payload Too Large` |
 
 ```ts
 conf.defaults({
@@ -82,4 +77,20 @@ conf.defaults({
 });
 ```
 
-For how RapidREST compares to Express, Fastify, and Next.js under load, see [Performance](/docs/performance) — that page's numbers are all on the uWS/Node engine; there's no published Bun-vs-uWS comparison yet.
+## Client IP and trusted proxies
+
+Behind a load balancer or reverse proxy, the socket's own address is the proxy's, not the caller's, the real client IP shows up in a header like `X-Forwarded-For` instead. RapidREST won't trust that header by default, since anyone can set it on a direct request, it's only consulted when the connecting socket's address is itself in your configured `trusted_proxies` list:
+
+```ts
+conf.defaults({
+  trusted_proxies: ['10.0.0.0/8'],
+});
+```
+
+This is what a handful of framework internals (audit-log IP capture on create/update, session IP checks) use to resolve the real caller. Leave it unset and RapidREST always uses the raw socket address, which is the safe default when you aren't behind a proxy.
+
+## Shutting down
+
+A RapidREST server shuts down in order, not all at once: background services stop first, then the listen socket closes (no new connections accepted, in-flight ones finish), then database connections close. If any step hangs, a 30-second watchdog forces the process to exit rather than leaving it stuck. This runs automatically on `SIGINT`/`SIGTERM`, there's nothing you need to wire up yourself for a normal deployment.
+
+If you're curious exactly how much the engine choice affects real request throughput, see [Performance](/docs/performance) for numbers comparing RapidREST against Express, Fastify, and Next.js (measured on the uWS engine, there's no published Bun comparison yet).

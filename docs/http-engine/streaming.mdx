@@ -1,19 +1,27 @@
 ---
-sidebar_position: 4
+sidebar_position: 5
 sidebar_label: Streaming Responses
 ---
 
 # Streaming Responses
 
-Beyond the standard `res.json()`/`res.send()`/`res.end()` methods, `HttpResponse` also supports writing a response incrementally — implemented identically on both engines:
+`res.json()`/`res.send()` cover the common case: figure out the whole answer, send it back in one shot. **Streaming** is for the other case, sending a response in pieces over time, when there's no single complete answer to wait for, a periodic update pushed to a still-open connection, for as long as the client stays around.
+
+## The tools for it
+
+`HttpResponse` adds three methods for this, on top of `res.json()`/`res.send()`/`res.end()`:
 
 | Method | What it does |
 |---|---|
-| `res.flushHeaders()` | Sends the status line and headers immediately, without ending the response |
-| `res.write(chunk)` | Flushes headers on first call if not already sent, then writes a chunk without ending |
-| `res.onAbort(callback)` | Fires if the client disconnects mid-stream |
+| `res.flushHeaders()` | Sends the status code and headers immediately, without ending the response (normally these wait until the response is finished) |
+| `res.write(chunk)` | Sends one piece of data without ending the response, so you can call it again |
+| `res.onAbort(callback)` | Runs if the client disconnects mid-stream, your chance to clean up anything still running (a timer, an interval) |
 
-## Server-Sent Events (SSE)
+These work identically on either [HTTP engine](/docs/http-engine).
+
+## Server-Sent Events
+
+The most common concrete use is **Server-Sent Events** (SSE): a one-directional stream of updates over a single, long-lived connection, no polling required on the client side.
 
 ```ts
 @Get('/events')
@@ -29,6 +37,10 @@ async streamEvents(@Response res: HttpResponse) {
 }
 ```
 
-No `next()` call is needed once you've started streaming — the framework detects an in-progress stream and doesn't wait on it the way it would a normal handler.
+The `content-type` marks this as an event stream rather than a normal response, `flushHeaders()` sends that immediately instead of waiting, and the interval writes a new chunk every second for as long as the connection is open. `onAbort` stops the timer once the client disconnects, so nothing keeps running against a connection nobody's reading anymore.
 
-Note that [`BaseStaticRoute`](/docs/default-routes/static) does *not* use this — it reads each file fully into memory before responding. This page is for endpoints you write yourself that need to push data incrementally.
+There's no explicit "done" step here, and that's expected: once a handler starts writing chunks, RapidREST treats the response as handler-owned and won't also try to send its own response on top or time it out the way it would a handler that simply never returned.
+
+## When to reach for something else
+
+Need the client to send data back over the same connection, not just receive it? See [WebSockets](/docs/http-engine/websockets). Just serving a file? [`BaseStaticRoute`](/docs/default-routes/static) already does that without any of this, reading the whole file into memory and sending it as one normal response. Streaming earns its keep specifically for endpoints that need to push data out gradually, not as a general performance technique, most endpoints are simpler and better off staying that way.

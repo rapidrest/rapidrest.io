@@ -1,0 +1,43 @@
+---
+sidebar_position: 2
+sidebar_label: Error Handling
+---
+
+# Error Handling
+
+Throw an error inside a route handler, and something still has to turn that into an HTTP response, a status code, a body, something a caller can act on. RapidREST handles this the same way for every route, on both engines, so you don't write try/catch boilerplate around every handler just to control what a failure looks like on the wire.
+
+## `ApiError`
+
+`ApiError` (from `@rapidrest/core`) is a regular `Error` subclass that also carries an HTTP status code and an error code:
+
+```ts
+import { ApiError } from '@rapidrest/core';
+
+throw new ApiError('pets.not-found', 404, 'Pet {{id}} was not found', { id });
+```
+
+Throw one from anywhere in a request's call stack, a route, a service it calls, a validation function, and RapidREST catches it, reads `.status` and `.code`, and writes back:
+
+```json
+{ "message": "Pet abc123 was not found", "status": 404, "code": "pets.not-found" }
+```
+
+Throw a plain `Error` instead (or let something else you don't control throw one), and you still get a response, just a `500` with no `code`, since there's no status to read. `ApiErrors`/`ApiErrorMessages` (from `@rapidrest/service-core`) collect the codes and messages the framework's own built-in routes use, for example `ApiErrors.AUTH_PERMISSION_FAILURE`, reuse them for consistency, or define your own.
+
+## Where this runs
+
+If you've written Express middleware before, this will look familiar: RapidREST's internal request pipeline uses the same `(req, res, next)` convention, and the same convention for error handlers specifically, a fourth, leading `err` parameter marks a handler as an error handler rather than a normal one:
+
+```ts
+server.getApplication().use((err, req, res, next) => {
+  // runs only when something upstream threw or called next(err)
+  next(err);
+});
+```
+
+You won't typically need to write one of these yourself. The framework already registers one at the end of the chain that does exactly what `ApiError` implies: reads `.status` (defaulting to `500` if it isn't a number) and `.code`, and sends the JSON shown above. It's the same mechanism [Global Middleware](/docs/http-engine/middleware) describes for CORS, sessions, and the rest, error handling is just another cross-cutting concern implemented once instead of per-route.
+
+## 404s are errors too
+
+A request that matches no route at all is handled the same way, not as a special case: RapidREST synthesizes an `ApiError` with a `404` status and routes it through the same error handler. If you ever want to customize the shape of a not-found response, you're customizing the same thing you'd customize for any other error.

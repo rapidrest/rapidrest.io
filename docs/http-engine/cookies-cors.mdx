@@ -1,13 +1,15 @@
 ---
-sidebar_position: 3
+sidebar_position: 4
 sidebar_label: Cookies & CORS
 ---
 
 # Cookies & CORS
 
+Cookies and CORS solve different problems, but both exist for the same reason: your API is usually talked to by a browser, and browsers enforce their own rules about what they will and won't do on your behalf.
+
 ## Cookies
 
-Every request has its `Cookie` header parsed automatically, no configuration needed:
+Reading cookies a browser already sent requires no setup, the `Cookie` header is parsed automatically on every request:
 
 ```ts
 @Get('/')
@@ -17,15 +19,13 @@ async index(@Request req: HttpRequest) {
 }
 ```
 
-There's no built-in `res.cookie()` helper. To set a cookie yourself, write the `Set-Cookie` header directly:
+Setting one is more hands-on than `cookie-parser`'s `res.cookie()`, there's no convenience method, you write `Set-Cookie` directly. Use `res.appendHeader()`, not `res.setHeader()`, so you don't clobber a cookie something else on the response already set, such as the session cookie from [Sessions](/docs/http-engine/sessions):
 
 ```ts
-res.setHeader('Set-Cookie', 'theme=dark; Path=/; Max-Age=31536000');
+res.appendHeader('Set-Cookie', 'theme=dark; Path=/; Max-Age=31536000');
 ```
 
-Keep in mind the single-`Set-Cookie`-per-response limitation described in [Sessions](/docs/http-engine/sessions) — if sessions are active, its cookie will collide with one you set by hand this way.
-
-`req.signedCookies` exists on the request type but isn't populated by anything today — don't rely on it.
+`setHeader()` replaces any existing value for a header, `appendHeader()` adds to it, and each call ends up as its own `Set-Cookie` line on the wire, on both engines. Reach for `setHeader()` when you mean to replace a value, `appendHeader()` any time you're adding a cookie to a response that might already have one.
 
 ## CORS
 
@@ -37,23 +37,23 @@ conf.defaults({
 });
 ```
 
-| Config | Behavior |
+| Configuration | What happens |
 |---|---|
-| `cors.origins` unset, or no match | `Access-Control-Allow-Origin: *`, no credentials |
-| `cors.origins` set and the request's `Origin` matches | That origin is reflected back, plus `Access-Control-Allow-Credentials: true` |
+| `cors.origins` left unset, or the request's origin isn't in the list | Any origin may read the response (`Access-Control-Allow-Origin: *`), but without credentials |
+| `cors.origins` is set and includes the request's origin | That origin is allowed, and credentials (cookies, `Authorization` headers) are permitted too |
 
-`cors.origins` accepts a single origin string or an array. Note the key is `origins` (plural) — `cors.origin` is not read.
+That's the whole configuration surface, there's no separate list of allowed methods or headers to maintain. RapidREST always allows a fixed set (`GET, HEAD, OPTIONS, PUT, POST, DELETE`, and the common request headers) and answers preflight `OPTIONS` requests directly, before your route code ever runs. The unset-vs-set behavior above is deliberate: wide open with no credentials is a reasonable default for a public API, explicit origins only is the right default the moment cookies or sessions are involved, since those carry credentials.
 
-Regardless of configuration, every response also gets a fixed set of allowed methods (`GET, HEAD, OPTIONS, PUT, POST, DELETE`) and allowed headers (`Accept, Authorization, Content-Type, Location, Origin, Set-Cookie, X-Requested-With`), and `OPTIONS` preflight requests are answered directly with `204` before reaching your route.
+One thing worth knowing: the key is `origins`, plural. `cors.origin` (singular) is silently ignored.
 
-## Global response headers
+## Extra headers on every response
+
+Separately from CORS, add any header to every response your server sends:
 
 ```ts
 conf.defaults({
   headers: {
-    'x-powered-by': 'RapidREST', // default
+    'x-powered-by': 'RapidREST', // the default value
   },
 });
 ```
-
-Anything under `headers` is applied to every outgoing response, regardless of route.

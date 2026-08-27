@@ -103,3 +103,36 @@ Keep entries terse — this is a reference, not a transcript.
   so, then make the sharper and true point instead of a false one (here: the auth rule and the
   handler it protects live in two different files in Express, held together only by whoever
   remembered to wire them up at the router; a decorator sits directly on the method it governs).
+- Full rewrite of HTTP Engine (7 pages now, was 5): Overview, **Error Handling** (new),
+  Sessions, Cookies & CORS, Streaming Responses, **WebSockets** (new), Global Middleware.
+  Verified against source before writing rather than assuming: `ApiError`/`ApiErrors` (from
+  `@rapidrest/core`/`service-core`) and the Express-style `(req,res,next)`/4-arg-error-handler
+  convention that turns a thrown error into a JSON response (`service-core/src/http/
+  MiddlewareChain.ts`); `@WebSocket()`/`@Socket`/`IWebSocketShim` (exported from
+  `service-core`'s root, via `export * from "./http/index.js"`) for hand-written WS routes,
+  with `BasePushRoute`'s channel pub/sub (already documented at `docs/default-routes/push.mdx`
+  and `docs/events-notifications/notifications.mdx`) positioned as the ready-made alternative,
+  not duplicated; `trusted_proxies` and graceful-shutdown behavior folded into the Overview.
+  **Confirmed NOT to exist in `service-core`, don't invent pages for these**: a general-purpose
+  rate-limiting decorator/config (rate limiting is `@rapidrest/auth`-specific, login-attempt
+  throttling only), request ID/tracing, response compression, per-request timeouts.
+- Fixed a real regression the user caught in `docs/http-engine/sessions.mdx`: the "only one
+  Set-Cookie header per response" limitation is no longer true. `HttpResponse` gained
+  `appendHeader(key, value)` (adds a header value without clobbering, sent as repeated lines on
+  the wire on both engines) alongside the existing `setHeader()` (replaces), and session
+  middleware itself now uses `res.appendHeader("Set-Cookie", ...)`
+  (`service-core/src/http/session/sessionMiddleware.ts`). Swept the rest of HTTP Engine for the
+  same class of drift (interface/behavior changes since a page was written) rather than just
+  patching the one spot: fixed `docs/http-engine/cookies-cors.mdx`'s cookie-setting example to
+  use `appendHeader`, updated the `HttpResponse`/`HttpRequest` snippet in
+  `docs/http-engine/index.mdx` to include `appendHeader`/`getHeader`/`onFinish` (all real,
+  confirmed in `service-core/src/http/types.ts`), and tightened a session-persistence-timing
+  claim to "once the response finishes" (matching the actual `res.onFinish()` hook, not
+  "when your handler returns"). Re-verified CORS behavior, the error-handling default response
+  shape, and Streaming/WebSockets' `flushHeaders`/`write`/`onAbort`/`IWebSocketShim` against
+  source directly (not just re-reading the docs) — all still accurate, no changes needed there.
+  **Lesson for future sweeps**: `flushHeaders`/`write`/`onAbort` are implemented identically on
+  both `BunAdapters.ts` and `uWS/Adapters.ts` but are NOT declared on the shared `HttpResponse`
+  TypeScript interface in `types.ts`, that's a gap in the framework's own typing, not the docs,
+  don't "fix" the docs to match the interface if a method demonstrably exists on both concrete
+  response classes.

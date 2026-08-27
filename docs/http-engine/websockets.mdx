@@ -1,0 +1,45 @@
+---
+sidebar_position: 6
+sidebar_label: WebSockets
+---
+
+# WebSockets
+
+A normal route handles one request and sends one response, then the connection's done. A **WebSocket** route upgrades that connection into a persistent, two-way channel, either side can send a message at any point, for as long as the connection stays open. That's the piece SSE (see [Streaming Responses](/docs/http-engine/streaming)) doesn't give you: SSE only pushes from server to client, a WebSocket lets the client talk back over the same connection.
+
+## Declaring a WebSocket route
+
+A WebSocket endpoint is a route method like any other, just decorated with `@WebSocket()` instead of `@Get`/`@Post`/etc, with `@Socket` injecting the connection itself:
+
+```ts
+import type { IWebSocketShim } from '@rapidrest/service-core';
+
+@Route('/echo')
+class EchoRoute {
+  @WebSocket()
+  connect(@Socket sock: IWebSocketShim, @User user?: JWTUser) {
+    sock.on('message', (data: any) => {
+      sock.send(data);
+    });
+
+    sock.on('close', () => {
+      // clean up anything tied to this connection
+    });
+  }
+}
+```
+
+`sock` works identically no matter which [HTTP engine](/docs/http-engine) is running underneath, it's an `EventEmitter` with `send(data)`, `close(code?, reason?)`, and the usual `message`/`close` events. `@User` gives you whoever authenticated on the upgrade request (via the same auth strategies used everywhere else, see [Authentication](/docs/auth-rbac/authentication)), if the connection isn't authenticated it's `undefined`, guard accordingly.
+
+## The ready-made version: channel pub/sub
+
+Writing your own connection handling, as above, is the exception. Most real-time needs (broadcast a message to everyone subscribed to a channel, gated by permissions) are already built and ready to mount: [`BasePushRoute`](/docs/default-routes/push) gives you a full subscribe/unsubscribe/publish protocol over WebSocket, backed by Redis so it works across multiple server instances, with per-channel access control already wired to your existing [ACLs](/docs/auth-rbac/authorization). Publishing from your own server-side code (rather than over HTTP) is covered in [Events & Notifications](/docs/events-notifications/notifications). Reach for a hand-written `@WebSocket()` route only when you need a protocol `BasePushRoute` doesn't already provide.
+
+## Limits worth knowing about
+
+Two config keys cap how much of this a single user can hold open at once, defaults are generous for normal use but worth knowing before you hit them under load testing:
+
+| Key | Default | What it limits |
+|---|---|---|
+| `push:max_sockets_per_user` | `10` | Concurrent WebSocket connections per authenticated user |
+| `push:max_subscriptions_per_user` | `50` | Channels a single user can be subscribed to at once, across all their connections |

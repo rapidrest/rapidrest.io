@@ -1,0 +1,155 @@
+---
+sidebar_position: 2
+sidebar_label: Decorators & Aspects
+---
+
+# Decorators & Aspects
+
+The one idea RapidREST is built around, before anything else in this section makes sense: **you describe what a piece of code needs, and the framework handles it for you.** You attach a label to a class, method, or property saying what you want, and the framework reads that label and does the work. No plumbing to write by hand.
+
+Those labels are called **decorators**, and the style of programming they enable has a name: [**aspect-oriented programming**](https://en.wikipedia.org/wiki/Aspect-oriented_programming), or AOP.
+
+## What problem this solves
+
+Say you're writing an endpoint that deletes a pet, restricted to administrators. In Express, that's typically a couple of reusable middleware functions plus a handler:
+
+```js
+// middleware/auth.js
+function requireAuth(req, res, next) {
+  const user = getUserFromToken(req.headers.authorization);
+  if (!user) {
+    return res.status(401).json({ message: "Not logged in" });
+  }
+  req.user = user;
+  next();
+}
+
+function requireRole(role) {
+  return (req, res, next) => {
+    if (!req.user.roles.includes(role)) {
+      return res.status(403).json({ message: "Not allowed" });
+    }
+    next();
+  };
+}
+```
+
+```js
+// controllers/petController.js
+async function deletePet(req, res) {
+  const { id } = req.params;
+
+  const result = await db.collection("pets").deleteOne({ _id: id });
+  if (result.deletedCount === 0) {
+    return res.status(404).json({ message: "Pet not found" });
+  }
+
+  res.status(204).end();
+}
+```
+
+```js
+// routes/pets.js
+router.delete("/pets/:id", requireAuth, requireRole("admin"), deletePet);
+```
+
+Using Express, we are able to write the auth logic as reusable middleware functions `requireAuth` and `requireRole`. Note how Express also paramaterizes URLs and automatically parses the `id` in the request object (`req.params.id`). These are genuinely helpful features of that framework. However, the code that makes all of this work is now spread across several files with no easy reference to how it all fits together.
+
+This last problem makes maintainance exponentially harder the larger a codebase gets. Looking at `deletePet` on its own, in `petController.js`, there's nothing on it at all to tell you it's admin-only. That fact only exists in `routes/pets.js`, in a specific order, on a specific line. Add a new endpoint and forget to attach `requireRole("admin")` there, and nothing warns you, you've just shipped an unprotected delete. The rule and the code it protects are two files apart, held together only by whoever remembered to wire them up correctly.
+
+The other half of `deletePet`, actually getting a database connection, has no framework answer in Express at all. There's no built-in persistence layer, so `db` is whatever you set up yourself, and every handler that touches data repeats roughly the same setup.
+
+Authorization and persistence are both **cross-cutting concerns**: rules that apply the same way across many unrelated endpoints, rather than living inside exactly one of them. RapidREST doesn't just let you factor a cross-cutting concern into its own function, Express already does that much. RapidREST lets you attach it directly to the code it applies to, as a label, so the two can never silently drift apart:
+
+```ts
+@Model(Pet)
+@Route("/pets")
+class PetRoute extends CRUDRoute<Pet> {
+  @RequiresRole('admin')
+  public async delete(
+      @Param("id") id: string,
+      @Query("version") version: string | undefined,
+      @Query("purge") purge: string | undefined,
+      @Request req: HttpRequest,
+      @User user?: JWTUser,
+  ): Promise<void> {
+      return await super.delete(id, version, purge, req, user);
+  }
+}
+```
+
+`@Model(Pet)` and extending `CRUDRoute<Pet>` is the piece Express has no answer for at all: it's what gives `PetRoute` a full set of working CRUD endpoints, delete included, with no database connection to set up and no repository to import (see [Auto CRUD Routes](/docs/auto-crud-routes)). `CRUDRoute` already has a `delete` method wired up to `@Delete('/:id')`, this example overrides it purely to add `@RequiresRole('admin')` on top. Notice the override doesn't need to redeclare `@Delete('/:id')` itself: RapidREST resolves a method's routing metadata up the inheritance chain, so it's inherited automatically, and the override only has to state the one thing that's actually new. Everything else, parsing `id` and `version` and `purge` out of the request, running the delete, is the exact same call to `super.delete(...)` that `CRUDRoute` would have made anyway. Read this method on its own and you already know exactly what protects it, there's no separate router file to go check and no database work to perform.
+
+## Reading decorator syntax
+
+A decorator is just a function name written with an `@` in front of it, placed directly above (or in front of) whatever it applies to: a class, a property, a method, or even a method argument.
+
+```ts
+@Decorator
+class Something {}
+
+@Decorator
+someMethod() {}
+
+@Decorator
+someProperty: string;
+```
+
+Some decorators take options, written like a normal function call:
+
+```ts
+@RequiresRole('admin')       // one argument
+@Config('auth:secret')       // one argument
+@Route('/pets')              // one argument
+```
+
+You can stack several decorators on the same thing. Each one adds its own independent behavior:
+
+```ts
+@RequiresRole('admin')
+@Validate('validateCreate')
+@Post('/')
+async createPet(@Body() pet: Pet) {
+  // ...
+}
+```
+
+Read this as three separate instructions layered on top of one function: check the caller's role, validate the request body, then handle `POST /pets`. None of those three decorators need to know the other two exist. That's the whole benefit: each concern is written once, attached where it's needed, and left out everywhere it isn't.
+
+## Decorators show up everywhere in RapidREST
+
+This isn't just a routing trick. The same pattern is used consistently across the whole framework, so once it clicks in one place, it clicks everywhere:
+
+```ts
+// Describing a piece of data and where it's stored
+@DataStore('mongo')
+class Pet extends BaseMongoEntity {
+  @Column()
+  name: string;
+}
+
+// Describing an endpoint
+@Route('/pets')
+class PetRoute extends CRUDRoute<Pet> {}
+
+// Asking the framework to hand you something you need
+class PetService {
+  @Inject(EmailService)
+  private emailService?: EmailService;
+
+  @Config('auth:secret')
+  private secret?: string;
+}
+```
+
+`@DataStore` tells the framework where a class's data should be saved. `@Route` tells it what URL path a class handles. `@Inject` and `@Config` tell it what a class needs handed to it before it can run (more on that in [Dependency Injection](/docs/core-concepts/dependency-injection)). In every case, the pattern is the same: a short label describing *what*, with the framework responsible for the *how*.
+
+## Why this matters for you
+
+You'll spend most of your time in RapidREST writing plain classes with decorators on top, not wiring things together by hand. That has a few concrete effects worth knowing up front:
+
+- **Your code stays focused.** A route class reads like a description of an endpoint, not a tangle of authentication, logging, and validation code wrapped around the one line that matters.
+- **Behavior is composable.** Need a new endpoint that's also cached and also rate-limited? Add `@Cache(...)` and whatever else applies. You're combining independent pieces, not rewriting a bigger function.
+- **Nothing is hidden in a config file somewhere else.** The rules for an endpoint or a piece of data live directly above it, in the same file. If you're wondering "who's allowed to call this?", look at the decorators on the function, the answer is right there.
+
+Whenever you see an unfamiliar `@Something` in the rest of these docs, it's the framework being told what to do, not magic happening behind your back.

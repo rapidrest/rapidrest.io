@@ -1,48 +1,75 @@
 ---
-sidebar_position: 3
+sidebar_position: 4
 sidebar_label: Dependency Injection
 ---
 
 # Dependency Injection
 
-Every exported data model, job, route, and service in RapidREST is automatically detected by the `ClassLoader` and instances managed by
-`ObjectFactory`. The `ObjectFactory` creates class instances, resolves their dependencies, and runs lifecycle hooks. All of this is driven by property and
-method decorators from the `@rapidrest/core` and `@rapidrest/service-core` libraries.
+Say your `PetRoute` needs to send a confirmation email whenever someone adopts a pet. It needs access to an `EmailService`. The obvious approach is to create one yourself, right there in the route:
 
-# `ObjectFactory`
+```ts
+class PetRoute {
+  private emailService = new EmailService();
+}
+```
 
-Once the `ClassLoader` has scanned and imported all classes in the project source they are registered with the `ObjectFactory` by their fully
-qualified name. The `ObjectFactory` manages instances of each class and controls each object's lifecycle, including instantiation and destruction.
+This works, right up until `EmailService` itself needs something, like an API key from your configuration, or a logger. Now `PetRoute` needs to know how to construct all of *that*, too. Every class ends up needing to know how to build every other class it depends on, and if you ever want to swap in a different `EmailService` (a fake one for tests, say), you have to hunt down every `new EmailService()` in your codebase and change it.
 
-Objects can be instantiated by either calling the `newInstance` function or by reference from another class using the `@Inject` decorator. In either
-case, `newInstance` or `@Inject` accepts either the actual type to instantiate or the fully qualified name of the class. During object instantiation,
-the `ObjectFactory` automatically injects class dependencies for each class member that has been decorated with one of the framework's injection
-decorators. After instantiation, the `ObjectFactory` will then call all functions that have been decorated with `@Init` so that the object may
-perform post-construction initialization.
+**Dependency injection** flips this around: instead of a class building the things it needs, it simply asks for them, and something else is responsible for handing them over already built.
 
-The injection decorators exported from `@rapidrest/core` are:
+```ts
+class PetRoute {
+  @Inject(EmailService)
+  private emailService?: EmailService;
+}
+```
 
-- `@Inject` - Provides generic dependency injection for any registered class type
-- `@Config` - Injects the value of the config key at the specified path (e.g. `auth:strategy`)
-- `@Logger` - Injects the application logger utility (e.g. Winston)
+`PetRoute` no longer knows or cares how an `EmailService` gets constructed. It just declares "I need one of these," and by the time `PetRoute` is actually used, `emailService` is already filled in.
 
-`@rapidrest/service-core` adds a further set of persistence-related injection decorators on top of these (see [Datastores & Connections](/docs/models-persistence/datastores#direct-repository-and-connection-injection)).
+## Who's doing the handing over
 
-A reference to each object that has been constructed by the `ObjectFactory` is stored in an internal map by a unique instance name. This makes it
-easy to support singleton instances for a given class. When using `@Inject`, the default unique instance is always `default` unless explicitly
-overridden by setting the `name` option. Note that this means every class with the same injected dependency type will get the same class instance
-injected by default.
+The "something else" is a part of RapidREST called the `ObjectFactory`. Here's the sequence of events, end to end:
 
-Instances can be destroyed by calling the `destroy` function on the `ObjectFactory`. When an instance is destroyed it is removed from the internal
-map and any function marked with `@Destroy` is called in order to perform any cleanup. Note that calling `destroy` yourself can cause undefined
-behavior if the application is still running.
+1. [Auto-Discovery](/docs/core-concepts/auto-discovery) finds every class you've exported under `src/` and hands them to the `ObjectFactory`.
+2. When one of those classes is actually needed (a route handling an incoming request, say), the `ObjectFactory` creates an instance of it.
+3. While creating it, the `ObjectFactory` looks for any property marked with an injection decorator like `@Inject`, and fills each one in, creating *those* classes first if it needs to.
+4. Once every dependency is filled in, if the class has a method marked `@Init`, that method is called, so the class can do any setup that needs its dependencies to already be present.
 
-## How it fits together
+You almost never call `new SomeClass()` yourself in RapidREST. You declare what you need with a decorator, and trust the `ObjectFactory` to have already built it for you by the time your code runs.
 
-You rarely construct these classes with `new` yourself. Instead:
+## The injection decorators
 
-1. RapidREST's `ClassLoader` discovers every exported class under your source tree (see [Auto-Discovery](/docs/core-concepts/auto-discovery)).
-2. Each discovered class is registered with the `ObjectFactory`.
-3. When a route, model, or another service is instantiated, the `ObjectFactory` walks its injection decorated properties, resolves them, and finally runs any `@Init` methods.
+`@rapidrest/core` gives you three of these:
 
-This means a plain service class with no decorators at all, like a `PetService` that wraps some business logic, is automatically available for injection anywhere in your project, as long as it's exported from a file somewhere under `src/`.
+- **`@Inject`** — "give me an instance of this class." Works for any class the framework has discovered.
+- **`@Config`** — "give me this value from my configuration," instead of a class instance. See [Configuration](/docs/core-concepts/configuration) for what that config actually looks like.
+- **`@Logger`** — "give me a logger," pre-set up to tag every message with the name of the class that's logging.
+
+```ts
+class PetRoute {
+  @Inject(EmailService)
+  private emailService?: EmailService;
+
+  @Config('auth:secret')
+  private secret?: string;
+
+  @Logger
+  private logger?: LoggerInstance;
+}
+```
+
+`@rapidrest/service-core` adds a further set of these specifically for reaching a database connection or a data repository, covered in [Datastores & Connections](/docs/models-persistence/datastores#direct-repository-and-connection-injection).
+
+## One instance, shared
+
+By default, everyone who asks for `@Inject(EmailService)` gets the exact same `EmailService` instance, not a fresh one each time. This is called a singleton, and it's usually what you want: one shared connection, one shared cache, one shared copy of anything that doesn't need to be duplicated per-request. If you genuinely need more than one independently tracked instance of the same class, `@Inject` accepts a `name` option to ask for a specifically named one instead of the shared default.
+
+## Cleaning up
+
+Mark a method `@Destroy`, and it's called automatically if that instance is ever removed, the counterpart to `@Init` for anything holding a resource (a connection, a file handle) that needs an explicit close.
+
+## Why bother with all of this?
+
+- **No class constructs its own dependencies.** A route, a service, a job, none of them know or care how the things they depend on get built.
+- **Swapping implementations is trivial.** Register a fake `EmailService` for tests, and every class using `@Inject(EmailService)` gets the fake automatically, with zero changes to those classes.
+- **It composes with everything else.** A plain class with no other framework decorators at all can still use `@Inject`, `@Config`, and `@Logger`, since [Auto-Discovery](/docs/core-concepts/auto-discovery) already knows about it. There's no separate "make this injectable" step.

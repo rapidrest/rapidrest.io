@@ -1,40 +1,41 @@
 ---
-sidebar_position: 2
+sidebar_position: 3
 sidebar_label: Auto-Discovery
 ---
 
 # Auto-Discovery
 
-Unlike most other frameworks, there is no central file where you register routes, models, or jobs in RapidREST. Nor is there a required file system
-convention for how to organize your code. Instead, every class you export anywhere under your server's source directory is found and registered
-automatically at startup, by the `ClassLoader`.
+In most backend frameworks, adding a new endpoint means two steps: write the code for it, and then go tell the framework it exists, usually by adding a line to some central "router" file. Forget the second step, and your new endpoint silently doesn't work.
 
-## How it works
+RapidREST only has the first step. **There is no file where you register your routes, your data models, or your background jobs.** You write a class, export it from a file somewhere under `src/`, and it's found and wired up automatically the next time the server starts. This is called auto-discovery, and it's handled by a piece of the framework called the `ClassLoader`.
 
-When the server starts, it recursively scans the project's source directory (`.ts`/`.tsx`/`.js` files, configurable), imports every module it finds,
-and registers each exported class (default or named) with the dependency injection container (the [ObjectFactory](/docs/core-concepts/dependency-injection)).
+## How it actually finds your code
+
+When your server starts, the `ClassLoader` walks through every file in your source folder, opens each one, and looks for anything it exports. If a file exports a class, that class gets registered. That's the entire rule. It doesn't matter what the file is named, what folder it's in, or what the class does.
 
 ```text
 src/
 ├── routes/
-│   └── PetRoute.ts     ← exports a class → discovered → registered
+│   └── PetRoute.ts     ← exports a class → found → registered
 ├── models/
-│   └── Pet.ts          ← exports a class → discovered → registered
+│   └── Pet.ts          ← exports a class → found → registered
 └── services/
-    └── PetService.ts   ← plain class, no decorators → still discovered
+    └── PetService.ts   ← just a plain class, no decorators → found anyway
 ```
 
-A class's registered name (its "fully-qualified name") is derived from its file path and export: a default export named `PetRoute` in `src/routes/PetRoute.ts` is registered as `routes.PetRoute`; a named export uses the export's own name instead of the file name. This fully-qualified name is what `@Inject('SomeClassName')` resolves by string.
+Notice that last one: `PetService` isn't a route or a model, it's just a regular class with some business logic in it. It still gets picked up, because discovery never asks "does this look like a route?" It only asks "is this an exported class under `src/`?" That plain class becomes available for other classes to use (see [Dependency Injection](/docs/core-concepts/dependency-injection)), with nothing extra required from you.
 
-## What this means in practice
+Each discovered class also gets a name the framework can refer to it by, built from its file path: a class in `src/routes/PetRoute.ts` is known internally as `routes.PetRoute`. You won't usually need to know or type this name yourself, most of the time you refer to a class directly, but it's what's happening under the hood when the framework needs to look something up by string instead.
 
-- **Adding a route is just adding a file.** Export a class annotated with `@Route`, and it's live on the next server start. No router file to edit.
-- **Plain service classes are injectable for free.** A class with no RapidREST decorators at all, just business logic, can still be `@Inject`-ed anywhere, because discovery doesn't care whether a class "looks like" a route or model.
-- **Neither file location or naming convention matter.** Discovery is purely based on "is this file under the scanned directory and does it export a class," not on filename suffixes like `*.route.ts`, or sub-folder placement like `routes`.
+## What this buys you
 
-## Excluding files
+- **Adding a feature is just adding a file.** Write a new route class with a `@Route` decorator on it (see [Decorators & Aspects](/docs/core-concepts/aspect-oriented-programming)), save it under `src/routes/`, restart, and it's live. There's no router file to remember to update, so there's no way to forget to update it.
+- **You can organize your code however you want.** Folder names like `routes/` and `models/` in the examples above are a convention this project happens to use, not a rule the framework enforces. Discovery doesn't care about folder structure or file naming at all.
+- **Plain helper classes are just as easy to reuse as framework classes.** A `PetService` with no decorators on it at all is exactly as discoverable, and exactly as easy for other code to ask for, as a fully decorated route or model.
 
-Not every file under your source tree should be scanned. Your server's own entry point and config file, for instance, don't export anything meant for injection. Exclude them via the `class_loader:ignore` configuration key (an array of regular expressions matched against filenames):
+## Telling it what to skip
+
+Not every file under `src/` is meant to be a class the framework should manage. Your server's own startup file and your config file, for example, aren't things you want treated as a route or a model. Tell the `ClassLoader` to ignore them by matching their filenames with a regular expression:
 
 ```ts
 conf.defaults({
@@ -44,6 +45,8 @@ conf.defaults({
 });
 ```
 
-:::note[Why this matters early]
-Because so much of the framework (routing, models, background jobs, event listeners) is powered by this same discovery mechanism, understanding "it's just: export a class under `src/`" up front makes the rest of the framework feel a lot less like magic.
+A freshly generated project already comes with this set up correctly, you'll only need to touch it if you add your own files that shouldn't be scanned.
+
+:::note[Why this is worth understanding early]
+Routing, data models, background jobs, and event listeners are all powered by this exact same mechanism. Once "the framework finds classes by scanning `src/` for exports" clicks, a lot of what looks like magic in the rest of these docs stops looking like magic.
 :::

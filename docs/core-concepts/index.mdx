@@ -5,8 +5,35 @@ sidebar_label: Overview
 
 # Core Concepts
 
-There are three key concepts that underpin everything in RapidREST. Understanding these concepts will help make the rest of the framework predictable rather than "magic":
+If you followed [Getting Started](/docs/getting-started), you already have a working API, and you may have noticed something odd about it: you never registered a route, never wired classes together, and adding an endpoint was just adding a file. None of that is magic, it comes from a small set of ideas RapidREST is built on. Understand them, and the rest of the framework stops feeling like magic and starts feeling predictable.
 
-1. **[Auto-Discovery](/docs/core-concepts/auto-discovery)** - how every class you export under `src/` ends up registered and injectable, with no central registration file.
-2. **[Dependency Injection](/docs/core-concepts/dependency-injection)** - details how dependencies are injected during object construction and explains the object life-cycle.
-3. **[Configuration](/docs/core-concepts/configuration)** - the nconf-based config system and its colon-separated key paths, which almost everything else in the framework reads from.
+This section covers those ideas: four mechanisms explaining how the framework actually works, and short previews of the bigger topics (persistence, the HTTP layer, auth) that get their own full sections later.
+
+## The mechanisms
+
+These four pages explain *how RapidREST itself works*, the plumbing that everything else, including every dedicated section elsewhere in these docs, is built on top of:
+
+1. **[Decorators & Aspects](/docs/core-concepts/aspect-oriented-programming)** — the `@Something` labels you'll see on almost every class and member you write, and the style of programming (aspect-oriented programming) they come from. Start here; everything else builds on this.
+2. **[Auto-Discovery](/docs/core-concepts/auto-discovery)** — why you never have to register a route, model, or job anywhere. Exporting a class from a file under `src/` is enough.
+3. **[Dependency Injection](/docs/core-concepts/dependency-injection)** — how a class gets the dependencies it needs, without constructing them itself.
+4. **[Configuration](/docs/core-concepts/configuration)** — where settings like database connections and secrets live, and how to change them without editing code.
+
+## The bigger pieces you'll build with
+
+Beyond the mechanisms above, a handful of larger topics come up constantly once you start building something real. Each one gets its own full section later in these docs; this is just enough to know what they are and why they exist, so nothing you read afterward feels unfamiliar.
+
+### Persistence: where your data actually lives
+
+An API that forgets everything the moment it restarts isn't very useful. **Persistence** is the general term for saving data somewhere durable, a database, and reading it back later. RapidREST gives you a `@DataStore` decorator to say where a piece of data belongs, and a base class to extend that gives it working [CRUD](https://www.codecademy.com/article/what-is-crud-explained) behavior automatically, no SQL or database-driver code required from you. This is what made `rapidrest generate model` and `rapidrest generate route` work in [Getting Started](/docs/getting-started) without you writing any database code by hand. The full details are in [Models & Persistence](/docs/models-persistence).
+
+### The HTTP engine: how a request becomes a response
+
+Underneath every route you write, something has to actually listen for network connections, parse incoming requests, and send responses back. That layer is RapidREST's **HTTP engine**. You don't interact with it directly very often, most of what you write is at the level of `@Route`, `@Get`, and friends, but it's what makes those decorators work, and it's also where framework-level features like cookies, sessions, and CORS live. See [HTTP Engine](/docs/http-engine) when you need to understand what's happening below your own route code.
+
+### Auth & security: knowing who's asking, and what they're allowed to do
+
+Almost every real API needs to answer two questions before doing anything: *who is making this request*, and *are they allowed to do this specific thing*. RapidREST separates these cleanly: authentication (proving who someone is, usually via a token) is handled by strategies like `JWTStrategy`, while authorization (deciding what an already-identified user can do) is handled by role checks and a permissions system. You will see a preview of the authorization half in [Decorators & Aspects](/docs/core-concepts/aspect-oriented-programming), with `@RequiresRole('admin')`. The full picture, including how to add real user accounts and login flows, is in [Auth & RBAC](/docs/auth-rbac) and the [Auth Library](/docs/plugins/auth-library) plugin.
+
+## Where to go from here
+
+Read the four mechanism pages in order, they build on each other. Then pick whichever of Persistence, HTTP Engine, or Auth & Security is most relevant to what you're building next, and follow the link into its full section.

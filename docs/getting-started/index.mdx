@@ -5,7 +5,7 @@ sidebar_label: Getting Started
 
 # Getting Started
 
-This walks through installing the CLI, scaffolding a project, and running it locally. No database installation required.
+This walkthrough takes you from an empty folder to a running API with real, working endpoints. If you've built a backend API before then you'll be familiar with many of the pieces here; routes, data models, background jobs, config files. What's different is how little of it you have to wire together yourself. There are no routers, no hand-written database code, and no HTTP request parsing.
 
 :::note[Requirements]
 RapidREST requires **Node.js 24 or later**.
@@ -13,11 +13,13 @@ RapidREST requires **Node.js 24 or later**.
 
 ## Install the CLI
 
+RapidREST ships as a CLI you install once, globally, and keep using throughout the project's life (`generate route`, `generate model`, and so on), not just at creation:
+
 ```bash
 npm install -g @rapidrest/cli
 ```
 
-This installs the `rapidrest` command (also available as the shorter `rr` alias, both invoke the exact same binary, use whichever you prefer).
+This gives you the `rapidrest` command (`rr` for short, if you prefer).
 
 ## Scaffold a project
 
@@ -25,25 +27,24 @@ This installs the `rapidrest` command (also available as the shorter `rr` alias,
 rapidrest generate server my-api
 ```
 
-This walks you through an interactive prompt:
+This walks you through an interactive prompt. None of it is a permanent decision, you can add a database or React later without starting over.
 
-| Prompt | What it controls |
+| Prompt | Notes |
 |---|---|
-| Project description | Free-text description written into `package.json` |
-| Author | Auto-filled from your Git config when available |
+| Description / Author | Written into `package.json`, no functional effect |
 | Package manager | `yarn` or `npm` |
-| Databases | `MongoDB` and `Redis` are checked by default; `PostgreSQL` and `SQLite` are also available. Redis is recommended since it backs the `@Cache` decorator |
-| Additional features | `React` (server-rendered pages), `Docker` (checked by default), `Kubernetes (Helm)` |
-| Source control | `GitHub`, `GitLab`, `Git`, `Perforce`, `Subversion`, or none |
+| Databases | `MongoDB` and `Redis` are checked by default (Redis also backs the `@Cache` decorator). `PostgreSQL` and `SQLite` are available too |
+| Additional features | `React` (server-rendered pages from this same server), `Docker`, `Kubernetes (Helm)` |
+| Source control | `GitHub`, `GitLab`, `Git`, or none |
 
-You can also skip straight to a non-interactive run for the parts you already know:
+Skip the prompts with flags once you know what you want:
 
 ```bash
 rapidrest generate server my-api --output-dir ~/projects/my-api
 ```
 
 :::note[Scripting or CI?]
-Every prompt above has a matching flag that skips the interactive prompt. Alternatively you can provide an answers file (`--answers <file>`), allowing you to scaffold identically-configured projects without any prompts at all. See [Generate Commands](/docs/cli-reference/generate-commands#rapidrest-generate-server-name) for the full non-interactive flag reference.
+Every prompt above has a matching flag, and `--answers <file>` lets you scaffold identically-configured projects with zero prompts. See [Generate Commands](/docs/cli-reference/generate-commands#rapidrest-generate-server-name) for the full flag reference.
 :::
 
 ## Install dependencies
@@ -59,26 +60,32 @@ yarn install
 rapidrest dev
 ```
 
-`rapidrest dev` reads `src/config.ts` to see which datastores your project is configured for, then **automatically starts an in-memory instance of each one** (MongoDB, PostgreSQL, and/or Redis). There's nothing to install or run separately for local development. It then starts your server via `tsx --watch`, restarting on every source change. If you selected the React feature, it also runs `vite build --watch` alongside it. Everything is cleaned up when you hit <kbd>Ctrl</kbd>+<kbd>C</kbd>.
+`rapidrest dev` reads `src/config.ts`, automatically spins up a throwaway in-memory instance of every datastore you picked (nothing to install or run separately), and starts the server with file-watching, restarting on every save. If you picked React, it also runs the Vite build in watch mode alongside it. Everything shuts down cleanly on <kbd>Ctrl</kbd>+<kbd>C</kbd>, nothing is left running on your machine afterward.
 
-By default the server listens on port `3000`. Confirm it's up:
+Confirm it's up:
 
 ```bash
 curl http://localhost:3000/status
 ```
 
-That works because the scaffold already includes a ready-made `StatusRoute.ts`, along with equivalents for `/admin`, `/metrics`, `/openapi`, and
-`/push` (and `/acls`, if you kept a database selected). These are thin subclasses of the framework's [Default Routes](/docs/default-routes) that you're
-free to edit, lock down, or delete.
+That works because the scaffold already includes a working `StatusRoute.ts`, along with equivalents for `/admin`, `/metrics`, `/openapi`, `/push`, and `/acls` if you kept a database selected. These are real files under `src/routes/`, thin subclasses of the framework's [Default Routes](/docs/default-routes), free for you to edit, lock down, or delete.
 
-## Project layout
+### Running it without the file-watching
 
-A freshly generated project looks roughly like this:
+For a single run that builds first and then starts once, no watching, closer to how a real deployment invokes it:
+
+```bash
+yarn start
+```
+
+This still starts the same in-memory datastores `rapidrest dev` does, so it's not yet pointed at real data, just running the compiled output instead of `tsx --watch`. [Deployment](/docs/deployment) covers pointing this at real, persistent datastores and shipping it to an actual server or container.
+
+## What did `generate server` actually build?
 
 ```text
 my-api/
 ├── src/
-│   ├── config.ts       # nconf-based configuration (see Core Concepts)
+│   ├── config.ts       # nconf config: datastores, port, secrets (see Core Concepts)
 │   ├── server.ts       # server entry point
 │   ├── models/         # entity classes (@Entity, @DataStore, ...)
 │   ├── routes/         # route classes (@Route, @Get, ...)
@@ -92,10 +99,10 @@ my-api/
 └── package.json
 ```
 
-Every class you export anywhere under `src/` is automatically discovered and wired up. There's no central file where routes or models get registered. See [Core Concepts](/docs/core-concepts) for how that works.
+**There's no router file, and no model registry.** Every class you export anywhere under `src/` is discovered and wired up automatically at startup. Add a route file, it's live on the next restart; there's nothing else to touch. [Core Concepts](/docs/core-concepts) explains the mechanism behind this (and the decorator-heavy style, `@Route`, `@Get`, `@Inject`, that you'll see throughout the rest of these docs).
 
 :::note[tsconfig.json]
-RapidREST's decorators require `experimentalDecorators` and `emitDecoratorMetadata`. Rather than setting these by hand, extend the framework's base config:
+RapidREST's decorators need `experimentalDecorators` and `emitDecoratorMetadata` turned on. Your generated `tsconfig.json` already extends the framework's base config so you don't have to set these by hand:
 
 ```json
 {
@@ -106,20 +113,38 @@ RapidREST's decorators require `experimentalDecorators` and `emitDecoratorMetada
 ```
 :::
 
-## Add a model and CRUD routes
+## Add your own data: a Pet API
+
+Say your API needs to track pets. First, describe the shape of a `Pet`:
 
 ```bash
 rapidrest generate model Pet --datastore mongo
+```
+
+This creates `src/models/Pet.ts` (open it and add fields like `name` or `species`). Now expose it over HTTP:
+
+```bash
 rapidrest generate route PetRoute --model Pet
 ```
 
-This gives you a full set of CRUD endpoints for `Pet`. See [Auto CRUD Routes](/docs/auto-crud-routes) for exactly what gets generated.
+One command, and you have the standard CRUD set, `GET /pets`, `POST /pets`, `PUT /pets/:id`, `DELETE /pets/:id`, and more, with no repository or query code to write by hand. See [Auto CRUD Routes](/docs/auto-crud-routes) for the exact endpoint list.
 
-## Next steps
+Save, and `rapidrest dev` picks the new files up automatically:
 
-- [Core Concepts](/docs/core-concepts): dependency injection, auto-discovery, and configuration
-- [Routing & Controllers](/docs/routing-controllers): writing your own endpoints
-- [Default Routes](/docs/default-routes): what the generated `AdminRoute`, `MetricsRoute`, `OpenAPIRoute`, `StatusRoute` and `PushRoute` files actually do
-- [SSR React](/docs/plugins/ssr-react): server-rendered pages in the same project
-- [Auth Library](/docs/plugins/auth-library) and [`rapidrest generate auth`](/docs/cli-reference/generate-auth): add login/session scaffolding — self-service registration, admin user management, and HTTP Basic, OTP, TOTP, Passkey, FIDO2, MFA, or OAuth 2.0/OIDC login
-- [CLI Reference](/docs/cli-reference): every `generate` command in detail
+```bash
+curl -X POST http://localhost:3000/pets -H "Content-Type: application/json" -d '{"name":"Rex"}'
+curl http://localhost:3000/pets
+```
+
+The data only lives as long as `rapidrest dev` keeps running, it's still the in-memory datastore, but the exact same route and model code keeps it forever once pointed at a real one.
+
+## What to learn next
+
+- **[Core Concepts](/docs/core-concepts)** — decorators, auto-discovery, dependency injection, and configuration: the mechanisms behind everything above. Read this next.
+- **[Routing & Controllers](/docs/routing-controllers)** — hand-written endpoints, beyond what the CRUD generator gives you.
+- **[Models & Persistence](/docs/models-persistence)** — more on shaping and storing data.
+- **[Default Routes](/docs/default-routes)** — what `AdminRoute`, `MetricsRoute`, `StatusRoute`, and the other pre-written files actually do.
+- **[HTTP Engine](/docs/http-engine)** — sessions, cookies, CORS, and what's underneath every request.
+- **[Auth & RBAC](/docs/auth-rbac)** and the **[Auth Library](/docs/plugins/auth-library)** plugin — real user accounts and login.
+- **[SSR React](/docs/plugins/ssr-react)** — server-rendered pages from this same server, if you picked the React feature.
+- **[CLI Reference](/docs/cli-reference)** — every `generate` command, in full.

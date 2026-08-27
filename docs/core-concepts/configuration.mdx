@@ -1,17 +1,19 @@
 ---
-sidebar_position: 4
+sidebar_position: 5
 sidebar_label: Configuration
 ---
 
 # Configuration
 
-RapidREST configuration is built directly on [nconf](https://github.com/node-config/node-config), set up in `src/config.ts`. There's no separate RapidREST-specific config format. You're looking at plain nconf, with one thing worth calling out up front.
+Almost nothing about your API should be hard-coded: which database to connect to, which port to listen on, what secret key to sign tokens with. These things change between your laptop, your test environment, and production, and some of them (like secrets) shouldn't be written directly into your source code at all. **Configuration** is where all of that lives instead, in one place your code reads from, rather than scattered `if` statements checking where it's running.
 
-:::note[The one gotcha]
-nconf uses **colons** (`:`) as its hierarchy separator, not dots. `config.get("auth.secret")` returns `undefined`. Always use `config.get("auth:secret")`.
+RapidREST doesn't invent its own configuration system. It uses a well-established one called [nconf](https://github.com/node-config/node-config), set up for you in `src/config.ts` when your project is generated.
+
+:::note[The one thing that trips people up]
+nconf organizes settings into a tree, and separates each level with a **colon** (`:`), not a dot. `config.get("auth.secret")` will quietly return `undefined`. The correct form is `config.get("auth:secret")`. This is worth remembering now, since it'll look wrong to anyone used to JavaScript's usual dot notation.
 :::
 
-## A real config file
+## What a config file looks like
 
 ```ts
 // src/config.ts
@@ -47,38 +49,50 @@ conf.defaults({
 export default conf;
 ```
 
-Because `.env()` is configured with `separator: '__'`, you can override any nested key via environment variables using double underscores in place of colons. For example `AUTH__SECRET=prod-secret` overrides `auth:secret`.
+Everything inside `conf.defaults({...})` is a **default**, the value used if nothing else overrides it. That's deliberate: it means your generated project runs out of the box with sane values, while still leaving every one of those values changeable without touching code.
 
-## Reading config values
+## Overriding a default without editing code
 
-Anywhere in your own code:
+Because `.env()` is set up with `separator: '__'`, any of these nested keys can be overridden by setting an environment variable, using a double underscore everywhere the key has a colon. For example, to change the JWT secret without editing `config.ts`:
+
+```bash
+AUTH__SECRET=a-real-production-secret rapidrest start
+```
+
+This is exactly how you're expected to hand over real secrets and real database connection strings once you deploy somewhere: you don't put production secrets in a file that gets committed to source control, you set them as environment variables on whatever server or container is actually running your code.
+
+## Reading a config value in your own code
+
+Anywhere you already have a reference to the config object:
 
 ```ts
 config.get('datastores');
 config.get('rbac:enabled');
-config.get('auth:socketTimeout');
+config.get('auth:options:expiresIn');
 ```
 
-Inside a class managed by the dependency injection container, use `@Config` instead of importing the config object directly. See [Dependency Injection](/docs/core-concepts/dependency-injection):
+Inside a class that RapidREST already manages for you (a route, a model, a service, see [Dependency Injection](/docs/core-concepts/dependency-injection)), you don't need to import the config object at all. Ask for the value with `@Config` instead, and it'll already be filled in by the time your code runs:
 
 ```ts
 @Config('trusted_roles', ['admin'])
 protected trustedRoles: string[] = ['admin'];
 ```
 
-## Common top-level keys
+The second argument here (`['admin']`) is a fallback used only if that key doesn't exist in your configuration at all, separate from the `conf.defaults()` values, which is a per-property safety net rather than the primary way to set defaults.
 
-| Key | Purpose |
+## The keys you'll see most often
+
+Almost every other page in these docs eventually points back to one of these:
+
+| Key | What it controls |
 |---|---|
-| `datastores` | MongoDB/PostgreSQL/SQLite/Redis connection definitions, keyed by datastore name (referenced from `@DataStore('name')`) |
-| `auth` | Default auth strategy, JWT secret/options |
-| `rbac:enabled` | Turns the RBAC/ACL permission system on or off globally |
-| `trusted_roles` | Roles that bypass ACL permission checks entirely |
-| `class_loader:ignore` | Regexes for files to exclude from auto-discovery |
-| `port` / `listen_host` / `ssl` / `max_body_size` | Server bind address and TLS — see [HTTP Engine](/docs/http-engine) |
-| `session` | Server-side session config — see [Sessions](/docs/http-engine/sessions) |
-| `cors` | CORS allow-list (`cors.origins`) — see [Cookies & CORS](/docs/http-engine/cookies-cors) |
-| `headers` | Extra response headers applied to every request — see [Cookies & CORS](/docs/http-engine/cookies-cors) |
-| `logger:level` | Winston log level |
-
-You'll see most of these referenced again in [Models & Persistence](/docs/models-persistence) and [Auth & RBAC](/docs/auth-rbac) as they come up.
+| `datastores` | Your database connections, one entry per named database (see [Models & Persistence](/docs/models-persistence)) |
+| `auth` | Which login strategy is used by default, and the secret/options for signing tokens (see [Auth & RBAC](/docs/auth-rbac)) |
+| `rbac:enabled` | Turns the permissions system on or off, globally |
+| `trusted_roles` | Roles that skip permission checks entirely |
+| `class_loader:ignore` | Which files [Auto-Discovery](/docs/core-concepts/auto-discovery) should skip |
+| `port` / `listen_host` / `ssl` / `max_body_size` | What address your server listens on, and TLS settings (see [HTTP Engine](/docs/http-engine)) |
+| `session` | Server-side session settings (see [Sessions](/docs/http-engine/sessions)) |
+| `cors` | Which other websites are allowed to call your API from a browser (see [Cookies & CORS](/docs/http-engine/cookies-cors)) |
+| `headers` | Extra headers added to every response your server sends |
+| `logger:level` | How much detail gets written to your logs |

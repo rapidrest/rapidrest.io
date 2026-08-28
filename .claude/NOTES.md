@@ -464,3 +464,69 @@ Keep entries terse — this is a reference, not a transcript.
   definitions, that page is a 7-item catalog and each entry being tight reads as a reference
   table in prose form, not the same failure mode as an entire page/concept skipping its
   explanation.
+
+## 2026-08-27 (cont.): Deployment section — first full pass (was still outstanding since 08-26)
+- All 4 pages (`index.mdx`, `bun.mdx`, `docker.mdx`, `kubernetes.mdx`) verified against current
+  `cli` source (`src/commands/start.ts`, `src/commands/dev.ts`, `src/lib/bun.ts`,
+  `templates/docker/*`, `templates/helm/helm/*`).
+- **Real gaps found and fixed**:
+  - `kubernetes.mdx` and `index.mdx` both said the Helm chart bundles MongoDB/Redis only. The
+    CLI's generic chart template now has full PostgreSQL support too (`postgresql.create`
+    condition, `service.postgresql.*` block, postgres-probe init container) — same feature that
+    was found missing from `auth-server`'s own chart docs earlier this session. Added it
+    everywhere: the overview bullet, the "What's in the chart" paragraph, the settings table,
+    and the init-container-probe sentence.
+  - `docker.mdx` said the builder stage "runs `rapidreact build`" — it doesn't; the `Dockerfile`
+    runs the project's own `yarn build`/`npm run build` script, which happens to do `tsc` (or
+    `tsc` + `vite build` for a React project) without going through the `rapidreact` CLI at all.
+    Corrected, and used the correction to make a real point: the image is never built by a
+    different path than what you already run and test locally.
+  - `docker.mdx`'s entrypoint description was missing `--no-build` (the container CMD is
+    actually `rapidrest start --docker --no-build`, confirmed in the `Dockerfile` template) and
+    didn't explain why the `HEALTHCHECK` deliberately avoids `curl -f` (a non-React project's `/`
+    legitimately 404s, and `-f` would treat that as unhealthy) — both are explained in the
+    template's own comments, pulled into the doc.
+  - `docker.mdx`'s Compose example was stale: verified by actually running
+    `rapidrest generate docker` against a scratch project with the exact datastore mix the doc
+    claimed (Mongo + 3 Redis datastores) rather than hand-tracing the Handlebars template, and
+    the real output includes `datastores__acl__type=mongodb`/`datastores__mongo__type=mongodb`
+    lines the doc's example was missing, plus a different service/link ordering (mongo before
+    redis, not the reverse). Replaced the example with the actual generated output, and dropped
+    the "real, unedited example from the Petstore reference app" claim (couldn't verify that
+    repo) in favor of stating plainly it's what `generate docker` produces.
+  - `docker.mdx`'s debug section said the debug command is `dev --docker`; the template's real
+    command is `dev --inspect --docker` (`--inspect` is what actually enables the port-9229
+    debugger this whole section is about). Fixed.
+- Applied "explain, not just define" to `docker.mdx` and `kubernetes.mdx`, both opened directly
+  with a bare `rapidrest generate ...` command and no prose. Added a sentence to each on why
+  you'd reach for that deployment path before the command.
+
+## 2026-08-27 (cont.): Deployment — added Architecture sections to Docker and Helm pages
+- Added an `## Architecture` section to both `docs/deployment/docker.mdx` and
+  `docs/deployment/kubernetes.mdx`, right after the intro/command and before the per-file detail
+  sections, matching the placement and ASCII-diagram style already established on
+  `docs/auth-server/deployment/{docker,helm}.mdx`.
+- Docker's diagram shows the `server` container branching to whichever of `mongo`/`postgres`/
+  `redis` containers the project actually configures (conditional, unlike auth-server's fixed
+  three-container topology), plus which ports are host-exposed vs. compose-network-only.
+- Kubernetes' diagram is the same Gateway → HTTPRoute → Service → Deployment (N replica pods) →
+  optional MongoDB-or-PostgreSQL + optional Redis topology already verified for auth-server's
+  chart, reused as-is since this CLI-generated chart is architecturally identical (confirmed via
+  the same `2_services/api_services.yaml`/`3_gateways/api.yaml` template structure).
+
+## 2026-08-27 (cont.): Deployment/kubernetes.mdx — restored the full Parameters table
+- User caught that this page never actually had a complete Bitnami-style values.yaml reference
+  table (checked `git log -p` on the file back to its creation in `07d298c`, it always had just
+  a 6-row "settings you'll actually touch" table), unlike `docs/auth-server/deployment/helm.mdx`
+  which does. Built the missing full `## Parameters` table by reading every relevant CLI chart
+  template (`values.yaml`, `service-config.yaml`, `redis.yaml`, `_helpers.tpl`), the same
+  exhaustive single-table convention used everywhere else on the site.
+- This generic chart is close kin to `auth-server`'s own (same template structure, same
+  `service.mongodb.*`/`service.postgresql.*` override shape), so the table is nearly identical,
+  with the real differences reflected accurately: `service.image.repository`,
+  `service.mongodb.mongo.name`, `service.postgresql.sql.name`, and `postgresql.auth.database`
+  all default to the generated project's own name (`[[project_name]]` in the raw template, not
+  a literal value), documented as "your project's name" rather than a fabricated concrete
+  string. `mongodb.create`/`postgresql.create`/`redis.create` are conditionally emitted in a
+  freshly generated project's `values.yaml`, present only for the datastore types that project
+  actually configured, called out explicitly rather than claimed as a fixed default.

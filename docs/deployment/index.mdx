@@ -5,15 +5,15 @@ sidebar_label: Overview
 
 # Deployment
 
-The RapidREST [cli](/docs/cli-reference/) can generate two different deployment paths. Both wire up your project's datastores as environment variables using the same
+`rapidrest dev` and `rapidrest start` are fine for a laptop, but a service running unattended in production needs an actual packaging and deployment story: an image to run, a place to run it, and datastores wired up without hand-editing config on the target machine. The RapidREST [cli](/docs/cli-reference/) can generate two different deployment paths for that, and you can add either (or both) to a project that didn't start with them. Both wire up your project's datastores as environment variables using the same
 colon-to-double-underscore convention `.env()` uses in [Configuration](/docs/core-concepts/configuration), e.g. `datastores__mongo__url`, not a
 separate deployment-specific config format.
 
 - **[Bun](/docs/deployment/bun)** - run the server on Bun instead of Node.js. This is a runtime switch, not a packaging format — it composes with
 either option below.
 - **[Docker](/docs/deployment/docker)** - a multi-stage `Dockerfile` and Compose setup, including debug and CPU-profiling variants.
-- **[Kubernetes (Helm)](/docs/deployment/kubernetes)** - a Helm chart with optional MongoDB/Redis subcharts, Gateway API routing, and auto-generated
-secrets.
+- **[Kubernetes (Helm)](/docs/deployment/kubernetes)** - a Helm chart with optional MongoDB/PostgreSQL/Redis subcharts, Gateway API routing, and
+auto-generated secrets.
 
 Docker and Kubernetes support can be added to an existing project with the CLI. See [CLI Reference → Add-ons](/docs/cli-reference/addons) using
 `rapidrest generate docker` and `rapidrest generate k8s`.

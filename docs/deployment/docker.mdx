@@ -5,49 +5,80 @@ sidebar_label: Docker
 
 # Docker
 
+Turning a project into a container image that runs the same way on your machine, a teammate's, or a real host means capturing the build step, the runtime, and the datastores it needs into something reproducible, rather than a README of manual setup steps. `rapidrest generate docker` does that for a RapidREST project in one shot:
+
 ```bash
 rapidrest generate docker
 ```
 
 This adds a multi-stage `Dockerfile`, a `docker-compose.yml`, and two Compose override files (`docker-compose.debug.yml`, `docker-compose.profile.yml`) to your project. Regenerating them from your project's current datastores is always safe, so re-run it with `--force` any time you add or remove one (see [CLI Reference → Add-ons](/docs/cli-reference/addons)).
 
+## Architecture
+
+`docker-compose.yml` starts one container per configured datastore alongside the `server` container itself, all on one Compose-managed network. A project using MongoDB, PostgreSQL, and Redis together would look like this (yours likely has fewer, depending on which datastores your project actually configures):
+
+```text
+      -------------------------------------------------------------
+     |                      compose network                        |
+     |                                                              |
+     |                        ------------                         |
+     |                       |   server   |                        |
+     |                       | (built from|                        |
+     |                       | Dockerfile)|                        |
+     |                        ------------                         |
+     |                             |                                |
+     |           -----------------------------------                |
+     |          |                 |                 |               |
+     |    ------------      ------------      ------------          |
+     |   |   mongo    |    |  postgres  |    |   redis    |         |
+     |   | (if used)  |    | (if used)  |    | (if used)  |         |
+     |    ------------      ------------      ------------          |
+      -------------------------------------------------------------
+              |
+     host:3000 (API)        host:9229 (Node inspector)
+```
+
+`server` is the only container exposed to the host, on ports `3000` and `9229`. Every datastore container is reachable only from inside the Compose network, by its service name (`mongo`, `postgres`, `redis`), which is exactly the hostname each `datastores__*__url` environment variable in [Compose and datastores](#compose-and-datastores) below points at.
+
 ## The image
 
-The `Dockerfile` builds in two stages: a `builder` stage that installs dependencies and runs `rapidreact build` (a no-op if your project doesn't use [SSR React](/docs/plugins/ssr-react)), and a `runner` stage that copies over just the compiled output and `node_modules`. The final image:
+The `Dockerfile` builds in two stages: a `builder` stage that installs dependencies and runs the project's own `build` script, and a `runner` stage that copies over just the compiled output and `node_modules`. That `build` script is the same one `yarn build`/`npm run build` already runs locally, `tsc` alone, or `tsc` plus a `vite build` client bundle if the project uses [SSR React](/docs/plugins/ssr-react), so the image is never running code compiled by a different path than what you already test locally. The final image:
 
 - Exposes port `3000` (the app) and `9229` (the Node inspector, for attaching a debugger).
-- Runs `rapidrest start --docker` as its entrypoint. The `--docker` flag skips RapidREST's usual in-memory database bootstrap, since real datastores are provided by Compose (see [Dev Workflow](/docs/cli-reference/dev-workflow)).
-- Has a built-in `HEALTHCHECK` polling `/` every 10 seconds.
+- Runs `rapidrest start --docker --no-build` as its entrypoint. `--docker` skips RapidREST's usual in-memory database bootstrap, since real datastores are provided by Compose; `--no-build` skips re-running the build step that already happened in the `builder` stage (see [Dev Workflow](/docs/cli-reference/dev-workflow)).
+- Has a built-in `HEALTHCHECK` polling `/` every 10 seconds. Deliberately not `curl -f`: `-f` treats any non-2xx response as failed, but `/` legitimately 404s on a project generated without `--react` (no page claims the root route), which still proves the server is up and routing requests correctly. Only an actual connection failure counts as unhealthy here.
 
 ## Compose and datastores
 
-`docker-compose.yml` wires each configured datastore as an environment variable, and adds a container for it automatically. This is a real, unedited example from the [Petstore](https://github.com/rapidrest/petstore_example) reference app, which uses MongoDB plus three separate Redis-backed datastores (cache, events, logs):
+`docker-compose.yml` wires each configured datastore as an environment variable, and adds a container for it automatically. This is what `generate docker` actually produces for a project using MongoDB plus three separate Redis-backed datastores (cache, events, logs):
 
 ```yaml
 services:
-  server:
-    build:
-      context: .
-    ports:
-      - '3000:3000'
-      - '9229:9229'
-    environment:
-      - datastores__acl__url=mongodb://mongo
-      - datastores__cache__type=redis
-      - datastores__cache__url=redis://redis
-      - datastores__events__type=redis
-      - datastores__events__url=redis://redis
-      - datastores__logs__type=redis
-      - datastores__logs__url=redis://redis
-      - datastores__mongo__url=mongodb://mongo
-      - NODE_ENV=dev
-    links:
-      - redis
-      - mongo
-  redis:
-    image: redis
-  mongo:
-    image: mongo
+    server:
+        build:
+            context: .
+        ports:
+            - "3000:3000"
+            - "9229:9229"
+        environment:
+            - datastores__acl__type=mongodb
+            - datastores__acl__url=mongodb://mongo
+            - datastores__cache__type=redis
+            - datastores__cache__url=redis://redis
+            - datastores__events__type=redis
+            - datastores__events__url=redis://redis
+            - datastores__logs__type=redis
+            - datastores__logs__url=redis://redis
+            - datastores__mongo__type=mongodb
+            - datastores__mongo__url=mongodb://mongo
+            - NODE_ENV=dev
+        links:
+            - mongo
+            - redis
+    mongo:
+        image: mongo
+    redis:
+        image: redis
 ```
 
 Each `datastores__<name>__<key>` variable overrides the matching `datastores:<name>:<key>` config path, exactly as described in [Configuration](/docs/core-concepts/configuration). Docker Compose's environment block is just another way of setting the same nconf keys, nothing Docker-specific to learn.
@@ -58,7 +89,7 @@ docker compose up
 
 ## Debugging inside the container
 
-`docker-compose.debug.yml` overrides the server's command to `dev --docker` and bind-mounts `./src` and `./app` into the container, so source changes trigger a reload without rebuilding the image:
+`docker-compose.debug.yml` overrides the server's command to `dev --inspect --docker` and bind-mounts `./src` and `./app` into the container, so source changes trigger a reload without rebuilding the image, with the Node inspector already listening on the container's port `9229`:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.debug.yml up

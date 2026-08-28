@@ -62,27 +62,31 @@ const { Model, Route } = RouteDecorators;
 export class PetRoute extends CRUDRoute<Pet> {}
 `;
 
-const ssrExample = `// src/service/PetService.ts
+const ssrExample = `// src/services/PetService.ts
+import { ObjectDecorators } from "@rapidrest/core";
+import { RepoUtils } from "@rapidrest/service-core";
 import { ReactService } from "@rapidrest/react";
+import { Pet } from "../models/Pet.js";
+const { Inject } = ObjectDecorators;
 
 @ReactService("/app/pets")
 export class PetService {
   @Inject(RepoUtils, { name: Pet.name, args: [Pet] })
   private petUtils?: RepoUtils<Pet>;
 
-  public async function fetchProps() {
+  async fetchProps() {
     return { pets: await this.petUtils?.find() };
   }
 }
 
 // apps/www/pets.tsx
-import "../src/models/Pet.js";
+import type { Pet } from "../../src/models/Pet.js";
 
 export default function PetsPage({pets}: {pets: Pet[]}) {
   return (
     <ul>
       {pets.map((pet) => (
-        <li key={pet.id}>{pet.name}</li>
+        <li key={pet.uid}>{pet.name}</li>
       ))}
     </ul>
   );
@@ -96,7 +100,7 @@ export default function CodeShowcase(): ReactNode {
         <div className={styles.header}>
           <Heading as="h2">A complete REST API in under 50 lines</Heading>
           <p>
-            No hand-written handlers, no manual route registration, no boilerplate database code. Just add a data model
+            No hand-written controllers, no manual route registration, no boilerplate database code. Just add a data model
             and a route class, then let RapidREST do the rest!
           </p>
           <p>

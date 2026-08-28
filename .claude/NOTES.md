@@ -646,3 +646,45 @@ Keep entries terse — this is a reference, not a transcript.
   instruction for content-only work — a directory move breaks things (footer/navbar config,
   hand-maintained files outside `docs/`, cross-linked anchors) that no amount of grepping
   `docs/*.mdx` will ever catch, because the breakage isn't necessarily inside `docs/` at all.
+
+## 2026-08-27 (cont.): Homepage review — two of my own findings were wrong, but it led to a real, widespread bug
+- User corrected two things from my homepage review:
+  1. `BaseMongoEntity` does **not** auto-copy subclass-defined fields from `other` in its
+     constructor, confirmed by reading `BaseMongoEntity.ts` (only copies its own `_id`) and
+     `auth`'s real `UserMongo.ts` (which manually copies every one of its own fields the same
+     way the homepage's `modelExample` does). The homepage's constructor was correct all along,
+     not boilerplate to trim, retracted that criticism.
+  2. "Auth & RBAC ... built-in" is a legitimate claim, JWT auth + RBAC/ACLs genuinely ship for
+     free. The wording just needed to specifically say *JWT authentication*, not the vaguer
+     "auth," so it doesn't read as "full login system included." Reworded the
+     `HomepageFeatures` card accordingly, now also tastefully teases the Auth Library as the
+     next step for real login flows.
+- **While re-verifying the `@Model` decorator I'd wrongly called "redundant" on the homepage,
+  found a real, widespread, previously-unnoticed bug instead**: `@Model(type)` is not
+  decoration, `ModelRoute.modelClass` (in `service-core/src/routes/ModelRoute.ts`) reads a
+  static `modelClass` property that only exists because `@Model()` put it there, since
+  TypeScript's `<Pet>` generic on `CRUDRoute<Pet>`/`ModelRoute<Pet>` is erased at runtime and
+  provides nothing to read. Confirmed against the CLI's own real generated route template
+  (`cli/templates/route/src/routes/{{name}}.ts`), which always pairs `@Model({{model}})` with
+  `extends CRUDRoute<{{model}}>`. Five docs pages had the canonical `PetRoute` example missing
+  `@Model(Pet)` entirely, meaning the example as shown would throw at server startup
+  (`Cannot read properties of undefined`) if copied verbatim: `docs/routing/auto-crud-routes/
+  index.mdx`, `crud-route.mdx`, `model-route.mdx`, `docs/auth/rbac/access-control-lists.mdx`
+  (both examples), and one of two examples in `docs/core-concepts/aspect-oriented-programming.
+  mdx` (the other one already had it right, inconsistent within the same file). Fixed all six
+  occurrences across five files, and added a sentence to the two most prominent (Auto CRUD
+  Routes' Overview and `CRUDRoute` pages) explaining *why* the decorator is required, not just
+  that it's there, so this doesn't quietly regress again.
+- Homepage source fixes: `CodeShowcase`'s SSR tab had a real syntax error
+  (`public async function fetchProps()`, not valid class-method syntax), missing imports
+  (`RepoUtils`, `Inject`, `Pet`) that every other tab includes in full, and used `pet.id` where
+  the rest of the site's own established convention (verified all session) is `pet.uid`. Fixed
+  all three in `src/components/CodeShowcase/index.tsx`.
+- Confirmed clean: `yarn docusaurus build` succeeds with no broken links/anchors after all of
+  the above.
+- **Lesson reinforced**: this is the second time this session a "this looks redundant/wrong"
+  instinct about a decorator turned out to be backwards once actually checked against source
+  (`@Model` here; recall the OIDC `strategyName` finding earlier was the opposite direction,
+  a genuine bug the docs hadn't caught up to). The rule stays the same both ways: verify by
+  reading source before asserting either "this is wrong" or "this is fine," don't trust a
+  pattern-matching instinct in either direction.

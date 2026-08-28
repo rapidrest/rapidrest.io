@@ -79,6 +79,7 @@ Applied to a route class or a single endpoint method, `@Protect` works the same 
 
 ```ts
 @Protect()
+@Model(Pet)
 @Route('/pets')
 export class PetRoute extends CRUDRoute<Pet> {}
 ```
@@ -86,6 +87,7 @@ export class PetRoute extends CRUDRoute<Pet> {}
 Called with no arguments at all, `@Protect()` defaults to something reasonable on its own: anonymous callers get nothing, any authenticated caller gets every action, and the ACL's `uid` is generated automatically from the class name if you don't supply one. Narrow just one endpoint by applying `@Protect` to the method instead:
 
 ```ts
+@Model(Pet)
 @Route('/pets')
 export class PetRoute extends CRUDRoute<Pet> {
   @Protect({

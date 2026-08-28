@@ -50,8 +50,8 @@ const FeatureList: FeatureItem[] = [
     Icon: ShieldIcon,
     description: (
       <>
-        Security first principles with auth and a powerful RBAC/ACL system for per-URL/class/document access control built-in —
-        no separate library to bolt on.
+        JWT authentication and a powerful RBAC/ACL system for per-URL/class/document access control, built in, no separate
+        library needed. Full login flows (password, MFA, OAuth) are one optional package away.
       </>
     ),
   },

@@ -9,13 +9,14 @@ sidebar_label: CRUDRoute
 
 ```ts
 import { CRUDRoute, RouteDecorators } from '@rapidrest/service-core';
-const { Route } = RouteDecorators;
+const { Model, Route } = RouteDecorators;
 
+@Model(Pet)
 @Route('/pets')
 export class PetRoute extends CRUDRoute<Pet> {}
 ```
 
-That single line gives `Pet` a complete, working REST API. Here's exactly what it exposes:
+That's it, and it gives `Pet` a complete, working REST API. `@Model(Pet)` is required alongside the `<Pet>` generic, not redundant with it, generics don't exist at runtime, so this decorator is the only thing that actually tells `CRUDRoute` which model it's managing. Here's exactly what it exposes:
 
 | HTTP Verb + Path | Calls | Extra decorators |
 |---|---|---|
@@ -50,6 +51,7 @@ A soft-deleted record is excluded from normal `find`/`findById` results, it's st
 `CRUDRoute` giving you everything by default doesn't mean all-or-nothing. Override just the one method you need to change, there's no requirement to redeclare the decorators already on it, they're inherited right along with the method:
 
 ```ts
+@Model(Pet)
 @Route('/pets')
 export class PetRoute extends CRUDRoute<Pet> {
   @Auth(['jwt'])

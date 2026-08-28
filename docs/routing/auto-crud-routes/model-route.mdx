@@ -11,8 +11,9 @@ This matters more than it sounds like it should. A model that should never accep
 
 ```ts
 import { ModelRoute, RouteDecorators } from '@rapidrest/service-core';
-const { Get, Head, Route } = RouteDecorators;
+const { Get, Head, Model, Route } = RouteDecorators;
 
+@Model(Pet)
 @Route('/pets')
 export class PetRoute extends ModelRoute<Pet> {
   @Head()

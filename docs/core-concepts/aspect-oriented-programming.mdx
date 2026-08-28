@@ -129,6 +129,7 @@ class Pet extends BaseMongoEntity {
 }
 
 // Describing an endpoint
+@Model(Pet)
 @Route('/pets')
 class PetRoute extends CRUDRoute<Pet> {}
 

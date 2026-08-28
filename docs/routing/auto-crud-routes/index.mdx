@@ -9,13 +9,14 @@ Every REST API ends up needing the same handful of endpoints for its data: list 
 
 ```ts
 import { CRUDRoute, RouteDecorators } from '@rapidrest/service-core';
-const { Route } = RouteDecorators;
+const { Model, Route } = RouteDecorators;
 
+@Model(Pet)
 @Route('/pets')
 export class PetRoute extends CRUDRoute<Pet> {}
 ```
 
-That's the entire class, and it's already a complete REST API for `Pet`.
+That's the entire class, and it's already a complete REST API for `Pet`. `@Model(Pet)` isn't optional decoration, it's what actually tells `CRUDRoute` which model it's managing: the `<Pet>` in `CRUDRoute<Pet>` is a TypeScript generic, erased completely by the time the code runs, so without `@Model(Pet)` there'd be nothing left at runtime connecting this class to `Pet` at all.
 
 ## Two base classes, one shared foundation
 

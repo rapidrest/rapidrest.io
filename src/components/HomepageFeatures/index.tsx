@@ -6,7 +6,7 @@ import {
   DecoratorIcon,
   DatabaseIcon,
   CacheIcon,
-  PlugIcon,
+  BoxIcon,
   ShieldIcon,
 } from './icons';
 
@@ -56,22 +56,22 @@ const FeatureList: FeatureItem[] = [
     ),
   },
   {
-    title: 'OpenAPI Docs',
-    Icon: PlugIcon,
-    description: (
-      <>
-        Automatically generates OpenAPI documentation from your code and serves the spec via
-        common endpoints `/openapi.json`, `/openapi.yaml`
-      </>
-    ),
-  },
-  {
     title: 'Cache System',
     Icon: CacheIcon,
     description: (
       <>
         The Redis based built-in caching system provides automatic caching of queries, documents, and server rendered React
         pages. Simply add `@Cache` to your model and you're done!
+      </>
+    ),
+  },
+  {
+    title: 'Deploy-ready',
+    Icon: BoxIcon,
+    description: (
+      <>
+        One command scaffolds a production Dockerfile and a Kubernetes Helm chart, Gateway API routing, auto-generated secrets, and
+        all, alongside your project. Prefer Bun to Node.js? One flag runs it there instead.
       </>
     ),
   },

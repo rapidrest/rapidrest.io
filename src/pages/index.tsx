@@ -52,12 +52,10 @@ function WhyRapidREST() {
             </p>
           </div>
           <ul className={styles.whyList}>
-            <li>HTTP Engine <span>→</span> built on uWebSockets.js for raw speed</li>
-            <li>RBAC &amp; ACLs <span>→</span> URL, class-based and document-level protection</li>
-            <li>Database Integration <span>→</span> built-in Mongo &amp; ORM (SQL) layer</li>
-            <li>Data Caching <span>→</span> cache queries, documents, pages, and more</li>
-            <li>OpenAPI <span>→</span> automatically generates OpenAPI docs from your code</li>
-            <li>Server-rendered React <span>→</span> unify your front-end and back-end code</li>
+            <li>Auth Server <span>→</span> the optional Auth Library adds password, MFA, and OAuth sign-in, or deploy the ready-made Auth Server</li>
+            <li>Server-rendered React <span>→</span> unify your front-end and back-end code on the same server, no second framework to run</li>
+            <li>Background jobs <span>→</span> perform background work alongside your API automatically with crontab-style scheduling</li>
+            <li>Events, notifications &amp; telemetry <span>→</span> cross-instance events, live push to connected users, and permanent activity records, all included</li>
           </ul>
         </div>
       </div>

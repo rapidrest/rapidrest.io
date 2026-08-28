@@ -688,3 +688,19 @@ Keep entries terse — this is a reference, not a transcript.
   a genuine bug the docs hadn't caught up to). The rule stays the same both ways: verify by
   reading source before asserting either "this is wrong" or "this is fine," don't trust a
   pattern-matching instinct in either direction.
+
+## 2026-08-27 (cont.): Homepage — swapped a feature card, rewrote WhyRapidREST's list
+- `HomepageFeatures`: replaced the "OpenAPI Docs" card (real, but table-stakes) with
+  **Deploy-ready** (auto-generated Dockerfile + Kubernetes Helm chart, Bun runtime support),
+  a much rarer capability for a web framework to ship and a better showcase of the "batteries
+  included" pitch. Added a new `BoxIcon` to `icons.tsx` matching the existing stroke-icon style;
+  removed the now-unused `PlugIcon` import.
+- `WhyRapidREST` (`src/pages/index.tsx`): the bullet list was nearly a verbatim restatement of
+  `HomepageFeatures` (HTTP speed, RBAC & ACLs, Database, Caching, OpenAPI, SSR React), a visitor
+  saw the same six things twice in a row. Kept the section's actual unique value (the AcceleratXR/
+  production-pedigree narrative column) and replaced the list with ecosystem breadth *not*
+  already covered above: Auth Library/Auth Server (real login), SSR React, Background Jobs
+  (also stops the code showcase's JOB tab from being orphaned with nothing explaining it),
+  and Events/Notifications/Telemetry. The two sections now answer different questions: "what
+  does the core framework do" vs. "what's the rest of the ecosystem."
+- Confirmed clean: `yarn docusaurus build` succeeds with no errors after both component changes.

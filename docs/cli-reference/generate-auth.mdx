@@ -5,7 +5,7 @@ sidebar_label: Auth
 
 # `rapidrest generate auth`
 
-Adds login/session scaffolding to an existing project, backed by [`@rapidrest/auth`](/docs/plugins/auth-library): self-service registration, admin user management, and one or more selectable authentication methods (HTTP Basic, OTP, TOTP, Passkey, FIDO2, MFA, and OAuth 2.0/OpenID Connect). Opt-in — nothing in the base `generate server` template depends on it.
+The [Auth Library](/docs/plugins/auth-library) ships every login strategy, model, and base route you'd need, but wiring even one of them into a real project still means picking a datastore, subclassing the right base routes, and patching `src/config.ts` by hand. `rapidrest generate auth` does that wiring for you: it adds login/session scaffolding to an existing project, backed by `@rapidrest/auth`, self-service registration, admin user management, and one or more selectable authentication methods (HTTP Basic, OTP, TOTP, Passkey, FIDO2, MFA, and OAuth 2.0/OpenID Connect). It's entirely opt-in; nothing in the base `generate server` template depends on it, and a project that never runs this command never installs `@rapidrest/auth` at all.
 
 ```bash
 rapidrest generate auth

@@ -5,6 +5,8 @@ sidebar_label: Maintenance
 
 # Maintenance Commands
 
+A project generated months ago drifts from what the CLI would produce today: templates get bug fixes, dependency versions move on, and the project itself accumulates its own changes on top. `doctor` and `upgrade` both close that gap, from two different directions. `doctor` looks for specific, known-bad patterns from past template bugs and fixes what it safely can. `upgrade` re-syncs the project's generator-owned files and dependency versions against whatever templates the CLI you have installed right now actually ships, whether or not anything about them was ever "wrong."
+
 ## `rapidrest doctor`
 
 Validates an existing project against a set of known issues and, where possible, fixes them.

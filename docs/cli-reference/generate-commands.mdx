@@ -5,9 +5,11 @@ sidebar_label: Generate Commands
 
 # Generate Commands
 
+These four commands cover the everyday shape of building a RapidREST project: one to create it, and three to add the pieces every service eventually needs, a model, a route, a scheduled job. Each one writes a real, editable source file from a template, not a black box you have to work around, so treat the output as a starting point you're expected to modify, not generated code to leave alone.
+
 ## `rapidrest generate server NAME`
 
-Scaffolds a brand-new project.
+Scaffolds a brand-new project: `src/config.ts`, a `Server` entry point, whichever datastores and default routes you choose, and a test harness already configured to exercise them, all in one runnable directory.
 
 ```bash
 rapidrest generate server my-api
@@ -23,7 +25,7 @@ rapidrest generate server my-api --output-dir ~/projects/my-api
 | `--author <name>` | Falls back to your Git config, then prompts |
 | `--pkg-manager <name>` | One of `npm`, `yarn` |
 | `--db <name>` | A database feature to enable. One of `mongodb`, `postgresql`, `redis`, `sqlite`. Repeatable |
-| `--route <name>` | A default route to include. One of `acl`, `admin`, `metrics`, `openapi`, `push`, `status`. Repeatable |
+| `--route <name>` | A default route to include. One of `acl`, `admin`, `metrics`, `openapi`, `push`, `status` (see [Default Routes](/docs/default-routes)). Repeatable |
 | `--react` / `--no-react` | Include React frontend support |
 | `--docker` / `--no-docker` | Include Docker support |
 | `--k8s` / `--no-k8s` | Include Kubernetes (Helm) support |
@@ -31,11 +33,13 @@ rapidrest generate server my-api --output-dir ~/projects/my-api
 | `--api-version <value>` | API version segment when `--api-route` is set (e.g. `1` for `/api/v1`) |
 | `--scm <name>` | Source control manager. One of `github`, `gitlab`, `git`, `p4`, `svn`, `none` |
 
-Each flag stands in for one interactive prompt — pass it (or supply it via `--answers`) to skip that prompt; omit both to be asked interactively, exactly as before these flags existed. `--route`/`--react`/`--docker`/`--k8s` all stand in for the same single "additional features" checkbox, so they're treated as one group: passing **any one** of them (or its `--answers` equivalent) skips that checkbox entirely, and any of the four you didn't specify falls back to that checkbox's own default (`--route` → none, `--react` → off, `--docker` → **on**, `--k8s` → off) rather than prompting for just the rest.
+Run it bare and you're walked through every choice above as an interactive prompt, the same experience as `npm create vite@latest` or similar scaffolding tools if you've used one before. Pass any of the flags to skip that specific prompt; pass all of them (or an `--answers` file) and the command runs start to finish with no prompts at all, useful in a script or CI job that needs to spin up a throwaway project unattended.
 
-Any default routes selected are generated via [`generate default-route`](/docs/cli-reference/addons#rapidrest-generate-default-route) immediately after the project is scaffolded, using the same author and API prefix chosen here.
+`--route`/`--react`/`--docker`/`--k8s` all stand in for one interactive "additional features" checkbox, so they're treated as a group: passing **any one** of them (or its `--answers` equivalent) skips that checkbox entirely, and whichever of the four you didn't specify falls back to that checkbox's own default (`--route` → none, `--react` → off, `--docker` → **on**, `--k8s` → off) rather than prompting for just the rest.
 
-**`--answers <file>`** — a JSON file with any of the flags above as camelCase keys, every key optional:
+Any default routes you selected are generated via [`generate default-route`](/docs/cli-reference/addons#rapidrest-generate-default-route) immediately afterward, using the same author and API prefix chosen here, so `generate server --route admin` and `generate server` followed by a separate `generate default-route --type admin` produce the identical result.
+
+**`--answers <file>`** takes a JSON file with any of the flags above as camelCase keys, every key optional:
 
 ```json
 {
@@ -65,7 +69,7 @@ rapidrest generate server my-api --answers ./server-profile.json
 
 ## `rapidrest generate model NAME`
 
-Adds a data model class.
+Adds a data model class to an existing project, the same `@Entity`/`@Identifier`-decorated shape you'd otherwise write by hand (see [Entities & Columns](/docs/models-persistence/entities-columns)), pre-wired to a real datastore from your project's `src/config.ts`.
 
 ```bash
 rapidrest generate model Product
@@ -74,6 +78,7 @@ rapidrest generate model Product --datastore mongo --cache 120 --protect
 
 | Flag | Description |
 |---|---|
+| `-f`, `--force` | Overwrite existing files |
 | `--output-dir <path>` | Defaults to `./src/models` |
 | `--author <name>` | |
 | `--description <text>` | |
@@ -81,20 +86,19 @@ rapidrest generate model Product --datastore mongo --cache 120 --protect
 | `--cache [ttl]` | Enables `@Cache`. Bare `--cache` defaults to a TTL of `60` |
 | `-p`, `--protect` | Enables RBAC protection on the model. Interactively defaults to **on** |
 | `--property <name:type>` | Add a typed property to the model, as `name:type` (e.g. `quantity:number`). Append `?` to the type to make it optional (e.g. `bio:string?`). Repeatable |
-| `--force` | Overwrite existing files |
 
-Every model already has a `name: string` field (its `@Identifier`) — `--property`/the interactive prompt add further data properties alongside it, not instead of it. An optional property (`type?`) is declared as `type | undefined` with `@Nullable` and defaults to `undefined`; a required property gets a type-appropriate zero value (`""`, `0`, `false`, `[]`, `new Date()`).
+Every model already has a `name: string` field (its `@Identifier`), `--property`/the interactive prompt add further data properties alongside it, not instead of it. An optional property (`type?`) is declared as `type | undefined` with `@Nullable` and defaults to `undefined`; a required property gets a type-appropriate zero value (`""`, `0`, `false`, `[]`, `new Date()`), so the generated class always compiles even before you fill in real defaults.
 
 ```bash
 rapidrest generate model Product --datastore mongo --cache --protect \
   --property quantity:number --property tags:string[] --property "bio:string?"
 ```
 
-If you configure a brand-new datastore while adding a model, and Docker or Helm add-ons already exist in the project, you'll be prompted to regenerate them so the new datastore is reflected.
+If you configure a brand-new datastore while adding a model, and Docker or Helm add-ons already exist in the project, you're prompted to regenerate them so the new datastore shows up there too, otherwise a real datastore your model depends on could silently be missing from the deployment configs.
 
 ## `rapidrest generate route NAME`
 
-Adds a route class.
+Adds a route class. The most common case, binding it to a model you already generated, produces a full CRUD endpoint (see [Auto CRUD Routes](/docs/auto-crud-routes)) from a single flag rather than writing the six HTTP methods by hand.
 
 ```bash
 rapidrest generate route ProductRoute
@@ -104,6 +108,7 @@ rapidrest generate route ProductRoute --api 2
 
 | Flag | Description |
 |---|---|
+| `-f`, `--force` | Overwrite existing files |
 | `--output-dir <path>` | Defaults to `./src/routes` |
 | `--author <name>` | |
 | `--description <text>` | |
@@ -112,11 +117,12 @@ rapidrest generate route ProductRoute --api 2
 | `--no-model` | Skip all prompts about associating a model |
 | `--api <version>` | Use `@ApiRoute` instead of `@Route` (see [Routing & Controllers](/docs/routing-controllers/defining-routes#api-versioned-routes-using-apiroute)). Pass a version to prefix the path with `/api/v<version>`. **Requires a value** — a bare `--api` fails with `Flag --api expects a value`; to get an unversioned `/api` prefix, omit the flag and answer the interactive prompts (confirm "Is this an API route?", then leave the version blank) |
 | `-p`, `--protect` | Enables RBAC protection. Interactively defaults to **off** (opposite of `generate model`) |
-| `-f`, `--force` | Overwrite existing files |
+
+Skip `--model` (or pass `--no-model`) and you get a plain route class with none of the CRUD scaffolding, a blank slate for a handler that doesn't map to standard create/read/update/delete over one model.
 
 ## `rapidrest generate job NAME`
 
-Adds a background job.
+Adds a [background job](/docs/background-jobs), a plain class run on a schedule rather than in response to a request.
 
 ```bash
 rapidrest generate job MetricsCollector
@@ -125,8 +131,10 @@ rapidrest generate job MetricsCollector --schedule "*/5 * * * *"
 
 | Flag | Description |
 |---|---|
+| `-f`, `--force` | Overwrite existing files |
 | `--output-dir <path>` | Defaults to `./src/jobs` |
 | `--author <name>` | |
 | `--description <text>` | |
 | `--schedule <cron>` | Crontab-style schedule |
-| `--force` | Overwrite existing files |
+
+Leave `--schedule` unset and you get a job with an empty schedule to fill in yourself, still a valid starting point if you'd rather write the cron expression directly in the generated file than get it right on the command line.

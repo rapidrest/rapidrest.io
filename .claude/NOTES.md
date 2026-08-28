@@ -530,3 +530,38 @@ Keep entries terse — this is a reference, not a transcript.
   string. `mongodb.create`/`postgresql.create`/`redis.create` are conditionally emitted in a
   freshly generated project's `values.yaml`, present only for the datastore types that project
   actually configured, called out explicitly rather than claimed as a fixed default.
+
+## 2026-08-27 (cont.): CLI Reference renamed to "CLI" + full rewrite
+- User initially asked for the CLI Reference section to be made terse ("pure reference"), then
+  caught themselves mid-investigation: they'd meant the auto-generated **API Reference**
+  (typedoc output under `docs/api/`), not this hand-written section. Correction: rename this
+  section to just **CLI** and give it the same full explanatory rewrite as every other section,
+  not a terseness pass. `docs/api/` was untouched either way (out of scope, auto-generated).
+- Renamed "CLI Reference" → "CLI" everywhere: `sidebars.ts`, `docs/cli-reference/_category_.json`,
+  the page's own H1, and every cross-link across the site that said "CLI Reference" (background-
+  jobs, default-routes ×2, deployment ×4, getting-started, routing-controllers).
+- **Real inaccuracy found and fixed, affecting 3 flags**: verified every single documented flag
+  by actually running `--help` for all 16 CLI commands rather than trusting `char:`/`alias:` in
+  the source by eye. Confirmed oclif's `alias:` on a `Flags.*()` definition does **not** produce
+  a usable single-dash short flag the way `char:` does, several source files use `alias: 'x'`
+  for a single letter and it silently doesn't do anything you can type on the command line.
+  This means: `generate model --force` and `generate job --force` were undocumented as having a
+  real `-f` short flag even though both genuinely do (`char: 'f'` in source, just not surfaced
+  in the docs table); `generate default-route --type` was documented with a fake `-t` short
+  flag that doesn't exist (source only has `alias: 't'`, `--help`'s own USAGE line confirms no
+  `-t` is registered). Fixed all three. Added a line to the Overview's `:::note[Flags]` box
+  explaining this alias/char distinction so a future session doesn't reintroduce the mistake by
+  eyeballing source instead of running `--help`.
+- Verified every other flag, enum value (`--db`, `--route`, `--scm`, `--method`, `--oidc-
+  provider`, `--datastore-type`, `--sql-type`), and mechanism claim (interactive-prompt fallback
+  behavior, `--answers` file schema, `--api`/`--api-route` interaction, doctor's known-issue
+  list) directly against `--help` output and `src/lib/doctor.ts` — all otherwise accurate,
+  no other changes needed there.
+- Rewrote every page's openings per the "explain, not just define" standing rule: Overview now
+  frames why the CLI exists at all before listing sub-pages; Generate Commands, Add-ons, Dev
+  Workflow, and Maintenance each got a short framing paragraph (why these commands are grouped
+  together, what problem the group solves) plus a one-line motivating sentence per command
+  before its flag table, rather than a bare command name into a code block. `generate-auth.mdx`
+  got the same treatment for its opening paragraph only, the rest of that page was already
+  well-explained. One single, deliberate scaffolding-tool comparison (`npm create vite@latest`)
+  used in Generate Commands to land what "interactive prompts" means, not a repeated pattern.

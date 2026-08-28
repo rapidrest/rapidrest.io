@@ -5,13 +5,15 @@ sidebar_label: Add-ons
 
 # Add-ons
 
+Docker, Kubernetes, a default route, an SSR React app, none of these are things every project needs from day one, so `generate server` treats them as optional rather than baking them into every scaffold. These six commands add one after the fact, to a project that either skipped it originally or has grown into needing it since. Each is safe to run again later: `generate docker`/`generate k8s`/`generate default-route` regenerate their output from your project's current state (`--force` to actually overwrite), so re-running one after adding a datastore or route picks up the change rather than leaving stale output behind.
+
 ## `rapidrest generate docker`
 
-Adds a `Dockerfile` and `docker-compose.yml`, configured for whichever datastores your project already has set up.
+Adds a `Dockerfile` and `docker-compose.yml`, configured for whichever datastores your project already has set up. See [Deployment → Docker](/docs/deployment/docker) for what the generated files actually contain.
 
 ```bash
 rapidrest generate docker
-docker-compose up
+docker compose up
 ```
 
 | Flag | Description |
@@ -23,7 +25,7 @@ Safe to re-run with `--force` whenever your project's datastores change. It rege
 
 ## `rapidrest generate k8s`
 
-Adds a Helm chart under `helm/`.
+Adds a Helm chart under `helm/`, for deploying to a real cluster instead of a single container. See [Deployment → Kubernetes (Helm)](/docs/deployment/kubernetes) for the chart's structure and every configurable value.
 
 ```bash
 rapidrest generate k8s
@@ -38,8 +40,7 @@ Same idempotent-regeneration behavior as `generate docker`.
 
 ## `rapidrest generate default-route`
 
-Scaffolds one or more of the [default routes](/docs/default-routes) (`BaseAdminRoute`, `BaseMetricsRoute`, `BaseOpenAPIRoute`, `BaseStatusRoute`,
-`BasePushRoute`, `BaseACLRoute`, `BaseStaticRoute`) into an existing project.
+`generate server` only includes a [default route](/docs/default-routes) (`BaseAdminRoute`, `BaseMetricsRoute`, `BaseOpenAPIRoute`, `BaseStatusRoute`, `BasePushRoute`, `BaseACLRoute`, `BaseStaticRoute`) if you asked for it up front. This command adds one, or several, to a project that didn't, without regenerating anything else.
 
 ```bash
 rapidrest generate default-route
@@ -55,15 +56,14 @@ rapidrest generate default-route --type admin --api 2
 | `--api <version>` | Sets the API version to use with `--api-route` (e.g. `--api 2` for `/api/v2`). Passing `--api` alone (without `--api-route`) also implies `--api-route`. **`--api` always requires a value** — a bare `--api` with nothing after it fails with `Flag --api expects a value`; use `--api-route` by itself for an unversioned `/api` prefix |
 | `--author <name>` | |
 | `--output-dir <path>` | Defaults to `./src/routes` |
-| `-t`, `--type <name>` | One of `acl`, `admin`, `metrics`, `openapi`, `push`, `static`, `status`. Pass more than once to generate multiple route types |
+| `--type <name>` | One of `acl`, `admin`, `metrics`, `openapi`, `push`, `static`, `status`. Pass more than once to generate multiple route types |
 | `--static-path <path>` | Only meaningful with `--type static`. Path containing the static files to serve. Defaults to `public` |
 
-If `--type` is omitted, you're prompted interactively to check off which routes to generate (Admin, Metrics, OpenAPI, and Status are checked by
-default; ACL and Static aren't).
+If `--type` is omitted, you're prompted interactively to check off which routes to generate (Admin, Metrics, OpenAPI, and Status are checked by default; ACL and Static aren't).
 
 ## `rapidrest generate react NAME`
 
-Adds [SSR React](/docs/plugins/ssr-react) support to an existing project.
+Adds [SSR React](/docs/plugins/ssr-react) support to an existing project: the `app/` directory convention, a Vite config, and a `ReactRoute` subclass mounting it, the same pieces `generate server --react` would have added at scaffold time.
 
 ```bash
 rapidrest generate react app
@@ -80,7 +80,7 @@ rapidrest generate react app --path /dashboard --hydrate
 
 ## `rapidrest generate react-page APP NAME`
 
-Adds a page to an existing React app.
+Adds a page to an existing React app, one `.tsx` file plus, optionally, a server-side data-fetching service, following the [App Directory Convention](/docs/plugins/ssr-react/app-convention) so the new page is routable immediately with no manual wiring.
 
 ```bash
 rapidrest generate react-page app Dashboard
@@ -101,7 +101,7 @@ rapidrest generate react-page app my/path/page --service
 
 ## `rapidrest react export`
 
-Crawls a project's React app and writes a static HTML/CSS/JS site to disk — no server required to serve the result. Requires a React app to already be configured (see [`generate react`](#rapidrest-generate-react-name) above).
+Crawls a project's React app and writes a static HTML/CSS/JS site to disk, no server required to serve the result. Requires a React app to already be configured (see [`generate react`](#rapidrest-generate-react-name) above).
 
 ```bash
 cd my-api
@@ -115,6 +115,4 @@ rapidrest react export --port 4000  # prefer port 4000 for the transient export 
 | `-d`, `--docker` | Run in Docker mode (skips starting in-memory database servers) |
 | `-p`, `--port <n>` | Preferred port to bind the transient export server to. Defaults to `3000`. If already in use, the next available port is used instead |
 
-Run this from the root of a generated project with React support. It starts an in-memory instance of each configured datastore (unless `--docker` is passed), finds a free port for a transient export server, then delegates to `@rapidrest/react`'s own CLI (`rapidreact export`) to build the client bundle and crawl the app under `NODE_ENV=production`. The result is written to `dist/export/` — deploy that directory to any static host. See [SSR React → Static Export](/docs/plugins/ssr-react/static-export) for the full write-up, including known limitations (no dynamic routes, hydration only from `/`, props frozen at export time).
-
-`NAME` may include a subpath (e.g. `my/path/page`). Each segment is PascalCased to derive the generated component/service name (`my/path/page` → `MyPathPage`).
+Run this from the root of a generated project with React support. It starts an in-memory instance of each configured datastore (unless `--docker` is passed), finds a free port for a transient export server, then delegates to `@rapidrest/react`'s own CLI (`rapidreact export`) to build the client bundle and crawl the app under `NODE_ENV=production`. The result is written to `dist/export/`, deploy that directory to any static host. See [SSR React → Static Export](/docs/plugins/ssr-react/static-export) for the full write-up, including known limitations (no dynamic routes, hydration only from `/`, props frozen at export time).

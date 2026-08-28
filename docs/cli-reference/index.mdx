@@ -3,9 +3,9 @@ sidebar_position: 1
 sidebar_label: Overview
 ---
 
-# CLI Reference
+# CLI
 
-The `@rapidrest/cli` package installs a single binary under two names, `rapidrest` and the shorter `rr`, that scaffolds projects and manages the local dev workflow.
+Every RapidREST project starts from the same place: a runnable server with a datastore, a config file, and a test harness already wired together, so the first thing you write is a model or a route, not boilerplate. `@rapidrest/cli` is what generates that starting point, and keeps generating from the same templates afterward, a new model, a new route, Docker support, a login system, whenever the project needs one. It installs as a single binary under two names, the full `rapidrest` and the shorter `rr`, both identical:
 
 ```bash
 npm install -g @rapidrest/cli
@@ -17,6 +17,8 @@ npm install -g @rapidrest/cli
 - **[Dev Workflow](/docs/cli-reference/dev-workflow)** - `dev`, `start`, `build`.
 - **[Maintenance](/docs/cli-reference/maintenance-commands)** - `doctor`, `upgrade`.
 
+Every `generate` command works the same way underneath: run it bare and you're prompted interactively for whatever it needs, or pass flags (or an `--answers` file, where supported) to skip some or all of those prompts, useful for scripting a project setup or repeating one across a team. Regenerating an add-on you already have (`generate docker`, `generate k8s`, `generate default-route`) with `--force` is always safe, it rebuilds from your project's current state rather than patching the existing files by hand.
+
 :::note[Flags]
-Every flag below is documented in its long form (`--flag-name`). A handful of commands also support a real single-character short flag, called out explicitly where it exists. Don't assume every flag has one.
+Every flag below is documented in its long form (`--flag-name`). A handful of commands also support a real single-character short flag, called out explicitly where it exists, e.g. `-f`, `--force`. Don't assume every flag has one, several commands accept an internal alias that looks like it might be a short flag but isn't actually usable on the command line, only the ones called out here work.
 :::

@@ -34,7 +34,7 @@ export class StatusRoute extends BaseStatusRoute {}
 ```
 
 If you have an existing project that you would like to add these default routes to, you can use the `rapidrest generate default-route --type <name>`
-command, which also covers `BaseStaticRoute` (`--type static`) — see [CLI Reference → Add-ons](/docs/cli-reference/addons).
+command, which also covers `BaseStaticRoute` (`--type static`) — see [CLI → Add-ons](/docs/cli-reference/addons).
 
 Because these files are ordinary auto-discovered route classes, they behave exactly like any other route in your project. Nothing distinguishes
 them at runtime as "built-in." You can delete the file to remove the endpoint entirely, change the `@Route` base path, or add further decorators

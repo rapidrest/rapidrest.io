@@ -5,9 +5,11 @@ sidebar_label: Dev Workflow
 
 # Dev Workflow
 
+Three commands cover the whole lifecycle of running a project outside a generated Docker/Kubernetes deployment: `dev` for local iteration with hot reload, `start` for running it the way it'll actually run in production, and `build` for just the compile step underneath both. All three read `src/config.ts` to know which datastores to start, so there's nothing extra to configure for local development beyond what the project already has.
+
 ## `rapidrest dev`
 
-Runs the project locally with hot reload.
+Runs the project locally with hot reload, the command you reach for the most while actually writing code.
 
 ```bash
 rapidrest dev
@@ -30,7 +32,7 @@ default.
 
 ## `rapidrest start`
 
-Builds and starts the project as it would run in production.
+`dev`'s hot-reload machinery (`tsx --watch`, `nodemon`) isn't something you want running in production, it exists purely to save a restart while you're editing. `start` is the production-shaped equivalent: it builds the project and starts the compiled output directly, no watcher, no rebuild-on-change.
 
 ```bash
 rapidrest start
@@ -50,6 +52,8 @@ rapidrest start --bun        # run on Bun instead of Node.js
 `--bun` is only available on `start`, not `dev` — the dev workflow's hot-reload tooling (`tsx --watch`, `nodemon`) runs on Node.js regardless.
 
 ## `rapidrest build`
+
+`start` already builds before it runs; `build` is that same compile step on its own, for a CI pipeline that wants to produce `dist/` once and hand it to a separate deploy step, rather than building and running in the same process.
 
 ```bash
 rapidrest build

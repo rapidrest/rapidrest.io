@@ -1,0 +1,14 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+# Routing
+
+Every HTTP endpoint in a RapidREST project comes from one of three places, depending on how much of it you actually want to write:
+
+- **[Controllers](/docs/routing/controllers)** - the fundamentals. A route is a plain class, one method per endpoint, no router file to register it in. This is what every other approach here is built from, and where you land whenever an endpoint doesn't fit a standard shape.
+- **[Auto CRUD Routes](/docs/routing/auto-crud-routes)** - the common case handled for you. Extend one base class over a model and the full list/get/create/update/delete surface already exists, wired to permissions and validation, with no handler code of your own.
+- **[Default Routes](/docs/routing/default-routes)** - a library of ready-made endpoints for operational concerns that show up in most services regardless of what they do: health/status, metrics, admin actions, static files. Extend one, add `@Route`, done.
+
+None of these are mutually exclusive within a project, a typical service has a couple of `CRUDRoute`s for its actual data, a hand-written `Controller` for the one endpoint that doesn't map cleanly to CRUD, and a `Default Route` or two for health checks. Start with [Controllers](/docs/routing/controllers) if you're new to how routing works at all, jump straight to [Auto CRUD Routes](/docs/routing/auto-crud-routes) if you already have a model and just want an API over it.

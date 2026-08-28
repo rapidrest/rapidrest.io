@@ -43,4 +43,4 @@ There's no explicit "done" step here, and that's expected: once a handler starts
 
 ## When to reach for something else
 
-Need the client to send data back over the same connection, not just receive it? See [WebSockets](/docs/http-engine/websockets). Just serving a file? [`BaseStaticRoute`](/docs/default-routes/static) already does that without any of this, reading the whole file into memory and sending it as one normal response. Streaming earns its keep specifically for endpoints that need to push data out gradually, not as a general performance technique, most endpoints are simpler and better off staying that way.
+Need the client to send data back over the same connection, not just receive it? See [WebSockets](/docs/http-engine/websockets). Just serving a file? [`BaseStaticRoute`](/docs/routing/default-routes/static) already does that without any of this, reading the whole file into memory and sending it as one normal response. Streaming earns its keep specifically for endpoints that need to push data out gradually, not as a general performance technique, most endpoints are simpler and better off staying that way.

@@ -14,7 +14,7 @@ At its core, RapidREST is a robust framework that provides a composable, decorat
 - **A dramatically faster HTTP engine.** Built on [uWebSockets.js](https://github.com/uNetworking/uWebSockets.js) (or natively on Bun, auto-detected at startup), not Express. Running the exact same business logic, RapidREST beats Express and Fastify on every endpoint where framework overhead is the bottleneck, by as much as 28%. See [Performance](/docs/performance) for the full, honest breakdown, including where it doesn't win.
 - **Decorator-driven, aspect-oriented APIs.** Decorate a function with `@Route`, `@Get`, `@RequiresRole`, `@Validate`, whatever the endpoint actually needs, and RapidREST composes it all around your business logic automatically. No middleware chains to assemble, no router to register, no boilerplate between the request and the one line of code that matters.
 - **Zero-boilerplate persistence.** One decorated model and a `CRUDRoute`/`ModelRoute` subclass is a complete REST API: list, get, create, update, delete, with pagination, filtering, soft-delete, optimistic-locked versioning, and cross-datastore transactions, working identically over MongoDB or SQL.
-- **A complete authentication system, not just JWT verification.** Password, TOTP, OTP, WebAuthn passkeys, FIDO2 hardware keys, MFA, and OAuth2/OIDC, all as one library (see [Auth Library](/docs/plugins/auth-library)). Don't want to wire it up yourself? [`auth-server`](/docs/auth-server) is a complete, ready-to-deploy reference implementation. Docker image and Helm chart included.
+- **A complete authentication system, not just JWT verification.** Password, TOTP, OTP, WebAuthn passkeys, FIDO2 hardware keys, MFA, and OAuth2/OIDC, all as one library (see [Auth Library](/docs/auth/auth-library)). Don't want to wire it up yourself? [`auth-server`](/docs/auth/auth-server) is a complete, ready-to-deploy reference implementation. Docker image and Helm chart included.
 - **Row-level authorization out of the box.** Roles-Based Access Control layered with per-record Access Control Lists, protect an entire class, a URL path, or one specific document, with no third-party permissions library required.
 - **Caching that actually moves the needle.** One `@Cache()` decorator on a model turns a database read into a Redis-backed cache hit that's over **14x faster** in our own benchmarks, and the same caching extends to server-rendered React pages.
 - **Server-rendered React, from the same server.** SSR pages and hydration with no second framework or build server running alongside your API, plus a full static-export path for when you just need a static site.
@@ -38,11 +38,11 @@ RapidREST is split into a small number of focused packages that build on each ot
 |---|---|
 | `@rapidrest/core` | Dependency injection (`@Inject`, `@Config`, `@Logger`), automatic class discovery, and shared utilities (JWT, notifications, telemetry). |
 | `@rapidrest/service-core` | The HTTP server itself — a dual-engine design ([uWebSockets.js](https://github.com/uNetworking/uWebSockets.js) on Node.js, `Bun.serve()` on Bun, see [HTTP Engine](/docs/http-engine)). Routing, models & persistence, auth & RBAC, background jobs, and automatic OpenAPI generation. |
-| `@rapidrest/react` (plugin) | Server-side-rendered React pages, layered on top of `service-core`. See [SSR React](/docs/plugins/ssr-react). |
-| `@rapidrest/auth` (plugin) | Common authentication strategies: password, TOTP, OTP, WebAuthn passkeys/FIDO2, MFA, and OIDC. See [Auth Library](/docs/plugins/auth-library). |
+| `@rapidrest/react` (plugin) | Server-side-rendered React pages, layered on top of `service-core`. See [SSR React](/docs/ssr-react). |
+| `@rapidrest/auth` (plugin) | Common authentication strategies: password, TOTP, OTP, WebAuthn passkeys/FIDO2, MFA, and OIDC. See [Auth Library](/docs/auth/auth-library). |
 | `@rapidrest/cli` | Project scaffolding and the local dev workflow (`rapidrest generate ...`, `rapidrest dev`). |
 
-You'll typically never install `core` or `service-core` directly, the CLI wires them up for you. `react` and `auth` are opt-in plugins, added only when a project needs them. [`auth-server`](/docs/auth-server) is a complete, deployable service built from the auth plugin, for projects that want a working login system rather than assembling one from primitives.
+You'll typically never install `core` or `service-core` directly, the CLI wires them up for you. `react` and `auth` are opt-in plugins, added only when a project needs them. [`auth-server`](/docs/auth/auth-server) is a complete, deployable service built from the auth plugin, for projects that want a working login system rather than assembling one from primitives.
 
 ## What's next
 

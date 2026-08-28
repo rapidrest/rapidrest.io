@@ -36,7 +36,7 @@ const { Nullable, Validator } = ObjectDecorators;
 birthdate?: Date;
 ```
 
-Combining `@Validator` with `@Nullable` reads naturally: valid if present, not required. Throw from the function to reject the value, the same way [`@Validate`](/docs/routing-controllers/lifecycle-validation) does at the route level, just scoped to one field instead of a whole request body.
+Combining `@Validator` with `@Nullable` reads naturally: valid if present, not required. Throw from the function to reject the value, the same way [`@Validate`](/docs/routing/controllers/lifecycle-validation) does at the route level, just scoped to one field instead of a whole request body.
 
 ## Built-in checks
 
@@ -64,4 +64,4 @@ percentage: number = 0;
 
 ## Where this runs
 
-`@Nullable` and `@Validator` are read by `RepoUtils.create()`/`update()` before anything is written, and by extension by [Auto CRUD Routes](/docs/auto-crud-routes) and any of your own code that goes through `RepoUtils`, or [`@Transactional`](/docs/models-persistence/transactions#transactional) methods that call it. This is the same validation mechanism whether the write came from a REST request, a background job, or a script, one set of rules, defined once on the model, rather than re-checked in every place that happens to write to it.
+`@Nullable` and `@Validator` are read by `RepoUtils.create()`/`update()` before anything is written, and by extension by [Auto CRUD Routes](/docs/routing/auto-crud-routes) and any of your own code that goes through `RepoUtils`, or [`@Transactional`](/docs/models-persistence/transactions#transactional) methods that call it. This is the same validation mechanism whether the write came from a REST request, a background job, or a script, one set of rules, defined once on the model, rather than re-checked in every place that happens to write to it.

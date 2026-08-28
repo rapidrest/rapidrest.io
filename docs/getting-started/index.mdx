@@ -68,7 +68,7 @@ Confirm it's up:
 curl http://localhost:3000/status
 ```
 
-That works because the scaffold already includes a working `StatusRoute.ts`, along with equivalents for `/admin`, `/metrics`, `/openapi`, `/push`, and `/acls` if you kept a database selected. These are real files under `src/routes/`, thin subclasses of the framework's [Default Routes](/docs/default-routes), free for you to edit, lock down, or delete.
+That works because the scaffold already includes a working `StatusRoute.ts`, along with equivalents for `/admin`, `/metrics`, `/openapi`, `/push`, and `/acls` if you kept a database selected. These are real files under `src/routes/`, thin subclasses of the framework's [Default Routes](/docs/routing/default-routes), free for you to edit, lock down, or delete.
 
 ### Running it without the file-watching
 
@@ -127,7 +127,7 @@ This creates `src/models/Pet.ts` (open it and add fields like `name` or `species
 rapidrest generate route PetRoute --model Pet
 ```
 
-One command, and you have the standard CRUD set, `GET /pets`, `POST /pets`, `PUT /pets/:id`, `DELETE /pets/:id`, and more, with no repository or query code to write by hand. See [Auto CRUD Routes](/docs/auto-crud-routes) for the exact endpoint list.
+One command, and you have the standard CRUD set, `GET /pets`, `POST /pets`, `PUT /pets/:id`, `DELETE /pets/:id`, and more, with no repository or query code to write by hand. See [Auto CRUD Routes](/docs/routing/auto-crud-routes) for the exact endpoint list.
 
 Save, and `rapidrest dev` picks the new files up automatically:
 
@@ -141,10 +141,10 @@ The data only lives as long as `rapidrest dev` keeps running, it's still the in-
 ## What to learn next
 
 - **[Core Concepts](/docs/core-concepts)** — decorators, auto-discovery, dependency injection, and configuration: the mechanisms behind everything above. Read this next.
-- **[Routing & Controllers](/docs/routing-controllers)** — hand-written endpoints, beyond what the CRUD generator gives you.
+- **[Routing → Controllers](/docs/routing/controllers)** — hand-written endpoints, beyond what the CRUD generator gives you.
 - **[Models & Persistence](/docs/models-persistence)** — more on shaping and storing data.
-- **[Default Routes](/docs/default-routes)** — what `AdminRoute`, `MetricsRoute`, `StatusRoute`, and the other pre-written files actually do.
+- **[Default Routes](/docs/routing/default-routes)** — what `AdminRoute`, `MetricsRoute`, `StatusRoute`, and the other pre-written files actually do.
 - **[HTTP Engine](/docs/http-engine)** — sessions, cookies, CORS, and what's underneath every request.
-- **[Auth & RBAC](/docs/auth-rbac)** and the **[Auth Library](/docs/plugins/auth-library)** plugin — real user accounts and login.
-- **[SSR React](/docs/plugins/ssr-react)** — server-rendered pages from this same server, if you picked the React feature.
+- **[Auth](/docs/auth)** — token verification and RBAC out of the box, plus the optional Auth Library and Auth Server for real user accounts and login.
+- **[SSR React](/docs/ssr-react)** — server-rendered pages from this same server, if you picked the React feature.
 - **[CLI](/docs/cli-reference)** — every `generate` command, in full.

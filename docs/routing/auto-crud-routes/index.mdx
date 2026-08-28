@@ -1,0 +1,28 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+# Auto CRUD Routes
+
+Every REST API ends up needing the same handful of endpoints for its data: list everything, get one, create one, update one, delete one. Writing those by hand for every model in a project means the same query logic, the same permission checks, and the same validation, copied and slightly reshuffled across dozens of route classes. RapidREST handles this for you instead. Extend one base class over a model, and the standard list/get/create/update/delete endpoints already exist, fully wired to permissions, validation, and optimistic locking, without writing a query or a route handler yourself:
+
+```ts
+import { CRUDRoute, RouteDecorators } from '@rapidrest/service-core';
+const { Route } = RouteDecorators;
+
+@Route('/pets')
+export class PetRoute extends CRUDRoute<Pet> {}
+```
+
+That's the entire class, and it's already a complete REST API for `Pet`.
+
+## Two base classes, one shared foundation
+
+Everything RapidREST does for CRUD comes down to `ModelRoute<T>`: the actual validation, permission checks, optimistic locking, and conflict detection, implemented as plain methods with no opinion at all about whether or how they get exposed over HTTP. `CRUDRoute<T>` is `ModelRoute` with every one of those methods already wired to a real endpoint, which is what `PetRoute` above is actually built from.
+
+Most models want `CRUDRoute`, the full REST surface, zero decisions to make. Reach for `ModelRoute` directly when you want that same logic without that full surface, a read-only resource, an admin-only one, anything where only a couple of operations should ever be reachable at all.
+
+- **[`CRUDRoute`](/docs/routing/auto-crud-routes/crud-route)** — the complete, ready-made REST API: every endpoint, the delete query parameters, and how to override just one of them without touching the rest.
+- **[`ModelRoute`](/docs/routing/auto-crud-routes/model-route)** — the same business logic, exposed only where you decide to wire it up.
+- **[Filtering, Pagination & Sorting](/docs/routing/auto-crud-routes/querying)** — the query language the generated `find`/`count` endpoints actually understand.

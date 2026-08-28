@@ -1,0 +1,176 @@
+---
+sidebar_position: 4
+sidebar_label: Access Control Lists
+---
+
+# Access Control Lists
+
+A role check answers "can this kind of user ever do this." An [Access Control List](https://en.wikipedia.org/wiki/Access-control_list) (ACL) answers a narrower question: can *this specific user* do this to *this specific record*. Reach for one whenever "admin" isn't a fine enough answer, an owner should be able to edit their own listing but not someone else's, a document should be readable by anyone but only editable by the team that created it.
+
+Every ACL is a single record naming a resource, a list of who can do what to it, and optionally a parent ACL to fall back on:
+
+```ts
+interface ACLRecord {
+  userOrRoleId: string;
+  actions: string[];
+}
+```
+
+`ACLAction` is a predefined set of action strings the built-in CRUD routes recognize, not a closed enum, `actions` can contain any custom string beyond these (`"publish"`, say) to express permissions specific to your own application:
+
+```ts
+const ACLAction = {
+  FULL: "*",      // grants every action, including any not otherwise listed
+  COUNT: "count",
+  CREATE: "create",
+  DELETE: "delete",
+  EXISTS: "exists",
+  LIST: "list",
+  READ: "read",
+  TRUNCATE: "truncate",
+  UPDATE: "update",
+};
+```
+
+## `@Protect`: two decorators with the same name
+
+There are genuinely two separate `@Protect` decorators, one for models, one for routes, not one decorator that infers what you meant from where you put it.
+
+### Protecting a model
+
+Applied to a model class, `@Protect` seeds the ACL every document of that type checks against:
+
+```ts
+@Protect({
+  uid: "Pet",
+  records: [
+    { userOrRoleId: "anonymous", actions: [ACLAction.READ, ACLAction.LIST] },
+    { userOrRoleId: ".*", actions: [ACLAction.READ, ACLAction.LIST] },
+  ],
+})
+export class Pet extends BaseMongoEntity {
+  // ...
+}
+```
+
+That example is read-only for everyone, anonymous or not. Every `Pet` document shares this one class-level ACL by default. Pass `true` as the second argument to protect each *document* individually instead:
+
+```ts
+@Protect(
+  {
+    uid: "User",
+    records: [
+      { userOrRoleId: "anonymous", actions: [ACLAction.CREATE] },
+      { userOrRoleId: ".*", actions: [] },
+    ],
+  },
+  true,
+)
+export class User extends BaseMongoEntity {
+  // ...
+}
+```
+
+Here, the only thing anyone unauthenticated can do is create a new `User`, self-service registration. With document-level protection turned on, whoever creates a document becomes its owner in the ACL that gets generated just for that record, so the `User` example above effectively means: anyone can register an account, and once created, an account is only visible and editable by the person who owns it, not by other users. That per-document ACL isn't standalone either, it's automatically given the class-level ACL as its parent (more on what that means below), so a class-wide rule still applies to every document unless a document's own ACL says otherwise.
+
+### Protecting a route
+
+Applied to a route class or a single endpoint method, `@Protect` works the same way, but for HTTP paths instead of documents:
+
+```ts
+@Protect()
+@Route('/pets')
+export class PetRoute extends CRUDRoute<Pet> {}
+```
+
+Called with no arguments at all, `@Protect()` defaults to something reasonable on its own: anonymous callers get nothing, any authenticated caller gets every action, and the ACL's `uid` is generated automatically from the class name if you don't supply one. Narrow just one endpoint by applying `@Protect` to the method instead:
+
+```ts
+@Route('/pets')
+export class PetRoute extends CRUDRoute<Pet> {
+  @Protect({
+    records: [{ userOrRoleId: ".*", actions: [] }],
+  })
+  @Delete('/:id')
+  delete(@Param('id') id: string) {
+    return super.doDelete(id, {});
+  }
+}
+```
+
+Protecting both the class and one of its methods isn't two unrelated ACLs, the method's ACL is automatically given the class's ACL as its parent. Which is exactly why the inheritance rule below matters here, not just for models.
+
+## How inheritance actually resolves
+
+This is the part worth reading carefully, since it doesn't work the way "inheritance" usually implies. Given a user and an ACL, resolution looks only at that ACL's own records first:
+
+1. An exact match, the user's own uid, or the literal string `"anonymous"` for an unauthenticated caller, wins immediately.
+2. Otherwise, a match on one of the user's roles is remembered, and a wildcard match (`.*` or `*`) is remembered separately.
+3. Once every record on *this* ACL has been checked: a role match wins if one was found. Otherwise a wildcard match wins if one was found.
+4. Only if neither a role match nor a wildcard match was found anywhere on this ACL does resolution move to the parent ACL, if one exists, and repeat the same process there. This can chain through any number of parent levels.
+
+The consequence: **a broad wildcard match on the child ACL blocks falling back to the parent, even when the parent has a far more specific match that would otherwise apply.** Take the `User` example above: its per-document ACL includes `{ userOrRoleId: ".*", actions: [] }`, a wildcard match, granting nothing. Because that wildcard match exists on the document's own ACL, resolution stops there and never consults the class-level parent ACL at all, even though the parent's own rules might say something different for a specific role. Inheritance is a fallback for *no match*, not a way to layer permissions from most specific to least specific.
+
+## Permission mapping
+
+Using `CRUDRoute` or `ModelRoute`, each `ACLAction` maps to one specific operation:
+
+| Function | HTTP Verb/Path | Permission | Scope |
+|---|---|---|---|
+| count | `HEAD /` | `ACLAction.COUNT` | Class |
+| create | `POST /` | `ACLAction.CREATE` | Class |
+| delete | `DELETE /:id` | `ACLAction.DELETE` | Document |
+| exists | `HEAD /:id` | `ACLAction.EXISTS` | Document |
+| find | `GET /` | `ACLAction.LIST` | Class |
+| findById | `GET /:id` | `ACLAction.READ` | Document |
+| truncate | `DELETE /` | `ACLAction.TRUNCATE` | Class |
+| update | `PUT /:id` | `ACLAction.UPDATE` | Document |
+| updateBulk | `PUT /` | `ACLAction.UPDATE` | Class |
+| updateProperty | `PUT /:id/:property` | `ACLAction.UPDATE` | Document |
+
+## `ACLUtils`
+
+Everything above is enforced by `ACLUtils` internally, and it's also injectable directly for a custom check your route needs to make itself:
+
+```ts
+@Inject(ACLUtils)
+private aclUtils?: ACLUtils;
+
+@Get("/:id")
+public async getPetByID(@Param("id") id: string, @User user: JWTUser) {
+  const result: Pet | undefined = await this.repoUtils.findOne(id);
+  if (!result) {
+    throw new ApiError(ApiErrors.NOT_FOUND, 404, ApiErrorMessages.NOT_FOUND);
+  }
+
+  if (!(await this.aclUtils?.hasPermission(user, result.uid, ACLAction.READ))) {
+    throw new ApiError(ApiErrorMessages.AUTH_PERMISSION_FAILURE, 403, ApiErrorMessages.AUTH_PERMISSION_FAILURE);
+  }
+
+  return result;
+}
+```
+
+The methods you'd realistically call from your own code:
+
+| Method | What it does |
+|---|---|
+| `hasPermission(user, acl \| uid, action)` | The core check, resolves inheritance per the algorithm above and returns a boolean |
+| `findACL(uid)` | Loads an ACL by id, with its parent chain already populated |
+| `saveACL(acl)` | Creates or updates an ACL record |
+| `removeACL(uid)` | Deletes an ACL record |
+
+`saveACLs`/`removeACLs` (batch forms), `checkRequestPerms`, `populateParent`, and `saveDefaultACL` exist too, but they're what the framework itself uses internally to enforce `@Protect` and register default ACLs at startup, not something you'd typically call directly.
+
+## Turning it off, and trusted roles
+
+```ts
+conf.defaults({
+  rbac: {enabled: true},
+  trusted_roles: ['admin'],
+});
+```
+
+`rbac:enabled` is a global switch. Set it to `false` and every ACL check, `hasPermission` included, passes automatically, useful in tests where permission logic isn't what's under test. Users holding any role listed in `trusted_roles` bypass ACL checks entirely, regardless of what a record's own ACL says, this check happens inside `ACLUtils` itself, uniformly, for every permission check it performs.
+
+That bypass is specific to ACLs. It has no effect on `@RequiresRole` or the route-level `@RequiresScope` from [Authorization](/docs/auth/rbac/authorization), those only ever check the exact role or scope list you passed them. A user with a trusted role still needs to actually hold `'editor'` to pass `@RequiresRole('editor')`, `trusted_roles` and `@RequiresRole` are separate mechanisms that happen to share the word "role."

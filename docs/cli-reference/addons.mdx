@@ -40,7 +40,7 @@ Same idempotent-regeneration behavior as `generate docker`.
 
 ## `rapidrest generate default-route`
 
-`generate server` only includes a [default route](/docs/default-routes) (`BaseAdminRoute`, `BaseMetricsRoute`, `BaseOpenAPIRoute`, `BaseStatusRoute`, `BasePushRoute`, `BaseACLRoute`, `BaseStaticRoute`) if you asked for it up front. This command adds one, or several, to a project that didn't, without regenerating anything else.
+`generate server` only includes a [default route](/docs/routing/default-routes) (`BaseAdminRoute`, `BaseMetricsRoute`, `BaseOpenAPIRoute`, `BaseStatusRoute`, `BasePushRoute`, `BaseACLRoute`, `BaseStaticRoute`) if you asked for it up front. This command adds one, or several, to a project that didn't, without regenerating anything else.
 
 ```bash
 rapidrest generate default-route
@@ -63,7 +63,7 @@ If `--type` is omitted, you're prompted interactively to check off which routes 
 
 ## `rapidrest generate react NAME`
 
-Adds [SSR React](/docs/plugins/ssr-react) support to an existing project: the `app/` directory convention, a Vite config, and a `ReactRoute` subclass mounting it, the same pieces `generate server --react` would have added at scaffold time.
+Adds [SSR React](/docs/ssr-react) support to an existing project: the `app/` directory convention, a Vite config, and a `ReactRoute` subclass mounting it, the same pieces `generate server --react` would have added at scaffold time.
 
 ```bash
 rapidrest generate react app
@@ -80,7 +80,7 @@ rapidrest generate react app --path /dashboard --hydrate
 
 ## `rapidrest generate react-page APP NAME`
 
-Adds a page to an existing React app, one `.tsx` file plus, optionally, a server-side data-fetching service, following the [App Directory Convention](/docs/plugins/ssr-react/app-convention) so the new page is routable immediately with no manual wiring.
+Adds a page to an existing React app, one `.tsx` file plus, optionally, a server-side data-fetching service, following the [App Directory Convention](/docs/ssr-react/app-convention) so the new page is routable immediately with no manual wiring.
 
 ```bash
 rapidrest generate react-page app Dashboard
@@ -94,7 +94,7 @@ rapidrest generate react-page app my/path/page --service
 |---|---|
 | `--output-dir <path>` | Project directory to add to. Defaults to the current directory |
 | `--author <name>` | |
-| `-s`, `--service` | Also generate a companion service class for server-side data fetching (see [Data Fetching](/docs/plugins/ssr-react/data-fetching)) |
+| `-s`, `--service` | Also generate a companion service class for server-side data fetching (see [Data Fetching](/docs/ssr-react/data-fetching)) |
 | `-f`, `--force` | Overwrite existing files |
 
 `NAME` may include a subpath (e.g. `my/path/page`). Each segment is PascalCased to derive the generated component/service name (`my/path/page` → `MyPathPage`).
@@ -115,4 +115,4 @@ rapidrest react export --port 4000  # prefer port 4000 for the transient export 
 | `-d`, `--docker` | Run in Docker mode (skips starting in-memory database servers) |
 | `-p`, `--port <n>` | Preferred port to bind the transient export server to. Defaults to `3000`. If already in use, the next available port is used instead |
 
-Run this from the root of a generated project with React support. It starts an in-memory instance of each configured datastore (unless `--docker` is passed), finds a free port for a transient export server, then delegates to `@rapidrest/react`'s own CLI (`rapidreact export`) to build the client bundle and crawl the app under `NODE_ENV=production`. The result is written to `dist/export/`, deploy that directory to any static host. See [SSR React → Static Export](/docs/plugins/ssr-react/static-export) for the full write-up, including known limitations (no dynamic routes, hydration only from `/`, props frozen at export time).
+Run this from the root of a generated project with React support. It starts an in-memory instance of each configured datastore (unless `--docker` is passed), finds a free port for a transient export server, then delegates to `@rapidrest/react`'s own CLI (`rapidreact export`) to build the client bundle and crawl the app under `NODE_ENV=production`. The result is written to `dist/export/`, deploy that directory to any static host. See [SSR React → Static Export](/docs/ssr-react/static-export) for the full write-up, including known limitations (no dynamic routes, hydration only from `/`, props frozen at export time).

@@ -5,7 +5,7 @@ sidebar_label: Auth
 
 # `rapidrest generate auth`
 
-The [Auth Library](/docs/plugins/auth-library) ships every login strategy, model, and base route you'd need, but wiring even one of them into a real project still means picking a datastore, subclassing the right base routes, and patching `src/config.ts` by hand. `rapidrest generate auth` does that wiring for you: it adds login/session scaffolding to an existing project, backed by `@rapidrest/auth`, self-service registration, admin user management, and one or more selectable authentication methods (HTTP Basic, OTP, TOTP, Passkey, FIDO2, MFA, and OAuth 2.0/OpenID Connect). It's entirely opt-in; nothing in the base `generate server` template depends on it, and a project that never runs this command never installs `@rapidrest/auth` at all.
+The [Auth Library](/docs/auth/auth-library) ships every login strategy, model, and base route you'd need, but wiring even one of them into a real project still means picking a datastore, subclassing the right base routes, and patching `src/config.ts` by hand. `rapidrest generate auth` does that wiring for you: it adds login/session scaffolding to an existing project, backed by `@rapidrest/auth`, self-service registration, admin user management, and one or more selectable authentication methods (HTTP Basic, OTP, TOTP, Passkey, FIDO2, MFA, and OAuth 2.0/OpenID Connect). It's entirely opt-in; nothing in the base `generate server` template depends on it, and a project that never runs this command never installs `@rapidrest/auth` at all.
 
 ```bash
 rapidrest generate auth
@@ -65,5 +65,5 @@ Install dependencies after running this command.
 **OIDC providers.** Selecting `oidc` prompts for one or more third-party providers when `--oidc-provider` isn't passed. Google, Apple, Facebook, and Microsoft come with preset, well-known endpoints (verify these against the provider's current `.well-known/openid-configuration` before deploying — they can change); `custom` prompts for every endpoint (authorization/token/profile URLs, protocol, issuer, JWKS URI, scopes) by hand. Selecting more than one provider is fully supported — each gets its own route file and a distinct registered strategy name, so they don't collide.
 
 :::note[Out of scope]
-Not scaffolded by this command, though all real, working parts of `@rapidrest/auth`: session refresh, account elevation, auth-method discovery, and direct Profile/Account/Alias management routes. Add those by hand, following the same thin-subclass pattern as the routes this command generates. See [Auth Library](/docs/plugins/auth-library) for the library's full capabilities.
+Not scaffolded by this command, though all real, working parts of `@rapidrest/auth`: session refresh, account elevation, auth-method discovery, and direct Profile/Account/Alias management routes. Add those by hand, following the same thin-subclass pattern as the routes this command generates. See [Auth Library](/docs/auth/auth-library) for the library's full capabilities.
 :::

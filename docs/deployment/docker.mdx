@@ -42,7 +42,7 @@ This adds a multi-stage `Dockerfile`, a `docker-compose.yml`, and two Compose ov
 
 ## The image
 
-The `Dockerfile` builds in two stages: a `builder` stage that installs dependencies and runs the project's own `build` script, and a `runner` stage that copies over just the compiled output and `node_modules`. That `build` script is the same one `yarn build`/`npm run build` already runs locally, `tsc` alone, or `tsc` plus a `vite build` client bundle if the project uses [SSR React](/docs/plugins/ssr-react), so the image is never running code compiled by a different path than what you already test locally. The final image:
+The `Dockerfile` builds in two stages: a `builder` stage that installs dependencies and runs the project's own `build` script, and a `runner` stage that copies over just the compiled output and `node_modules`. That `build` script is the same one `yarn build`/`npm run build` already runs locally, `tsc` alone, or `tsc` plus a `vite build` client bundle if the project uses [SSR React](/docs/ssr-react), so the image is never running code compiled by a different path than what you already test locally. The final image:
 
 - Exposes port `3000` (the app) and `9229` (the Node inspector, for attaching a debugger).
 - Runs `rapidrest start --docker --no-build` as its entrypoint. `--docker` skips RapidREST's usual in-memory database bootstrap, since real datastores are provided by Compose; `--no-build` skips re-running the build step that already happened in the `builder` stage (see [Dev Workflow](/docs/cli-reference/dev-workflow)).

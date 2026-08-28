@@ -32,7 +32,7 @@ Underneath every route you write, something has to actually listen for network c
 
 ### Auth & security: knowing who's asking, and what they're allowed to do
 
-Almost every real API needs to answer two questions before doing anything: *who is making this request*, and *are they allowed to do this specific thing*. RapidREST separates these cleanly: authentication (proving who someone is, usually via a token) is handled by strategies like `JWTStrategy`, while authorization (deciding what an already-identified user can do) is handled by role checks and a permissions system. You will see a preview of the authorization half in [Decorators & Aspects](/docs/core-concepts/aspect-oriented-programming), with `@RequiresRole('admin')`. The full picture, including how to add real user accounts and login flows, is in [Auth & RBAC](/docs/auth-rbac) and the [Auth Library](/docs/plugins/auth-library) plugin.
+Almost every real API needs to answer two questions before doing anything: *who is making this request*, and *are they allowed to do this specific thing*. RapidREST separates these cleanly: authentication (proving who someone is, usually via a token) is handled by strategies like `JWTStrategy`, while authorization (deciding what an already-identified user can do) is handled by role checks and a permissions system. You will see a preview of the authorization half in [Decorators & Aspects](/docs/core-concepts/aspect-oriented-programming), with `@RequiresRole('admin')`. The full picture, including how to add real user accounts and login flows, is in [Auth](/docs/auth).
 
 ## Where to go from here
 

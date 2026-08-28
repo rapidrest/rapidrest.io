@@ -7,7 +7,7 @@ sidebar_label: Repository & RepoUtils
 
 All good database abstraction layers offer easy to use wrappers that provide object-to-relational mapping and access to the underlying database operations. RapidREST is no different. The `@Repository` decorator injects a `Repository` (TypeORM) or `MongoRepository` wrapper into your code, giving you direct access to the database for the data model in question. However, these low-level wrappers don't do much besides call the underlying database driver functions.
 
-In addition to these basic ORM wrappers, RapidREST offers a powerful utility class called `RepoUtils` that adds the business logic every REST API needs: caching, validation, permissions, optimistic locking, filtering, and more. `RepoUtils` is the true foundation of RapidREST's persistence engine, used throughout the entire framework. It's the exact same class [`ModelRoute`](/docs/auto-crud-routes) itself is built on to power every CRUD endpoint.
+In addition to these basic ORM wrappers, RapidREST offers a powerful utility class called `RepoUtils` that adds the business logic every REST API needs: caching, validation, permissions, optimistic locking, filtering, and more. `RepoUtils` is the true foundation of RapidREST's persistence engine, used throughout the entire framework. It's the exact same class [`ModelRoute`](/docs/routing/auto-crud-routes) itself is built on to power every CRUD endpoint.
 
 ## `@Repository`
 
@@ -30,7 +30,7 @@ This is genuinely raw: no ACL check, no cache, no change notification. Reach for
 
 ## `RepoUtils`
 
-`RepoUtils<T>` is what fills that gap: find/create/update/delete for one entity type, with ACL checks, response caching, and change notifications already wired in, the same behavior [Auto CRUD Routes](/docs/auto-crud-routes) already gives you, available directly in your own code:
+`RepoUtils<T>` is what fills that gap: find/create/update/delete for one entity type, with ACL checks, response caching, and change notifications already wired in, the same behavior [Auto CRUD Routes](/docs/routing/auto-crud-routes) already gives you, available directly in your own code:
 
 ```ts
 import { ObjectDecorators } from '@rapidrest/core';
@@ -54,7 +54,7 @@ The methods worth knowing:
 
 | Method | What it does |
 |---|---|
-| `find(query, options?)` | Returns matching documents, same filter language as [Filtering, Pagination & Sorting](/docs/auto-crud-routes/querying) |
+| `find(query, options?)` | Returns matching documents, same filter language as [Filtering, Pagination & Sorting](/docs/routing/auto-crud-routes/querying) |
 | `findOne(id, options?)` | Returns a single document by id, or `undefined` |
 | `count(query, options?)` | Counts matching documents |
 | `exists(id, options?)` | Whether a document with the given id exists |

@@ -97,9 +97,9 @@ uid: string = uuid.v4();
 contacts: Contact[] = [];
 ```
 
-This runs automatically inside `RepoUtils.find()`/`findOne()`, nothing to wire up in your route. It's how `@rapidrest/auth`'s [`Profile`](/docs/plugins/auth-library/data-models#profile) model keeps `contacts` and `preferences` behind `profile:email` and `profile:preferences` scopes.
+This runs automatically inside `RepoUtils.find()`/`findOne()`, nothing to wire up in your route. It's how `@rapidrest/auth`'s [`Profile`](/docs/auth/auth-library/data-models#profile) model keeps `contacts` and `preferences` behind `profile:email` and `profile:preferences` scopes.
 
-This is a different thing from the route-level `@RequiresScope` in [Authorization](/docs/auth-rbac/authorization#requiresscope-route-level), that one gates an entire endpoint, this one hides one field.
+This is a different thing from the route-level `@RequiresScope` in [Authorization](/docs/auth/rbac/authorization#requiresscope-route-level), that one gates an entire endpoint, this one hides one field.
 
 ## A complete example
 

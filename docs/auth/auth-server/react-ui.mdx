@@ -1,0 +1,100 @@
+---
+sidebar_position: 3
+sidebar_label: The React UI
+---
+
+# The React UI
+
+`auth-server` isn't just an API, it includes a complete React-based UI, built with the [SSR React](/docs/ssr-react) plugin, that provides a working login flow and account management experience out of the box.
+
+The `auth-server` includes two distinct React apps: `apps/www` and `apps/admin`. The `apps/www` app provides the end-user facing experience including sign-up and sign-in flows as well as basic account management.
+The `apps/admin` app is designed to be the central system administration UI used by trusted users.
+
+## How the two apps are mounted
+
+Each app is a thin `ReactRoute` subclass, exactly like any other SSR React app:
+
+```ts
+// src/mongo/routes/wwwRoute.ts
+import { ReactRoute } from "@rapidrest/react";
+import { RouteDecorators } from "@rapidrest/service-core";
+const { Route } = RouteDecorators;
+
+@Route("/")
+export class WwwRoute extends ReactRoute {
+    protected readonly appDir: string = "apps/www";
+    protected readonly hydrate: boolean = true;
+}
+```
+
+```ts
+// src/mongo/routes/AdminConsoleRoute.ts
+import { ReactRoute } from "@rapidrest/react";
+import { RouteDecorators } from "@rapidrest/service-core";
+const { Route } = RouteDecorators;
+
+@Route("/admin")
+export class AdminConsoleRoute extends ReactRoute {
+    protected readonly appDir: string = "apps/admin";
+    protected readonly hydrate: boolean = true;
+}
+```
+
+Both apps build together via one Vite config using the array form of `appDir`:
+
+```ts
+// vite.config.ts
+import { createViteConfig } from "@rapidrest/react/vite";
+
+export default createViteConfig({ appDir: ["apps/www", "apps/admin"] });
+```
+
+:::note
+`AdminConsoleRoute` is not the same as `AdminRoute`. `AdminConsoleRoute` is the React UI for administering the service that is exposed at `/admin`. `AdminRoute` is the default route for performing service-level administrative tasks (e.g. clearing cache, restarting service, viewing logs) that is exposed at `/api/admin`.
+:::
+
+## `apps/www`
+
+The `www` app includes sign-up and sign-in flows as well as basic account management.
+
+| Page | What it does |
+|---|---|
+| `/` | Redirects to `/account` if the request carries a valid session, otherwise `/auth/signin`. |
+| `/auth/signin` | Sign-in, including the MFA second-factor step when `requireMFA` comes back on the initial password check. |
+| `/auth/signup` | Self-service registration, backed by [Auth Library → `BaseRegistrationRoute`](/docs/auth/auth-library/routes#session--account-management). |
+| `/account` | Basic account management including: profile, contacts, and secret management. |
+
+## `apps/admin`
+
+The adminstration console for users with a trusted role (e.g. `admin`).
+
+| Page | What it does |
+|---|---|
+| `/admin` | Searchable list of all registered user accounts. |
+| `/admin/users/detail` | View and edit a single user's full account details. |
+| `/admin/users/new` | Create a user directly, allowing for bypassing email/phone verification. |
+
+## `apps/shared` — the reusable layer
+
+Both apps import from a shared library (`apps/shared`) instead of duplicating API plumbing:
+
+| Path | What's there |
+|---|---|
+| `lib/api.ts` | The `fetch` wrapper every page uses to call the API. Deliberately framework-free as no client router or HTTP client is shipped by `@rapidrest/react`. Auth is entirely via the `jwt` HttpOnly cookie the server already sets; no token ever touches JS-accessible storage. |
+| `lib/adminApi.ts` | A corresponding `fetch` wrapper to call the API, but for admin-only endpoints. |
+| `lib/useSessionRefresh.ts` | A hook every authenticated page calls to proactively refresh the access token on a timer via [`BaseAuthRefreshRoute`](/docs/auth/auth-library/routes#session--account-management). |
+| `lib/elevation.ts`, `components/elevation/ElevationHost.tsx` | The UI component for [`@RequiresElevation`](/docs/auth/auth-library/strategies#security-features) step-up auth. It intercepts a 403 asking for elevation and prompts for one more factor before retrying. |
+| `lib/passwordCriteria.tsx`, `lib/identifier.ts`, `lib/Modal.tsx` | Smaller shared helpers (password strength UI, email/phone detection, a modal primitive). |
+| `components/{account,admin,buttons,feedback,forms,layout,sign-in,sign-up}/` | The actual UI components, grouped by feature area. |
+
+## Building on it
+
+- **Add a page** the same way any SSR React page works. Create a new `.tsx` file under `apps/www/` or `apps/admin/` following the [SSR React → App Directory Convention](/docs/ssr-react/app-convention).
+- **Add an admin page for a new resource**. Simply copy the `apps/admin/users/*` pattern to create a list page plus a shared `AdminShell` layout wrapper, pointed at your own model's CRUD endpoints instead of `User`.
+- **Rebrand it**: each app's `_layout.tsx` sets the page `<title>`, favicon, and stylesheet link; swap `public/images/logo.svg`, `public/styles/globals.css`, and `public/favicon.ico` for your own.
+- **Gate a new feature behind step-up auth**: apply [`@RequiresElevation`](/docs/auth/auth-library/strategies#security-features) to the route, and the existing `ElevationHost` already mounted in both apps' layouts will prompt for it automatically.
+
+## See also
+
+- [SSR React](/docs/ssr-react) for how `ReactRoute`, hydration, and the Vite build generally work.
+- [Auth Library → Base Routes](/docs/auth/auth-library/routes) for the endpoints these apps call.

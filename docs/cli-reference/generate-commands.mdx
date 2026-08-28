@@ -25,7 +25,7 @@ rapidrest generate server my-api --output-dir ~/projects/my-api
 | `--author <name>` | Falls back to your Git config, then prompts |
 | `--pkg-manager <name>` | One of `npm`, `yarn` |
 | `--db <name>` | A database feature to enable. One of `mongodb`, `postgresql`, `redis`, `sqlite`. Repeatable |
-| `--route <name>` | A default route to include. One of `acl`, `admin`, `metrics`, `openapi`, `push`, `status` (see [Default Routes](/docs/default-routes)). Repeatable |
+| `--route <name>` | A default route to include. One of `acl`, `admin`, `metrics`, `openapi`, `push`, `status` (see [Default Routes](/docs/routing/default-routes)). Repeatable |
 | `--react` / `--no-react` | Include React frontend support |
 | `--docker` / `--no-docker` | Include Docker support |
 | `--k8s` / `--no-k8s` | Include Kubernetes (Helm) support |
@@ -98,7 +98,7 @@ If you configure a brand-new datastore while adding a model, and Docker or Helm 
 
 ## `rapidrest generate route NAME`
 
-Adds a route class. The most common case, binding it to a model you already generated, produces a full CRUD endpoint (see [Auto CRUD Routes](/docs/auto-crud-routes)) from a single flag rather than writing the six HTTP methods by hand.
+Adds a route class. The most common case, binding it to a model you already generated, produces a full CRUD endpoint (see [Auto CRUD Routes](/docs/routing/auto-crud-routes)) from a single flag rather than writing the six HTTP methods by hand.
 
 ```bash
 rapidrest generate route ProductRoute
@@ -113,9 +113,9 @@ rapidrest generate route ProductRoute --api 2
 | `--author <name>` | |
 | `--description <text>` | |
 | `--path <route-path>` | Base path, e.g. `/api/v1/products` |
-| `--model <name>` | Bind to a model, generates a `CRUDRoute` (see [Auto CRUD Routes](/docs/auto-crud-routes)) |
+| `--model <name>` | Bind to a model, generates a `CRUDRoute` (see [Auto CRUD Routes](/docs/routing/auto-crud-routes)) |
 | `--no-model` | Skip all prompts about associating a model |
-| `--api <version>` | Use `@ApiRoute` instead of `@Route` (see [Routing & Controllers](/docs/routing-controllers/defining-routes#api-versioned-routes-using-apiroute)). Pass a version to prefix the path with `/api/v<version>`. **Requires a value** — a bare `--api` fails with `Flag --api expects a value`; to get an unversioned `/api` prefix, omit the flag and answer the interactive prompts (confirm "Is this an API route?", then leave the version blank) |
+| `--api <version>` | Use `@ApiRoute` instead of `@Route` (see [Routing → Controllers](/docs/routing/controllers/defining-routes#api-versioned-routes)). Pass a version to prefix the path with `/api/v<version>`. **Requires a value** — a bare `--api` fails with `Flag --api expects a value`; to get an unversioned `/api` prefix, omit the flag and answer the interactive prompts (confirm "Is this an API route?", then leave the version blank) |
 | `-p`, `--protect` | Enables RBAC protection. Interactively defaults to **off** (opposite of `generate model`) |
 
 Skip `--model` (or pass `--no-model`) and you get a plain route class with none of the CRUD scaffolding, a blank slate for a handler that doesn't map to standard create/read/update/delete over one model.

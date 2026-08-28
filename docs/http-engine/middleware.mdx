@@ -7,11 +7,11 @@ sidebar_label: Global Middleware
 
 **Middleware** is code that runs between "a request arrived" and "your route handles it", a checkpoint every request passes through first, free to inspect the request, change it, reject it outright, or let it continue.
 
-RapidREST already gives you a way to attach checkpoint-like behavior to one specific route: decorators, an auth strategy, `@RequiresRole`, `@Validate`, all covered in [Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation). Reach for that first, it keeps a rule attached to exactly the endpoint it governs. Global middleware is for the rarer case where a rule genuinely doesn't belong to any one route at all.
+RapidREST already gives you a way to attach checkpoint-like behavior to one specific route: decorators, an auth strategy, `@RequiresRole`, `@Validate`, all covered in [Lifecycle & Validation](/docs/routing/controllers/lifecycle-validation). Reach for that first, it keeps a rule attached to exactly the endpoint it governs. Global middleware is for the rarer case where a rule genuinely doesn't belong to any one route at all.
 
 ## What's already running on every request
 
-Every page in this section so far is, internally, exactly this: middleware RapidREST registers once and runs for every request before route matching even happens. [Error Handling](/docs/http-engine/error-handling) sits at the end of the chain catching whatever the rest of it didn't. [Cookies & CORS](/docs/http-engine/cookies-cors) and [Sessions](/docs/http-engine/sessions) run early, before your route sees the request. Prometheus metrics (see [Default Routes → Metrics](/docs/default-routes/metrics)) are recorded the same way. None of these are things you wire up, they're already running, this is just what they're built from.
+Every page in this section so far is, internally, exactly this: middleware RapidREST registers once and runs for every request before route matching even happens. [Error Handling](/docs/http-engine/error-handling) sits at the end of the chain catching whatever the rest of it didn't. [Cookies & CORS](/docs/http-engine/cookies-cors) and [Sessions](/docs/http-engine/sessions) run early, before your route sees the request. Prometheus metrics (see [Default Routes → Metrics](/docs/routing/default-routes/metrics)) are recorded the same way. None of these are things you wire up, they're already running, this is just what they're built from.
 
 ## Writing your own
 

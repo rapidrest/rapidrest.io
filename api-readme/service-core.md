@@ -10,9 +10,9 @@ For a detailed explanation of how these work and fit together, start with [Getti
 
 ## Quick links
 
-- [`RouteDecorators`](/docs/api/service-core/@rapidrest/namespaces/RouteDecorators) — `@Route`, `@Get`/`@Post`/etc., and the request parameter decorators (see [Routing & Controllers](/docs/routing-controllers)).
+- [`RouteDecorators`](/docs/api/service-core/@rapidrest/namespaces/RouteDecorators) — `@Route`, `@Get`/`@Post`/etc., and the request parameter decorators (see [Routing → Controllers](/docs/routing/controllers)).
 - [`PersistenceDecorators`](/docs/api/service-core/@rapidrest/namespaces/PersistenceDecorators) / [`ModelDecorators`](/docs/api/service-core/@rapidrest/namespaces/ModelDecorators) — `@Entity`, `@Column`, `@DataStore`, `@Cache`, and friends (see [Models & Persistence](/docs/models-persistence)).
-- [`ModelRoute`](/docs/api/service-core/classes/ModelRoute) / [`CRUDRoute`](/docs/api/service-core/classes/CRUDRoute) — the auto-CRUD base classes (see [Auto CRUD Routes](/docs/auto-crud-routes)).
+- [`ModelRoute`](/docs/api/service-core/classes/ModelRoute) / [`CRUDRoute`](/docs/api/service-core/classes/CRUDRoute) — the auto-CRUD base classes (see [Auto CRUD Routes](/docs/routing/auto-crud-routes)).
 - [`BackgroundService`](/docs/api/service-core/classes/BackgroundService) / [`BackgroundServiceManager`](/docs/api/service-core/classes/BackgroundServiceManager) — see [Background Jobs](/docs/background-jobs).
 
 Everything else is in the sidebar, generated directly from source.

@@ -565,3 +565,84 @@ Keep entries terse — this is a reference, not a transcript.
   got the same treatment for its opening paragraph only, the rest of that page was already
   well-explained. One single, deliberate scaffolding-tool comparison (`npm create vite@latest`)
   used in Generate Commands to land what "interactive prompts" means, not a repeated pattern.
+
+## 2026-08-27 (cont.): Restructured Routing & Controllers / Auto CRUD Routes / Default Routes under one "Routing" section
+- User's own observation: these three top-level sections were all facets of the same topic
+  (how an HTTP endpoint comes to exist) and read as redundant siblings rather than related
+  parts of one whole. Agreed and restructured them as nested sub-categories under one new
+  top-level **Routing** section, the same pattern already used for **Plugins** (Auth Library +
+  SSR React nested under it).
+- New layout: `docs/routing/index.mdx` (new Overview, explains the three-way split: hand-written
+  fundamentals vs. generated-CRUD vs. ready-made infra endpoints, and that a real project
+  typically uses all three together) → `docs/routing/controllers/` (moved from
+  `routing-controllers/`, renamed **Controllers** since "Routing" is now the parent, H1 and
+  `_category_.json` label both updated) → `docs/routing/auto-crud-routes/` (moved as-is, name
+  unchanged) → `docs/routing/default-routes/` (moved as-is, name unchanged). Sub-category order
+  pinned via explicit `"position"` in each `_category_.json` (1/2/3/4 including the Overview's
+  `sidebar_position`), since alphabetical folder order would have put Auto CRUD Routes before
+  Controllers.
+- `sidebars.ts`: collapsed the three separate top-level entries into one `Routing` category
+  (`dirName: 'routing'`), positioned after Models & Persistence (where Auto CRUD Routes/Default
+  Routes used to sit) rather than where the old standalone Routing & Controllers used to sit
+  (before Models & Persistence) — Auto CRUD Routes only makes sense once the reader knows what a
+  model is, and a single parent category can only occupy one slot in the top-level order.
+- Fixed every cross-link site-wide (26 files touched) from the old three-way paths
+  (`/docs/routing-controllers`, `/docs/auto-crud-routes`, `/docs/default-routes`) to their new
+  nested equivalents, plus the handful of places that spelled out "Routing & Controllers" as
+  link text (now "Routing → Controllers", matching this site's established "Section → Subpage"
+  cross-link convention).
+- **Caught by an actual `yarn docusaurus build`** (worth doing here despite the general
+  "skip build verification" instruction, since a wholesale directory move is exactly the kind of
+  change static verification can't catch): a real broken-link failure from `docs/api/service-
+  core/index.md`, which turned out to be generated from `api-readme/service-core.md`, a
+  hand-maintained file in *this* repo (not the auto-generated typedoc output itself, and not
+  `service-core`'s own source, so in scope to fix directly), still pointing at the two old
+  paths. Fixed there too. Also caught and fixed a **pre-existing, unrelated broken anchor**
+  (`#api-versioned-routes-using-apiroute` in `cli-reference/generate-commands.mdx`, correct slug
+  is `#api-versioned-routes`) that the build's broken-anchor check surfaced incidentally.
+- Confirmed clean: `yarn docusaurus build` completes with no broken links or anchors, and
+  regenerating the typedoc API reference produced zero diff (nothing in `docs/api/` actually
+  changed), so this was purely a docs-site restructure with no side effects on the auto-
+  generated content.
+
+## 2026-08-27 (cont.): Consolidated Auth under one section, promoted SSR React out of Plugins
+- Continuation of the same reorganization thinking as the Routing restructure. Auth content was
+  split across three siblings (Auth & RBAC, Auth Server, and Plugins → Auth Library) for the
+  same reason Routing was: related facets of one topic, presented as unrelated top-level
+  entries. Consolidated into one **Auth** parent, nested-category pattern:
+  - `docs/auth/index.mdx` (new Overview, explains the three-layer split: always-on RBAC/JWT
+    primitives → optional Auth Library for real login → Auth Server as a ready-made deployment)
+  - `docs/auth/rbac/` (moved from `docs/auth-rbac/`), category relabeled **Authentication &
+    Authorization** to match the page's own H1, since a child literally called "Auth & RBAC"
+    under a parent called "Auth" was redundant
+  - `docs/auth/auth-library/` (moved from `docs/plugins/auth-library/`)
+  - `docs/auth/auth-server/` (moved from `docs/auth-server/`, including its nested `deployment/`
+    subfolder)
+- With Auth Library pulled out, **Plugins** was left with only SSR React, not enough to justify
+  a wrapper category. Retired it and promoted SSR React back to a standalone top-level section
+  at `docs/ssr-react/` (literally reversing the specific move made in the 08-26 restructure,
+  under different, better judgment this time).
+- New top-level order: Getting Started → Core Concepts → HTTP Engine → Models & Persistence →
+  Routing → **Auth** → **SSR React** → Background Jobs → Events & Notifications → Testing →
+  CLI → Deployment. CLI moved down next to Deployment (per user's own read: it's a reference
+  reached for once the concepts it generates code for already make sense, not a concept to
+  front-load) rather than the more dramatic "move it up" option also discussed and rejected.
+- Fixed cross-links across ~40 files for all four moved paths. **Two catches only a real build
+  surfaced, again** (same lesson as the Routing move, worth repeating: static grep across
+  `docs/` doesn't cover everything):
+  - `docusaurus.config.ts`'s site-wide **footer** had a hardcoded `/docs/plugins/ssr-react` link
+    (shows on every single page, which is exactly how the broken-link report flagged it "from"
+    dozens of unrelated pages at once) — outside `docs/`, so untouched by any of the grep sweeps
+    scoped to the docs folder. Also caught the footer's own stale "CLI Reference" label from the
+    earlier CLI rename, missed for the same reason.
+  - `api-readme/auth.md` and `api-readme/react.md` (hand-maintained files behind the auto-
+    generated `docs/api/auth`/`docs/api/react` landing pages) still pointed at the old
+    `/docs/plugins/*` paths.
+- Confirmed clean: `yarn docusaurus build` completes with no broken links or anchors, and
+  `docs/api/` regenerates with zero unexpected diff beyond the two intentionally-fixed
+  `api-readme` links now flowing through correctly.
+- **Standing lesson worth keeping**: whenever a docs-site restructure moves or renames files,
+  run an actual `yarn docusaurus build` even under a general "skip build verification"
+  instruction for content-only work — a directory move breaks things (footer/navbar config,
+  hand-maintained files outside `docs/`, cross-linked anchors) that no amount of grepping
+  `docs/*.mdx` will ever catch, because the breakage isn't necessarily inside `docs/` at all.

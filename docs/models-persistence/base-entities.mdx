@@ -39,7 +39,7 @@ export class Pet extends BaseMongoEntity {
 }
 ```
 
-Reach for `RecoverableBaseEntity` when a delete should be reversible, records get flagged `deleted: true` rather than actually removed. `BaseEntity`'s `version` field gives every entity optimistic-locking updates for free, already wired into [Auto CRUD Routes](/docs/auto-crud-routes) without any extra code.
+Reach for `RecoverableBaseEntity` when a delete should be reversible, records get flagged `deleted: true` rather than actually removed. `BaseEntity`'s `version` field gives every entity optimistic-locking updates for free, already wired into [Auto CRUD Routes](/docs/routing/auto-crud-routes) without any extra code.
 
 ## `@TrackChanges(versions?)`
 

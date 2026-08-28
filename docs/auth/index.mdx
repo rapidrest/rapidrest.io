@@ -1,0 +1,14 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+# Auth
+
+RapidREST's auth story has three layers, and which one you need depends on how much of "login" your project actually has to build:
+
+- **[Authentication & Authorization](/docs/auth/rbac)** - always available, no extra install. Verifying a JWT that's already been issued, and deciding what a caller can do with `@RequiresRole`/`@RequiresScope`/ACLs. This has no opinion on how a user actually signs in, that's the layer below.
+- **[Auth Library](/docs/auth/auth-library)** - an optional package (`@rapidrest/auth`) that adds real login: password/TOTP/OTP/WebAuthn/OIDC strategies, `User`/`Alias`/`Secret`/`Profile` models, and the routes to wire them up. This is what actually issues the tokens the layer above verifies.
+- **[Auth Server](/docs/auth/auth-server)** - a complete, deployable service built from the Auth Library, every strategy and route already assembled. Deploy it as-is or fork it, instead of wiring the library into your own project by hand.
+
+A project that just needs to verify a token someone else issued (an internal service behind a shared JWT, say) only ever touches the first layer. A project that needs actual user accounts and sign-in reaches for the second, or the third if standing up a whole separate auth service is the better fit.

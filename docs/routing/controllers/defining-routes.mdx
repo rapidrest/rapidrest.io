@@ -1,0 +1,114 @@
+---
+sidebar_position: 2
+sidebar_label: Defining Routes
+---
+
+# Defining Routes
+
+## The route class
+
+`@Route(paths)` marks a class as owning one or more base paths, the closest equivalent to a router in other frameworks, except there's nothing to register it with, exporting the class is enough:
+
+```ts
+import { RouteDecorators } from '@rapidrest/service-core';
+const { Route } = RouteDecorators;
+
+@Route('/pets')
+export class PetRoute {}
+```
+
+On its own this registers nothing, a route class needs at least one HTTP method handler before anything actually binds to `/pets`. `paths` also accepts an array, registering every method on the class under each base path:
+
+```ts
+@Route(['/pet', '/pets', '/companions'])
+export class PetRoute {}
+```
+
+### API-versioned routes
+
+`@ApiRoute(paths, version?)` is a drop-in replacement for `@Route` that prepends `/api` (or `/api/v{version}`, given a version) to every path. Everything else, handlers, sub-paths, `@Auth`, `@Protect`, works identically:
+
+```ts
+import { RouteDecorators } from '@rapidrest/service-core';
+const { ApiRoute } = RouteDecorators;
+
+@ApiRoute('/pets')
+export class PetRoute {}
+// GET /pets -> GET /api/pets
+
+@ApiRoute('/pets', 2)
+export class PetRouteV2 {}
+// GET /pets -> GET /api/v2/pets
+```
+
+The CLI can scaffold a route with `@ApiRoute` instead of `@Route` for you, see [CLI](/docs/cli-reference) for the exact flags on `generate route` and `generate default-route`.
+
+## Handler methods
+
+A method becomes an endpoint by decorating it with the HTTP verb it responds to:
+
+```ts
+import { RouteDecorators } from '@rapidrest/service-core';
+const { Get } = RouteDecorators;
+
+@Route('/pets')
+export class PetRoute {
+  @Get()
+  async findPets() {
+    /* ... */
+  }
+}
+```
+
+That registers `GET /pets`, bound to `findPets`. Each verb decorator takes an optional sub-path, appended to the class's base path:
+
+```ts
+@Route('/pets')
+export class PetRoute {
+  @Get()
+  async findPets() { /* ... */ }
+
+  @Get('/:id')
+  async findPet() { /* ... */ }
+}
+```
+
+Stack more than one verb decorator on the same method if it should handle several identically:
+
+```ts
+@Route('/pets')
+export class PetRoute {
+  @Post()
+  @Put()
+  async createOrUpdate(pet: Pet) {
+    /* ... */
+  }
+}
+```
+
+### Verb decorators
+
+| HTTP Method | Decorator |
+|---|---|
+| `GET` | `@Get(path?)` |
+| `POST` | `@Post(path?)` |
+| `PUT` | `@Put(path?)` |
+| `PATCH` | `@Patch(path?)` |
+| `DELETE` | `@Delete(path?)` |
+| `HEAD` | `@Head(path?)` |
+| `OPTIONS` | `@Options(path?)` |
+
+The sub-path is always optional, omit it and the handler responds at the class's base path directly. For anything without its own decorator, or to bind more than one method to the same handler at once, `@Method(method, path?)` takes the verb (or an array of verbs) explicitly.
+
+## Handler return values
+
+Whatever a handler returns becomes the JSON response body, `async` handlers work exactly as you'd expect:
+
+```ts
+@Get('/:id')
+async getPet(@Param('id') id: string): Promise<Pet | null> {
+  return this.petService.findById(id);
+}
+```
+
+Need more control than "return a value, get a 200"? `@Request`/`@Response` (see [Request Parameters](/docs/routing/controllers/request-parameters)) hand you the underlying objects directly, and [Streaming Responses](/docs/http-engine/streaming) and [WebSockets](/docs/http-engine/websockets) cover writing a response yourself instead of returning one. Throwing inside a handler produces an error response the same way as anywhere else, see [Error Handling](/docs/http-engine/error-handling) for exactly how, and [Lifecycle & Validation](/docs/routing/controllers/lifecycle-validation) for where a thrown error can come from before your handler even runs.

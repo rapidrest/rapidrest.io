@@ -1,0 +1,60 @@
+---
+sidebar_position: 7
+sidebar_label: ACL
+---
+
+# `BaseACLRoute`
+
+`BaseACLRoute<T>` exposes full CRUD management over [Access Control List](/docs/auth/rbac/access-control-lists) records: the same records that
+`@Protect` seeds at startup and `ACLUtils` consults on every permission check. Unlike the other base routes, it's generic over which
+`AccessControlList` model your project persists to: `AccessControlListMongo` for MongoDB projects, `AccessControlListSQL` for PostgreSQL/SQLite
+ones.
+
+```ts
+import { AccessControlListMongo, BaseACLRoute, RouteDecorators } from "@rapidrest/service-core";
+const { Model, Route } = RouteDecorators;
+
+@Model(AccessControlListMongo)
+@Route("/acls")
+export class ACLRoute extends BaseACLRoute<AccessControlListMongo> {}
+```
+
+Using a SQL-backed project instead, swap in `AccessControlListSQL`:
+
+```ts
+import { AccessControlListSQL, BaseACLRoute, RouteDecorators } from "@rapidrest/service-core";
+const { Model, Route } = RouteDecorators;
+
+@Model(AccessControlListSQL)
+@Route("/acls")
+export class ACLRoute extends BaseACLRoute<AccessControlListSQL> {}
+```
+
+The CLI scaffold generates the matching variant automatically at `src/routes/ACLRoute.ts`, mounted at `/acls`, for any project with a database
+selected. That's the same condition that generates `AuthRoute` and `UserRoute`. Projects with no database feature selected don't get an `ACLRoute`, since
+there's nowhere for it to persist to.
+
+## What it's built on
+
+`BaseACLRoute` extends [`CRUDRoute`](/docs/routing/auto-crud-routes), so it exposes the same full set of CRUD endpoints (`HEAD /acls`, `POST /acls`,
+`GET /acls`, `GET /acls/:id`, `PUT /acls/:id`, `PUT /acls`, `DELETE /acls/:id`, `DELETE /acls`, `PUT /acls/:id/:property`) documented on that page,
+with ACL-specific permission checks layered on top via `@Before`.
+
+## Permission model
+
+Every endpoint requires an authenticated user who either:
+
+- holds one of the roles listed in `trusted_roles`, or
+- has `ACLAction.FULL` permission on the specific ACL record being accessed (via `params.id`).
+
+Bulk operations (`updateBulk`) have no single `:id` to check a per-record permission against, so they skip the second option entirely and require a
+trusted role unconditionally.
+
+See [Access Control Lists](/docs/auth/rbac/access-control-lists) for the current `ACLRecord`/`ACLAction` shape.
+
+## Protection for `default_*` records
+
+RapidREST regenerates a `default_<uid>` record from your `@Protect` decorators on every server startup (see `ACLUtils.saveDefaultACL` in
+[Access Control Lists](/docs/auth/rbac/access-control-lists)). These seed the user-editable override record and are never meant to be edited directly, since
+changes to them are discarded on the next restart. `update` and `delete` both reject any `id` starting with `default_`, even for a trusted-role
+caller, to prevent that confusion.

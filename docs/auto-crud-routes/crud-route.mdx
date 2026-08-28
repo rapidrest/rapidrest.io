@@ -1,0 +1,62 @@
+---
+sidebar_position: 3
+sidebar_label: CRUDRoute
+---
+
+# `CRUDRoute`
+
+`CRUDRoute<T>` is `ModelRoute` with every one of its functions already wired up to a real HTTP endpoint, list, get, create, update, delete, and the rest, fully assembled. For the overwhelming majority of models in a typical project, this is the class you actually want. There's no decision to make about which operations to expose or what path each one lives at, extend it once and the entire standard REST surface for that model already exists:
+
+```ts
+import { CRUDRoute, RouteDecorators } from '@rapidrest/service-core';
+const { Route } = RouteDecorators;
+
+@Route('/pets')
+export class PetRoute extends CRUDRoute<Pet> {}
+```
+
+That single line gives `Pet` a complete, working REST API. Here's exactly what it exposes:
+
+| HTTP Verb + Path | Calls | Extra decorators |
+|---|---|---|
+| `HEAD /<path>` | `doCount` | none |
+| `POST /<path>` | `doCreate` | `@Validate("validateCreateBulk")` |
+| `GET /<path>` | `doFind` | none |
+| `PUT /<path>` | `doBulkUpdate` | `@Validate("validateUpdateBulk")` |
+| `DELETE /<path>` | `doTruncate` | `@Transactional()` |
+| `HEAD /<path>/:id` | `doExists` | none |
+| `GET /<path>/:id` | `doFindById` | none |
+| `PUT /<path>/:id` | `doUpdate` | `@Validate("validateUpdate")`, `@Transactional()` |
+| `DELETE /<path>/:id` | `doDelete` | `@Transactional()` |
+| `PUT /<path>/:id/:property` | `doUpdateProperty` | `@Transactional()` |
+
+`POST /<path>` and `PUT /<path>` each accept either a single object or an array, bulk create and bulk update aren't separate endpoints, they're the exact same one as their single-object counterparts. None of these declare `@Auth` or a role check by default either, whatever access control applies comes entirely from [ACLs](/docs/auth-rbac/authorization): decorate the model with `@Protect`, and every endpoint above already respects it, with nothing extra to wire up per endpoint.
+
+Every one of them also already carries `@Summary`/`@Description`/`@Returns`, see [API Documentation](/docs/routing-controllers/api-documentation), so a `CRUDRoute` subclass shows up fully described in your OpenAPI spec the moment you write it, no annotation required.
+
+## `DELETE /<path>/:id` query parameters
+
+The delete endpoint accepts two query parameters that shape exactly what gets removed:
+
+| Query param | What it does |
+|---|---|
+| `?version=` | An optimistic-concurrency guard. Scopes the delete to an exact version. If the record has since changed, or is already gone, so nothing matches both the id and the version, the request fails with `404` instead of deleting a version out from under a concurrent writer. |
+| `?purge=true` | For a `RecoverableBaseEntity`/`RecoverableBaseMongoEntity` model (see [Base Entities](/docs/models-persistence/base-entities)), a plain delete only soft-deletes, flagging the record `deleted: true` and leaving its ACL intact, rather than removing it outright. `?purge=true` removes it for real and clears the ACL. On a non-recoverable model every delete is already a purge, so this flag has nothing left to do there. |
+
+A soft-deleted record is excluded from normal `find`/`findById` results, it's still in the datastore, just hidden from the usual read paths. Restoring one is an ordinary update, `PUT /<path>/:id` setting `deleted: false`, which means restoring a record requires both `DELETE` and `UPDATE` permission on it, since both actions are genuinely involved in getting it back.
+
+## Overriding one endpoint
+
+`CRUDRoute` giving you everything by default doesn't mean all-or-nothing. Override just the one method you need to change, there's no requirement to redeclare the decorators already on it, they're inherited right along with the method:
+
+```ts
+@Route('/pets')
+export class PetRoute extends CRUDRoute<Pet> {
+  @Auth(['jwt'])
+  create(obj: Pet | Pet[], @Request req: HttpRequest, @User user?: JWTUser) {
+    return super.doCreate(obj, { req, user });
+  }
+}
+```
+
+This is the exact pattern [Decorators & Aspects](/docs/core-concepts/aspect-oriented-programming) walks through in more depth: add the one decorator that's actually new, and call straight back into the base class for everything else. Nine of the ten endpoints above stay entirely untouched.

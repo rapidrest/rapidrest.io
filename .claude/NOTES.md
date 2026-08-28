@@ -165,3 +165,106 @@ Keep entries terse — this is a reference, not a transcript.
     `request-parameters.mdx` down to a cross-link, full coverage now lives at
     `docs/http-engine/websockets.mdx` (written in the HTTP Engine pass) rather than in two
     places that could drift apart from each other.
+- Full rewrite of Models & Persistence (5 pages now, was 4): Overview, Entities & Columns,
+  **Validation** (new), Datastores & Connections, Base Entities & Caching. The existing content
+  here was already fixed for decorator-name accuracy in the very first framework-alignment
+  pass, so this round was mostly voice recalibration, plus one genuine, verified gap: `@Nullable`
+  and `@Validator` (from `@rapidrest/core`'s `ObjectDecorators`) plus `ValidationUtils`'s built-in
+  checks (`checkEmail`/`checkURL`/`checkPhone`/`checkUUID`/`checkSemVer`/`checkIP`/`checkDate`/
+  `checkJSON`/`checkName`) are real, and genuinely wired into `RepoUtils.create()`/`update()`
+  automatically (`core/src/ObjectUtils.ts`'s `_validate()`, called from
+  `service-core/src/models/RepoUtils.ts`'s own `validate()`) — every field is required by
+  default unless marked `@Nullable`, on every write, through any code path. `@Nullable` had
+  appeared exactly once on the whole site before this, unexplained, in a code example. Found a
+  real usage example to build the new page's snippets from:
+  `auth/src/models/mongo/ProfileMongo.ts`'s `birthdate` field uses
+  `@Validator(ValidationUtils.checkDate)` combined with `@Nullable`.
+- Full rewrite of Auto CRUD Routes (3 pages now, was 1 malformed page with no top-level H1 and
+  two stray H1s mid-document): Overview, **Endpoints** (new), **Filtering, Pagination &
+  Sorting** (new). The big find this round: the query-string filter/pagination/sort DSL that
+  `doFind`/`doCount` actually implement (`service-core/src/models/ModelUtils.ts`'s
+  `buildSearchQuery`, `RepoUtils.find()`) was completely undocumented anywhere on the site —
+  operator syntax (`gt()`/`in()`/`range()`/`like()`/etc via `field=op(value)`), repeated-key OR,
+  the `me` token, the base64 `q` param escape hatch, `limit`/`page` pagination (capped at 1000),
+  and JSON-object `sort` syntax for descending/multi-field. Verified via a research pass over
+  `ModelUtils.ts`/`RepoUtils.ts`/`RouteUtils.ts` plus real working query strings from
+  `petstore_example/k6-tests/*.ts` (`find_pets.ts`, `find_users.ts`, `find_admins.ts`).
+  **Found, not yet fixed**: `docs/performance.mdx`'s `find_bunnies` section uses
+  `GET /pet?category.name=bunny` as a real example query, but a security fix
+  (mentioned in `service-core` commit `932b6e2`) now rejects any dotted or `$`-prefixed query
+  key on MongoDB-backed models with `400`, so that exact request would fail against current
+  code. The benchmark *numbers* were presumably real when measured, only the example request
+  shown alongside them is now stale. Flagged to the user, not touched, since fixing it well
+  means deciding whether to reword the query to something still valid or annotate it as
+  historical, not just a one-line find-and-replace.
+- Default Routes reviewed for the same treatment, needed far less work than every other
+  section so far: all 8 pages were already accurate and already at roughly the right voice
+  (likely benefited from the very first framework-alignment pass at the start of this project).
+  Spot-verified every endpoint table (Admin, Metrics, OpenAPI, Status, Push, ACL, Static)
+  directly against source (`BaseAdminRoute.ts`, `BaseMetricsRoute.ts`, `BaseOpenAPIRoute.ts`,
+  `BaseStatusRoute.ts`, `security/BaseACLRoute.ts`, `BaseStaticRoute.ts`) rather than assuming —
+  every verb/path/decorator/permission-model claim held up. Only changes made: tightened the
+  Overview's opening paragraph (grammar, wordiness) and removed a confusing tangential
+  reference to `AuthRoute`/`UserRoute` (those come from the separate `generate auth` command's
+  template, `cli/templates/auth/src/routes/`, not from `generate server`'s default-routes
+  prompt being discussed in that paragraph — comparing them there was more confusing than
+  useful). No new pages added, no real documentation gap found this time.
+- Split Models & Persistence further per explicit request: pulled `@Transactional` (plus
+  `@EntityManager`/`@MongoSession`, nesting modes, `registerRollbackHook`) out of
+  `datastores.mdx` into a new **Transactions** page, and pulled `@Repository`/`RepoUtils` out
+  into a new **Repository & RepoUtils** page (7 pages now: Overview, Entities & Columns,
+  Validation, Datastores & Connections, Repository & RepoUtils, Transactions, Base Entities &
+  Caching). `datastores.mdx` now covers only `@DataStore` and raw connection injection
+  (`@DataSource`/`@Redis`), and picked up a previously-undocumented detail while trimming it:
+  both decorators' `required` param (default `true`) throws at instantiation if the named
+  connection isn't configured, verified in `service-core/src/ObjectFactory.ts`'s
+  `injectDataSource`/`injectRepository` handling.
+  - The new Repository page states the `@Repository` vs `RepoUtils` distinction explicitly for
+    the first time anywhere on the site: `@Repository` is the raw, un-guarded TypeORM/Mongo
+    repository (no ACL check, no cache invalidation, no notifications); `RepoUtils` is the
+    same thing `ModelRoute` itself is built on, with all of that included. Previously the docs
+    showed both side by side with no guidance on which to reach for.
+  - Caught and fixed a real bug in my own draft while writing this: `RepoUtils.update(obj,
+    existing, options)` is NOT "mutate the fetched object and pass it as both arguments", I
+    verified the real call shape against `ModelRoute.doUpdate()` — `obj` is the partial patch,
+    `existing` is a value fetched fresh via `findOne()` beforehand. Fixed before publishing,
+    not after, but a reminder that a plausible-looking example still needs the source check.
+  - Fixed 3 cross-links elsewhere on the site that pointed at the old `datastores.mdx`
+    anchors (`#transactional`, `#direct-repository-and-connection-injection`):
+    `core-concepts/dependency-injection.mdx`, `models-persistence/validation.mdx`,
+    `testing/index.mdx`.
+- Added orienting intro paragraphs (previously these pages jumped straight into the first `##`
+  decorator with no framing) to Entities & Columns, Datastores & Connections, Transactions, and
+  Base Entities. Also split `@Cache`/`@Shard` out of Base Entities into a new **Caching &
+  Sharding** page, per explicit request — Models & Persistence is 8 pages now. Base Entities
+  keeps `@TrackChanges`/`@ChildEntity` alongside the base classes, since those are about entity
+  shape/history, not performance at scale, unlike caching/sharding. Fixed the resulting
+  cross-links: `datastores.mdx`'s Redis-for-caching pointer now targets the new page instead of
+  Base Entities, and `auto-crud-routes/endpoints.mdx`'s link label updated to match the rename.
+- Added a `ConnectionManager` section to Datastores & Connections, verified against
+  `service-core/src/database/ConnectionManager.ts` directly. Caught and fixed a mistake in my
+  own first draft before publishing: I initially wrote that `ConnectionManager` stamps a
+  model's `datasource` property onto the class, but `@DataStore` does that itself, synchronously,
+  at decoration time (`ModelDecorators.ts`'s `DataStore()` calls `Object.defineProperty(target,
+  "datasource", ...)` directly). `ConnectionManager`'s actual role is *matching* each model
+  class to its configured connection (via that stamped property, or via an `entities` list in
+  the datastore's own config) and re-confirming it, not originating it. Also ties together, for
+  the first time, why `@Transactional`'s "falls back to non-transactional" behavior on
+  standalone MongoDB exists (`ConnectionManager.detectMongoTransactionSupport()`), and why
+  `@Repository`/`@DataSource`/`@Redis` all fail with the identical "Unable to find database
+  connection with name" error, they all resolve against the same shared connection map.
+- Restructured Auto CRUD Routes again per explicit request: the "Endpoints" page (CRUDRoute
+  table + ModelRoute function table crammed together) was awkward, split into dedicated
+  **ModelRoute** and **CRUDRoute** pages instead, each with a full "why this one, why not the
+  other" explanation, mirroring the Repository vs RepoUtils treatment. Page order is
+  Overview → ModelRoute → CRUDRoute → Filtering/Pagination/Sorting, foundation first (the
+  business logic with no HTTP surface), then the batteries-included class built on top of it,
+  same ordering logic as `@Repository` before `RepoUtils`. `doDelete`'s `version`/`purge`
+  options are described briefly on the ModelRoute page with a cross-link to CRUDRoute's fuller
+  `?version=`/`?purge=true` query-parameter writeup, since the query-string framing is
+  HTTP-specific and belongs with the endpoint that actually parses it.
+- Also rewrote the Filtering, Pagination & Sorting page's connective prose (not its reference
+  tables, which stay tabular on purpose) after the user flagged it as still reading in the old
+  terse/reference voice even after everything else moved on. Reference tables presented as
+  reference tables is correct; the sentences around them jumping straight from heading to code
+  block with zero framing is what needed fixing.

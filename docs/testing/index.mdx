@@ -150,7 +150,7 @@ it('runs without error', async () => {
 
 # Testing `@Transactional` methods
 
-A [`@Transactional`](/docs/models-persistence/datastores#transactional) method is only meaningfully tested against a real (if in-memory, per the section below) datastore — the point of the decorator is the real session/transaction semantics of MongoDB or TypeORM, which a mocked repository can't reproduce. The most useful thing to assert is that a failure partway through leaves no partial writes behind:
+A [`@Transactional`](/docs/models-persistence/transactions#transactional) method is only meaningfully tested against a real (if in-memory, per the section below) datastore — the point of the decorator is the real session/transaction semantics of MongoDB or TypeORM, which a mocked repository can't reproduce. The most useful thing to assert is that a failure partway through leaves no partial writes behind:
 
 ```ts
 import { vi } from 'vitest';

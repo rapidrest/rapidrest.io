@@ -1,0 +1,54 @@
+---
+sidebar_position: 2
+sidebar_label: ModelRoute
+---
+
+# `ModelRoute`
+
+Every CRUD operation RapidREST offers, however you end up exposing it, comes down to the same handful of building blocks: find matching records, create one, update one, delete one, and so on. `ModelRoute<T>` is where that logic actually lives. It handles input validation, ACL permission checks, optimistic locking, and conflict detection for a single entity type, all the parts that are genuinely hard to get right, without ever deciding how, or whether, any of it gets exposed over HTTP. That decision is left entirely to you.
+
+This matters more than it sounds like it should. A model that should never accept a public `DELETE`, an admin-only resource where only a couple of operations should ever be reachable, a URL scheme that doesn't follow the usual `/:id` convention, all of these want the same business logic `ModelRoute` already provides, just wired up selectively instead of automatically. That's exactly what extending `ModelRoute` directly buys you:
+
+```ts
+import { ModelRoute, RouteDecorators } from '@rapidrest/service-core';
+const { Get, Head, Route } = RouteDecorators;
+
+@Route('/pets')
+export class PetRoute extends ModelRoute<Pet> {
+  @Head()
+  count(@Param() params: any, @Query() query: any, @User user?: JWTUser) {
+    return super.doCount({ params, query, user });
+  }
+
+  @Get()
+  find(@Param() params: any, @Query() query: any, @User user?: JWTUser) {
+    return super.doFind({ params, query, user });
+  }
+
+  @Get('/:id')
+  findById(@Param('id') id: string, @Query() query: any, @User user?: JWTUser) {
+    return super.doFindById(id, { query, user });
+  }
+}
+```
+
+`PetRoute` here only exposes count, find, and findById, there's no way to create, update, or delete a `Pet` over HTTP at all, even though `ModelRoute` itself is perfectly capable of it. Nothing about that had to be disabled or locked down, it simply was never wired up in the first place.
+
+## The functions
+
+| Function | What it does |
+|---|---|
+| `doCount` | Counts matching documents. The count comes back as `Content-Length`, there's no response body. |
+| `doCreate` | Creates one document, or several from an array. |
+| `doFind` | Returns documents matching the query, see [Filtering, Pagination & Sorting](/docs/auto-crud-routes/querying). |
+| `doFindById` | Returns the single document with the given id. |
+| `doUpdate` | Updates the document with the given id. |
+| `doBulkUpdate` | Updates several documents at once. |
+| `doUpdateProperty` | Updates the value of one property on one document. |
+| `doDelete` | Deletes (or soft-deletes) one document. Accepts `version` and `purge` options, see [`CRUDRoute`](/docs/auto-crud-routes/crud-route#delete-pathid-query-parameters) for what each one does when exposed over HTTP. |
+| `doTruncate` | Deletes every document matching the query. |
+| `doExists` | Checks whether a document with the given id exists, `Content-Length` is `1` or `0`, no body. |
+
+Each one takes an `options` object, the same `{ params, query, user }`-style shape shown above, that's how permission checks and validation know who's asking and what they're asking for. Skip `user` and the call behaves as if it came from an anonymous caller, which usually means it gets rejected the moment ACLs are enabled.
+
+If none of this selective wiring sounds necessary for a given model, it probably isn't, [`CRUDRoute`](/docs/auto-crud-routes/crud-route) already extends `ModelRoute` and exposes every one of these functions automatically. Reach for `ModelRoute` directly specifically when you don't want that.

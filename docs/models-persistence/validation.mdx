@@ -1,0 +1,67 @@
+---
+sidebar_position: 3
+sidebar_label: Validation
+---
+
+# Validation
+
+Every create and update already runs through validation, whether you've added any or not: `@Column` fields are required by default, an empty, `null`, or missing value is rejected before anything reaches the database. Nothing enforces this outside `RepoUtils`, no `@Validate` decorator to remember on every route, the check runs the same way no matter which route, service, or job ends up calling into the datastore.
+
+## Making a field optional
+
+Mark a field `@Nullable` to allow it to be absent:
+
+```ts
+import { ObjectDecorators } from '@rapidrest/core';
+const { Nullable } = ObjectDecorators;
+
+@Column()
+@Nullable
+avatar?: string;
+```
+
+Without it, saving a `Pet` with no `avatar` throws before the write ever happens. `0` and `false` are real values, not treated as absent, only `null`, `undefined`, and `""` are.
+
+## Validating the value itself
+
+`@Validator(func)` runs a function against a field's value on every create and update, and can transform it too, whatever it returns is what actually gets stored:
+
+```ts
+import { ObjectDecorators, ValidationUtils } from '@rapidrest/core';
+const { Nullable, Validator } = ObjectDecorators;
+
+@Column()
+@Validator(ValidationUtils.checkDate)
+@Nullable
+birthdate?: Date;
+```
+
+Combining `@Validator` with `@Nullable` reads naturally: valid if present, not required. Throw from the function to reject the value, the same way [`@Validate`](/docs/routing-controllers/lifecycle-validation) does at the route level, just scoped to one field instead of a whole request body.
+
+## Built-in checks
+
+`ValidationUtils` (from `@rapidrest/core`) ships the common ones, so you're not hand-writing a regex for an email address:
+
+| Function | Validates |
+|---|---|
+| `checkEmail` | A valid email address |
+| `checkURL` | A valid URL |
+| `checkPhone` | A valid phone number |
+| `checkUUID` | A valid UUID |
+| `checkSemVer` | A valid semantic version string |
+| `checkIP` | A valid IP address |
+| `checkDate` | A valid ISO/RFC/UTC date or timestamp |
+| `checkJSON` | A valid JSON string |
+| `checkName` | Matches `/^[a-zA-Z0-9_\-.@:+]+$/` |
+
+None of these fit? `ValidationUtils.check(val, func)` wraps any boolean predicate of your own into the same throw-on-failure shape, so a custom rule still composes with `@Validator` the same way:
+
+```ts
+@Column()
+@Validator((val: number) => ValidationUtils.check(val, (v) => v >= 0 && v <= 100))
+percentage: number = 0;
+```
+
+## Where this runs
+
+`@Nullable` and `@Validator` are read by `RepoUtils.create()`/`update()` before anything is written, and by extension by [Auto CRUD Routes](/docs/auto-crud-routes) and any of your own code that goes through `RepoUtils`, or [`@Transactional`](/docs/models-persistence/transactions#transactional) methods that call it. This is the same validation mechanism whether the write came from a REST request, a background job, or a script, one set of rules, defined once on the model, rather than re-checked in every place that happens to write to it.

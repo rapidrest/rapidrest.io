@@ -5,9 +5,11 @@ sidebar_label: Entities & Columns
 
 # Entities & Columns
 
+Every persisted model starts the same way: a class marked `@Entity`, fields marked `@Column`. This page covers the decorators that shape what a piece of data actually looks like, its identity, its indexes, and which fields exist at all. Validating the values those fields actually hold is a separate concern, covered next in [Validation](/docs/models-persistence/validation).
+
 ## `@Entity(options?)`
 
-Marks a class as a persistable entity.
+Marks a class as persistable:
 
 ```ts
 @Entity({collation: {locale: 'en', strength: 2}})
@@ -17,12 +19,11 @@ export class Pet extends BaseMongoEntity {
 }
 ```
 
-`options.name` overrides the collection/table name (defaults to the snake_cased class name); `options.collation` sets a MongoDB collation.
+`options.name` overrides the collection/table name, which otherwise defaults to the snake_cased class name. `options.collation` sets a MongoDB collation, ignored on SQL datastores.
 
 ## `@DataStore(name)`
 
-Indicates which datastore that entities of this class will be stored in. Note that the `name` argument must correspond to a configured
-entry of the same name in the `datastores` list in the server configuration (covered in the next section: [Datastores & Connections](/docs/models-persistence/datastores)).
+Says which configured datastore an entity's data lives in, `name` matching a key under `datastores` in your [configuration](/docs/core-concepts/configuration), covered fully in [Datastores & Connections](/docs/models-persistence/datastores):
 
 ```ts
 @Entity({collation: {locale: 'en', strength: 2}})
@@ -35,7 +36,7 @@ export class Pet extends BaseMongoEntity {
 
 ## `@Column(options?)`
 
-Marks a property as a persisted column/field.
+Marks a property as persisted:
 
 ```ts
 export interface ColumnOptions {
@@ -54,7 +55,7 @@ _id?: any;
 
 ## `@PrimaryColumn(options?)`
 
-Shorthand for `@Column({...options, primary: true})`, used for identifier fields:
+Shorthand for `@Column({...options, primary: true})`, for identifier fields:
 
 ```ts
 @Identifier
@@ -65,7 +66,7 @@ uid: string = uuid.v4();
 
 ## `@Index` and `@Unique`
 
-`@Index` has three forms depending on whether you're indexing a single property or a class-level compound index:
+`@Index` takes one of a few forms, depending on whether you're indexing a single property or defining a class-level compound index:
 
 ```ts
 // Property-level
@@ -78,7 +79,7 @@ uid: string = uuid.v4();
 @Index('fullName', ['firstName', 'lastName'], {unique: true})
 ```
 
-`IndexOptions` also accepts `sparse`, `background`, and `expireAfterSeconds` (MongoDB-specific, e.g. for TTL indexes).
+`IndexOptions` also accepts `sparse`, `background`, and `expireAfterSeconds` (MongoDB-specific, for TTL indexes).
 
 `@Unique` is shorthand for an index with `{unique: true}`, in the same property-level or class-level forms:
 
@@ -88,9 +89,7 @@ uid: string = uuid.v4();
 
 ## `@RequiresScope`
 
-`RequiresScope(scope: string | string[])` marks a property as readable only by clients whose token carries at least one of the given OAuth-style
-scopes. When the requesting user doesn't have a matching scope, the property is silently removed from the object rather than the request being
-rejected.
+`RequiresScope(scope: string | string[])` marks a property as readable only by callers whose token carries at least one of the given OAuth-style scopes. Unlike a failed permission check, a missing scope doesn't reject the request, the property is just silently stripped from the response:
 
 ```ts
 @Column()
@@ -98,12 +97,9 @@ rejected.
 contacts: Contact[] = [];
 ```
 
-This is enforced automatically inside `RepoUtils.find()`/`findOne()` via `ObjectUtils.deleteScopedProps` — no extra wiring needed in your route. It's
-how `@rapidrest/auth`'s [`Profile`](/docs/plugins/auth-library/data-models#profile) model protects `contacts` and `preferences` behind `profile:email` and
-`profile:preferences` scopes.
+This runs automatically inside `RepoUtils.find()`/`findOne()`, nothing to wire up in your route. It's how `@rapidrest/auth`'s [`Profile`](/docs/plugins/auth-library/data-models#profile) model keeps `contacts` and `preferences` behind `profile:email` and `profile:preferences` scopes.
 
-This is unrelated to the route-level `@RequiresScope` documented in [Authorization](/docs/auth-rbac/authorization#requiresscope-route-level), which
-gates an entire endpoint rather than a single field.
+This is a different thing from the route-level `@RequiresScope` in [Authorization](/docs/auth-rbac/authorization#requiresscope-route-level), that one gates an entire endpoint, this one hides one field.
 
 ## A complete example
 
@@ -124,3 +120,5 @@ export class Pet extends BaseMongoEntity {
   species: string = '';
 }
 ```
+
+Nothing here checks that `name` is actually present, or that `species` is one of a known set of values, that's what [Validation](/docs/models-persistence/validation) is for.

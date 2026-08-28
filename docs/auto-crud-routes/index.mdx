@@ -3,119 +3,26 @@ sidebar_position: 1
 sidebar_label: Overview
 ---
 
-RapidREST ships with two abstract base classes that you can extend to provide automatic CRUD functionality for data models. These base classes
-are: `ModelRoute` and `CRUDRoute`.
+# Auto CRUD Routes
 
-# `ModelRoute`
-
-The **ModelRoute** base class provides a set of functions that implement all of the business logic for the most common CRUD operations seen in a
-typical REST API. The business logic implemented in these functions includes input validation, authorization and permissions verification
-(using [ACLs](/docs/auth-rbac/authorization)), conflict and missing data identification, optimistic locking (via the `version` property) and more.
-
-The following table lists the available functions and the overall behavior that function implements.
-
-| Function | What it does |
-|---|---|
-| `doCount` | Counts all documents (supports query filtering). Sets `Content-Length` with the count. |
-| `doCreate` | Creates a new document of the given type. |
-| `doDelete` |  Delete a single document (supports `?version=` and `?purge=true`). |
-| `doExists` |  Checks if a document with the given `id` exists. `Content-Length` is `1` or `0`. |
-| `doFind` |  Returns all documents matching the given query filter. |
-| `doFindById` | Returns the single document with the given `id`. |
-| `doTruncate` | Deletes all documents (supports query filtering). |
-| `doUpdate` |  Modifies a single document with the given `id`. |
-| `doBulkUpdate` | Modifies multiple documents. |
-| `doUpdateProperty` | Update the value of a single object's property |
-
-Since this base class does not explicitly declare any REST API endpoints it is ideal for implementing classes that wish to control or expose
-only a limited subset of the implemented functionality.
-
-For example, to utilize `ModelRoute` and implement only `count`, `find` and `findById` functionality, create a new class that extends `ModelRoute`
-that implements only the desired functions as shown in the example below.
+Every REST API ends up needing the same handful of endpoints for its data: list everything, get one, create one, update one, delete one. Writing those by hand for every model in a project means the same query logic, the same permission checks, and the same validation, copied and slightly reshuffled across dozens of route classes. RapidREST handles this for you instead. Extend one base class over a model, and the standard list/get/create/update/delete endpoints already exist, fully wired to permissions, validation, and optimistic locking, without writing a query or a route handler yourself:
 
 ```ts
-import { ModelRoute, RouteDecorators } from "@rapidrest/service-core";
-const { Head, Get, Route } = RouteDecorators;
-
-@Route("/my-model")
-export class MyModelRoute extends ModelRoute<MyModel> {
-  @Head()
-  public count(
-      @Param() params: any,
-      @Query() query: any,
-      @Response res: HttpResponse,
-      @User user?: JWTUser,
-  ): Promise<any> {
-    return super.doCount({ params, query, res, user });
-  }
-
-  @Get()
-  public find(@Param() params: any, @Query() query: any, @User user?: JWTUser): Promise<Array<MyModel>> {
-    return super.doFind({ params, query, user });
-  }
-
-  @Get("/:id")
-  public findById(@Param("id") id: string, @Query() query: any, @User user?: JWTUser): Promise<MyModel | null> {
-    return super.doFindById(id, { query, user });
-  }
-}
-```
-
-# `CRUDRoute`
-
-The **CRUDRoute** abstract base class is an extension of **ModelRoute** that wires up each of the pre-defined behavior functions to real REST API
-endpoints. For most data-driven REST APIs, this is the preferred base class to extend.
-
-To utilize `CRUDRoute` for your own data model simply create a new class and extend it like in the example below.
-
-```ts
-import { CRUDRoute, RouteDecorators } from "@rapidrest/service-core";
+import { CRUDRoute, RouteDecorators } from '@rapidrest/service-core';
 const { Route } = RouteDecorators;
 
-@Route("/my-model")
-export class MyModelRoute extends CRUDRoute<MyModel> {}
+@Route('/pets')
+export class PetRoute extends CRUDRoute<Pet> {}
 ```
 
-The table below details which REST API endpoints this class exposes, the path it's bound to, the underlying `ModelRoute` function it calls, and what
-additional decorators it implements.
+That's the entire class, and it's already a complete REST API for `Pet`.
 
-| HTTP Verb+Path | Calls Function | Addtl. Decorators |
-|---|---|---|
-| `HEAD /<path>` | `doCount` | `none` |
-| `POST /<path>` | `doCreate` | `@Validate("validateCreateBulk")` |
-| `DELETE /<path>/:id` | `doDelete` | `@Transactional()` |
-| `HEAD /<path>/:id` | `doExists` | `none` |
-| `GET /<path>` | `doFind` | `none` |
-| `GET /<path>/:id` | `doFindById` | `none` |
-| `DELETE /<path>` | `doTruncate` | `@Transactional()` |
-| `PUT /<path>` | `doBulkUpdate` | `@Validate("validateUpdateBulk")` |
-| `PUT /<path>/:id` | `doUpdate` | `@Validate("validateUpdate")`, `@Transactional()` |
-| `PUT /<path>/:id/:property` | `doUpdateProperty` | `@Transactional()` |
+## Two base classes, one shared foundation
 
-Note that while none of the above endpoints implements authorization explicitly, the user's action will be verified against the class and/or document
-ACL when it is decorated with the `@Protect` decorator.
+Everything RapidREST does for CRUD comes down to `ModelRoute<T>`: the actual validation, permission checks, optimistic locking, and conflict detection, implemented as plain methods with no opinion at all about whether or how they get exposed over HTTP. `CRUDRoute<T>` is `ModelRoute` with every one of those methods already wired to a real endpoint, which is what `PetRoute` above is actually built from.
 
-### `DELETE /<path>/:id` query parameters
+Most models want `CRUDRoute`, the full REST surface, zero decisions to make. Reach for `ModelRoute` directly when you want that same logic without that full surface, a read-only resource, an admin-only one, anything where only a couple of operations should ever be reachable at all.
 
-The `delete` handler accepts two query parameters that `doDelete` uses to control exactly what gets removed:
-
-| Query param | What it does |
-|---|---|
-| `?version=` | Optimistic-concurrency guard. Scopes the delete to the exact document version given. If the record has since changed (or been deleted) so that no row matches both the `id` and the `version`, the request fails with a `404` rather than deleting the wrong version out from under a concurrent writer. |
-| `?purge=true` | For a `RecoverableBaseEntity`/`RecoverableBaseMongoEntity` model (see [Base Entities & Caching](/docs/models-persistence/base-entities)), a plain `DELETE` only soft-deletes the record — it's flagged `deleted: true` (and its ACL is left intact) rather than removed. `?purge=true` permanently removes the record from the datastore and clears its ACL instead. For a non-recoverable model, every delete is effectively a purge regardless of this flag. |
-
-A soft-deleted record is excluded from normal `find`/`findById` lookups. Restoring one is a normal `update` (`PUT /<path>/:id`) that sets `deleted: false` — viewing or restoring a soft-deleted record requires both `DELETE` and `UPDATE` permission on it, since those are the two actions actually involved.
-
-You may optionally override any of endpoint functions defined in `CRUDRoute` to apply additional decorators. It is not necessary to duplicate all of
-the decorators in the base class. For example, if you want to apply the `@Auth` decorator to require authentication to the `create` endpoint, all
-that is needed is the following in your implementing class.
-
-```ts
-@Route("/my-model")
-export class MyModelRoute extends CRUDRoute<MyModel> {
-  @Auth(["jwt"])
-  public create(obj: MyModel | MyModel[], @Request req: HttpRequest, @User user?: JWTUser): Promise<MyModel | Array<MyModel>> {
-      return super.doCreate(obj, { req, user });
-  }
-}
-```
+- **[`CRUDRoute`](/docs/auto-crud-routes/crud-route)** — the complete, ready-made REST API: every endpoint, the delete query parameters, and how to override just one of them without touching the rest.
+- **[`ModelRoute`](/docs/auto-crud-routes/model-route)** — the same business logic, exposed only where you decide to wire it up.
+- **[Filtering, Pagination & Sorting](/docs/auto-crud-routes/querying)** — the query language the generated `find`/`count` endpoints actually understand.

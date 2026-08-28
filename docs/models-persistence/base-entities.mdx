@@ -1,13 +1,13 @@
 ---
-sidebar_position: 4
-sidebar_label: Base Entities & Caching
+sidebar_position: 7
+sidebar_label: Base Entities
 ---
 
-# Base Entities & Caching
+# Base Entities
+
+Every model needs an identifier, most need to know when they were created or last changed, and some need deletes to be reversible or updates to be versioned. Extend one of the base classes below instead of writing those fields by hand on every entity. This page also covers `@TrackChanges`, for keeping a history of changes to a record, and `@ChildEntity`, for letting related model classes share a single collection or table instead of each getting their own.
 
 ## Base entity classes
-
-Extend one of these instead of writing identifier/timestamp/versioning fields by hand:
 
 | Class | Adds |
 |---|---|
@@ -17,8 +17,6 @@ Extend one of these instead of writing identifier/timestamp/versioning fields by
 | `BaseMongoEntity` | `BaseEntity` + a MongoDB `_id` column |
 | `RecoverableBaseEntity` | `BaseEntity` + a `deleted` soft-delete flag |
 | `RecoverableBaseMongoEntity` | `RecoverableBaseEntity` + a MongoDB `_id` column |
-
-A typical MongoDB-backed entity:
 
 ```ts
 import { BaseMongoEntity, PersistenceDecorators, ModelDecorators } from '@rapidrest/service-core';
@@ -41,24 +39,7 @@ export class Pet extends BaseMongoEntity {
 }
 ```
 
-Use `RecoverableBaseEntity` when you want deletes to be reversible (records are flagged `deleted: true` rather than removed), and `BaseEntity`'s
-built-in `version` field gives you optimistic-locking updates for free through [Auto CRUD Routes](/docs/auto-crud-routes).
-
-## `@Cache(ttl?)`
-
-Caches query results for an entity in Redis:
-
-```ts
-@Cache()          // default TTL: 30 seconds
-@DataStore('mongo')
-export class Pet extends BaseMongoEntity {}
-
-@Cache(120)        // custom TTL, in seconds
-@DataStore('mongo')
-export class Category extends BaseMongoEntity {}
-```
-
-Caching only takes effect when a Redis connection named `"cache"` is configured. Without one, `@Cache` is silently a no-op rather than an error.
+Reach for `RecoverableBaseEntity` when a delete should be reversible, records get flagged `deleted: true` rather than actually removed. `BaseEntity`'s `version` field gives every entity optimistic-locking updates for free, already wired into [Auto CRUD Routes](/docs/auto-crud-routes) without any extra code.
 
 ## `@TrackChanges(versions?)`
 
@@ -75,8 +56,7 @@ export class AuditedRecord extends BaseMongoEntity {}
 
 ## `@ChildEntity()`
 
-Lets multiple entity classes share a single collection/table, discriminated by type. Useful for modeling an inheritance hierarchy without a
-separate collection per subclass:
+Lets multiple entity classes share a single collection/table, discriminated by type, an inheritance hierarchy without a separate collection per subclass:
 
 ```ts
 @Entity()
@@ -92,14 +72,4 @@ export class Player extends User {
 }
 ```
 
-`@Reference(EntityClass)` marks a property as referencing another entity type by identifier, rather than embedding it directly.
-
-## `@Shard(config?)`
-
-MongoDB-only: configures sharding for a collection (defaults to sharding on `uid`):
-
-```ts
-@Shard()
-@DataStore('mongo')
-export class Event extends BaseMongoEntity {}
-```
+`@Reference(EntityClass)` marks a property as referencing another entity by identifier, rather than embedding it directly.

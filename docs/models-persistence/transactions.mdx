@@ -1,0 +1,96 @@
+---
+sidebar_position: 6
+sidebar_label: Transactions
+---
+
+# Transactions
+
+Some operations touch more than one record, or more than one connection, and need to succeed or fail together. Adopt a pet, and it shouldn't be possible to update the pet's record but lose the adoption event if something fails halfway through. `@Transactional` is how you get that guarantee without hand-rolling the rollback logic yourself.
+
+## `@Transactional`
+
+`@Transactional()` on a method runs everything inside it in a single database transaction, a MongoDB session wrapped in `session.withTransaction()`, or a TypeORM transaction wrapped in `datasource.transaction()`, whichever the resolved datastore actually is. The method must be `async`:
+
+```ts
+import { DatabaseDecorators } from '@rapidrest/service-core';
+const { Transactional, MongoSession, Repository } = DatabaseDecorators;
+
+export class PetService {
+  @Repository(Pet)
+  private repo!: MongoRepository<Pet>;
+
+  @Transactional()
+  public async adopt(pet: Pet, @MongoSession() session?: any) {
+    pet.adopted = true;
+    await this.repo.save(pet, { session });
+  }
+}
+```
+
+Leave off the `source` argument and the datastore is inferred from `this.modelClass` (set when `@Model`/`@DataStore` is applied to the class), or pass one explicitly, a datastore name or an entity class: `@Transactional(Pet)`.
+
+## Getting the active session
+
+The transaction `@Transactional` opens is available for the rest of the call, through `AsyncLocalStorage`, injectable directly into an argument:
+
+| Decorator | Injects |
+|---|---|
+| `@MongoSession(nameOrType?)` | The active MongoDB `ClientSession` |
+| `@EntityManager(nameOrType?)` | The active TypeORM `EntityManager` |
+
+You only need these when calling something that isn't already `@Transactional`-aware itself, [`RepoUtils`](/docs/models-persistence/repository) and `@Repository`'s TypeORM methods pick up the active transaction automatically, a raw driver call generally needs the session passed explicitly, as in the example above.
+
+## Nesting: `TransactionalMode.CREATE` vs `TransactionalMode.MERGE`
+
+Call one `@Transactional` method from inside another, against the same datasource, and the inner call **merges** into the outer transaction by default rather than opening a second one:
+
+```ts
+import { DatabaseDecorators } from '@rapidrest/service-core';
+const { Transactional, TransactionalMode } = DatabaseDecorators;
+
+export class PetService {
+  @Transactional()
+  public async adopt(pet: Pet) {
+    // Reuses adopt's transaction instead of starting a new one.
+    await this.auditUtils.record(pet);
+  }
+}
+
+export class AuditUtils {
+  // Always opens its own, independent transaction, even called from inside another one.
+  @Transactional(undefined, { mode: TransactionalMode.CREATE })
+  public async record(pet: Pet) {
+    /* ... */
+  }
+}
+```
+
+| Mode | Behavior |
+|---|---|
+| `TransactionalMode.MERGE` (default) | Reuses an existing transactional context from earlier in the call stack, for the same datasource. A different datasource still gets its own independent transaction rather than merging into an unrelated one |
+| `TransactionalMode.CREATE` | Always opens a new transaction, ignoring any transactional context already active |
+
+If the resolved connection doesn't support transactions at all (a warning at startup), `@Transactional` falls back to calling the method directly, non-transactionally, rather than failing.
+
+## `registerRollbackHook(hook)`
+
+A `@Transactional` method sometimes needs to commit a side effect on a *different* connection than its own transaction, one that write can't be rolled back automatically if something later in the method fails. `registerRollbackHook()` registers a best-effort compensating action for exactly that case:
+
+```ts
+import { DatabaseDecorators } from '@rapidrest/service-core';
+const { Transactional, registerRollbackHook } = DatabaseDecorators;
+
+export class PetService {
+  @Transactional()
+  public async adopt(pet: Pet) {
+    await this.auditLog.record(pet.uid); // committed on its own connection, outside this transaction
+    registerRollbackHook(async () => {
+      await this.auditLog.revert(pet.uid);
+    });
+
+    await this.repo.save(pet); // if this throws, the hook above undoes the audit-log write
+  }
+}
+```
+
+The hook only runs if the active transaction ultimately fails, and is a no-op with no active transaction. It's responsible for its own errors too, a hook that throws is swallowed (via `Promise.allSettled`) rather than masking the failure that triggered the rollback in the first place.

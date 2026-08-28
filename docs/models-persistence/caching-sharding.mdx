@@ -1,0 +1,34 @@
+---
+sidebar_position: 8
+sidebar_label: Caching & Sharding
+---
+
+# Caching & Sharding
+
+Two ways to make a model hold up better under load: `@Cache` keeps recent reads in Redis instead of hitting the database every time, `@Shard` (MongoDB only) distributes a large collection across multiple servers. Neither changes how you read or write data, both apply to a model with one decorator and nothing else in your code has to know.
+
+## `@Cache(ttl?)`
+
+Caches an entity's query results in Redis, no application code touched:
+
+```ts
+@Cache()          // default TTL: 30 seconds
+@DataStore('mongo')
+export class Pet extends BaseMongoEntity {}
+
+@Cache(120)        // custom TTL, in seconds
+@DataStore('mongo')
+export class Category extends BaseMongoEntity {}
+```
+
+Caching only activates when a Redis connection named `"cache"` is configured, without one `@Cache` is a silent no-op rather than an error, so it's safe to leave on a model even in an environment that doesn't run Redis. See [Datastores & Connections](/docs/models-persistence/datastores) for configuring that connection.
+
+## `@Shard(config?)`
+
+MongoDB-only, configures sharding for a collection (sharded on `uid` by default):
+
+```ts
+@Shard()
+@DataStore('mongo')
+export class Event extends BaseMongoEntity {}
+```

@@ -1,13 +1,15 @@
 ---
-sidebar_position: 3
+sidebar_position: 4
 sidebar_label: Datastores & Connections
 ---
 
 # Datastores & Connections
 
+Every model needs somewhere to actually live. This page covers pointing an entity at a configured datastore, and reaching a raw connection directly when you need one outside of an entity's own repository. It's not about querying or modifying data day to day, for that see [Repository & RepoUtils](/docs/models-persistence/repository), this page is specifically about the connection itself.
+
 ## `@DataStore(name)`
 
-Every entity must declare which configured datastore it belongs to:
+Every entity declares which configured datastore it belongs to:
 
 ```ts
 import { ModelDecorators } from '@rapidrest/service-core';
@@ -17,7 +19,7 @@ const { DataStore } = ModelDecorators;
 export class Pet extends BaseMongoEntity {}
 ```
 
-`name` refers to a key under the `datastores` section of your [configuration](/docs/core-concepts/configuration):
+`name` is a key under `datastores` in your [configuration](/docs/core-concepts/configuration):
 
 ```ts
 conf.defaults({
@@ -27,26 +29,30 @@ conf.defaults({
 });
 ```
 
-MongoDB, PostgreSQL, and SQLite are supported for entity storage (SQL datastores go through TypeORM under the hood); Redis is used separately for caching (see [Base Entities & Caching](/docs/models-persistence/base-entities)).
+MongoDB, PostgreSQL, and SQLite are all supported for entity storage, SQL datastores go through TypeORM under the hood, so the same entity/column decorators work regardless of which one you pick. Redis is used separately, for caching, see [Caching & Sharding](/docs/models-persistence/caching-sharding).
 
 :::note[Required]
-Forgetting `@DataStore(...)` on an entity fails fast at startup with an explicit error naming the offending class, rather than a confusing runtime failure later.
+Leaving `@DataStore(...)` off an entity fails fast at startup, with an error naming the class, not a confusing failure the first time something tries to read or write it.
 :::
 
-## Direct repository and connection injection
+## The `ConnectionManager`
 
-Most of the time you won't need this. [Auto CRUD Routes](/docs/auto-crud-routes) and the base entity classes handle datastore access for you. But you can inject a repository or connection directly into a service when you need to:
+Every datastore in your config gets connected exactly once, at startup, by a single object: `ConnectionManager`. You never interact with it directly, but what it does explains a few things about the decorators above and below it that would otherwise look like unrelated magic.
 
-```ts
-import { DatabaseDecorators } from '@rapidrest/service-core';
-import type { MongoRepository } from '@rapidrest/service-core';
-const { Repository } = DatabaseDecorators;
+For each entry under `datastores`, at startup it:
 
-export class PetService {
-  @Repository(Pet)
-  private repo!: MongoRepository<Pet>;
-}
-```
+- Builds the actual connection string, from a bare `url` if you gave one, or assembled from `host`/`port`/`database`/`username`/`password`, and redacts credentials before ever logging it.
+- Dynamically imports the real driver, `mongodb`, `typeorm`, or `redis`, only for the datastore types you've actually configured. None of them are hard dependencies of the framework itself. Configure a `mongodb` datastore without `mongodb` installed, and you get a clear "install it with `yarn add mongodb`" error instead of a cryptic module-not-found deep in a stack trace.
+- For MongoDB specifically, checks whether the deployment is a standalone instance or a replica set/sharded cluster. Standalone MongoDB can't run multi-document transactions at all, which is exactly the case [`@Transactional`'s fallback](/docs/models-persistence/transactions) exists to handle.
+- Matches every model class to the one datastore it belongs to, either by the name `@DataStore` already stamped onto the class at decoration time, or by an explicit `entities` list in that datastore's own config, and confirms that match by writing the datastore's name onto the class's `datasource` property. That property is the same one `@Repository` and `@Transactional` read later to know which connection a given model actually uses.
+
+Every connection it opens lives in one map, keyed by datastore name, the exact names you write in `@DataStore('mongo')`, `@DataSource('mongo')`, or `@Redis('cache')`. None of those decorators manage their own connection, they all resolve to whatever's sitting in that same shared map. That's also why the failure looks identical no matter which decorator you used to get there: ask for a name that was never connected, and `@Repository`, `@DataSource`, and `@Redis` all fail with the same "Unable to find database connection with name" error.
+
+At shutdown, `ConnectionManager` closes every connection it opened, MongoDB clients, TypeORM datasources, Redis clients, each the correct way for its kind, as one of the last steps in the server's [shutdown sequence](/docs/http-engine#shutting-down).
+
+## Direct connection injection
+
+Inject a raw connection into a service when you need one outside of an entity's own repository:
 
 ```ts
 import { DatabaseDecorators } from '@rapidrest/service-core';
@@ -61,105 +67,12 @@ export class SessionService {
 
 | Decorator | What it does |
 |---|---|
-| `@DataSource(name, required?)` | Injects the raw datasource connection with the given name. |
-| `@Repository(type, required?)` | Injects the repository for the given entity type. This results in a TypeORM `Repository` for a SQL-backed entity, or a `MongoRepository` for a Mongo-backed one. |
-| `@Redis(name?, required?)` | Shorthand for `@DataSource`, defaulting `name` to `"redis"`. Injects a `RedisClientType` connection (from the `redis` package). |
-| `@EntityManager(nameOrType?)` | Method-argument decorator used to inject the active TypeORM `EntityManager` established by an enclosing `@Transactional`. |
-| `@MongoSession(nameOrType?)` | Method-argument decorator used to inject the active MongoDB `ClientSession` established by an enclosing `@Transactional`. |
+| `@DataSource(name, required?)` | Injects the raw datasource connection with the given name |
+| `@Redis(name?, required?)` | Shorthand for `@DataSource`, defaulting `name` to `"redis"`. Injects a `RedisClientType` |
 
-## `@Transactional`
+`required` defaults to `true`: if the named connection isn't configured, instantiation fails with an explicit error rather than silently leaving the property `undefined`. Set it to `false` for a connection your code can genuinely run without.
 
-Apply `@Transactional()` to a method to run everything it does inside a single database transaction — a MongoDB session wrapped in `session.withTransaction()`, or a TypeORM transaction wrapped in `datasource.transaction()`, depending on which datastore the resolved source uses. The method must be `async`.
+## What's next
 
-```ts
-import { DatabaseDecorators } from '@rapidrest/service-core';
-const { Transactional, MongoSession, Repository } = DatabaseDecorators;
-
-export class PetService {
-  @Repository(Pet)
-  private repo!: MongoRepository<Pet>;
-
-  @Transactional()
-  public async adopt(pet: Pet, @MongoSession() session?: any) {
-    pet.adopted = true;
-    await this.repo.save(pet, { session });
-  }
-}
-```
-
-If no `source` argument is given, the datasource is inferred from `this.modelClass` (set when `@Model`/`@DataStore` is applied to the owning class); otherwise pass either a datasource name or an entity class explicitly: `@Transactional(Pet)`.
-
-The active session/entity manager is made available for the duration of the call via an `AsyncLocalStorage`-backed context, and can optionally be injected into an argument decorated with `@MongoSession()` or `@EntityManager()`.
-
-### Nesting: `TransactionalMode.CREATE` vs `TransactionalMode.MERGE`
-
-If a `@Transactional` method calls another `@Transactional` method (for the same datasource) further down the call stack, the inner call **merges** into the outer transaction by default rather than opening a second, nested one:
-
-```ts
-import { DatabaseDecorators } from '@rapidrest/service-core';
-const { Transactional, TransactionalMode } = DatabaseDecorators;
-
-export class PetService {
-  @Transactional()
-  public async adopt(pet: Pet) {
-    // Reuses `adopt`'s transaction instead of starting a new one.
-    await this.auditUtils.record(pet);
-  }
-}
-
-export class AuditUtils {
-  // Explicitly always opens its own, independent transaction, even when called from inside another one.
-  @Transactional(undefined, { mode: TransactionalMode.CREATE })
-  public async record(pet: Pet) {
-    /* ... */
-  }
-}
-```
-
-| Mode | Behavior |
-|---|---|
-| `TransactionalMode.MERGE` (default) | Reuses an existing transactional context from earlier in the call stack, if one is active for the same datasource. If the outer context belongs to a *different* datasource, this call still opens its own independent transaction rather than merging into it. |
-| `TransactionalMode.CREATE` | Always opens a brand-new transaction for this call, ignoring any transactional context already active in the call stack. |
-
-If the resolved connection doesn't support transactions at all (logged as a warning at startup), `@Transactional` falls back to calling the method directly, non-transactionally.
-
-### `registerRollbackHook(hook)`
-
-Sometimes a `@Transactional` method needs to commit a side effect on a *different* connection than the one its own transaction is running against — that write can't be undone by the transaction's own abort if something later in the method fails. `registerRollbackHook()` registers a best-effort compensating action to run in that case:
-
-```ts
-import { DatabaseDecorators } from '@rapidrest/service-core';
-const { Transactional, registerRollbackHook } = DatabaseDecorators;
-
-export class PetService {
-  @Transactional()
-  public async adopt(pet: Pet) {
-    await this.auditLog.record(pet.uid); // committed on its own connection, outside this transaction
-    registerRollbackHook(async () => {
-      await this.auditLog.revert(pet.uid);
-    });
-
-    await this.repo.save(pet); // if this throws, the hook above runs to undo the audit-log write
-  }
-}
-```
-
-The hook only runs if the currently active transaction ultimately fails; it's a no-op when called with no active transaction. Hooks are responsible for catching and logging their own errors — a hook that throws anyway is swallowed (via `Promise.allSettled`) rather than masking the original failure that triggered the rollback.
-
-## `RepoUtils`
-
-More commonly when you need to access a persisted entity from the datastore you will use `RepoUtils`. The `RepoUtils` utility class offers
-common functionality for working with a SQL and NoSQL databases.
-
-It is easy to inject `RepoUtils` into any managed class instance using the `@Inject` decorator (shown below).
-
-```ts
-import { ObjectDecorators } from '@rapidrest/core';
-import { RepoUtils } from '@rapidrest/service-core';
-const { Inject } = ObjectDecorators;
-
-export class PetService {
-  @Inject(RepoUtils, { name: Pet.name, args: [Pet] })
-  private petUtils?: RepoUtils<Pet>;
-}
-```
+- [Repository & RepoUtils](/docs/models-persistence/repository): direct entity access, and the difference between the raw ORM repository and the ACL/cache-aware `RepoUtils` wrapper around it.
+- [Transactions](/docs/models-persistence/transactions): `@Transactional`, nested transactions, and compensating rollbacks across connections.

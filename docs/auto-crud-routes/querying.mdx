@@ -1,0 +1,89 @@
+---
+sidebar_position: 4
+sidebar_label: Filtering, Pagination & Sorting
+---
+
+# Filtering, Pagination & Sorting
+
+A generated `find` endpoint that always returns every record isn't much of a list endpoint once a collection grows past a handful of rows. `GET /<path>` (`doFind`) and `HEAD /<path>` (`doCount`) are both built to take a real query from the caller, not just serve everything back, and the syntax for that query comes straight from the URL's query string, no separate request body, no client library required to construct it. It works identically whether the model underneath is MongoDB or SQL, and the response stays a plain JSON array either way, no wrapper object, and no total-count header riding along with it, see [Pagination](#pagination) below for how to actually get a count.
+
+## Filtering
+
+The simplest case looks exactly like you'd expect, a bare query key is an equality match:
+
+```
+GET /users?roles=admin
+```
+
+For anything beyond equality, wrap the value in an operator:
+
+```
+GET /pets?age=gt(2)
+GET /pets?status=in(available,pending)
+GET /pets?price=range(10,50)
+GET /pets?name=like(fluff)
+```
+
+| Operator | Matches |
+|---|---|
+| `eq(v)` | Equal to `v` (the default, `?field=v` is shorthand for this) |
+| `gt(v)` / `gte(v)` | Greater than / greater than or equal to |
+| `lt(v)` / `lte(v)` | Less than / less than or equal to |
+| `ne(v)` / `not(v)` | Not equal to |
+| `in(a,b,c)` | Equal to any of a comma-separated list |
+| `nin(a,b,c)` | Not equal to any of a comma-separated list |
+| `range(a,b)` | Between `a` and `b`, inclusive |
+| `like(v)` | Case-insensitive substring match, capped at 100 characters |
+
+Repeat the same key more than once and the values are OR'ed together rather than the second overwriting the first:
+
+```
+GET /pets?status=available&status=pending
+```
+
+The literal string `me` in a value resolves to the authenticated caller's own uid, useful for a filter like `?ownerId=me` without the client needing to already know its own id. A literal `$or` key with an array of sub-query objects is also accepted, for anything the operator syntax above can't express on its own (MongoDB-backed models only).
+
+:::note[No dotted or `$`-prefixed keys, on MongoDB models]
+A query key containing a `.`, or starting with `$` (other than the literal top-level `$or`), is rejected with `400`, checked recursively into nested values too. This closed a real vulnerability, so it isn't a temporary restriction, filtering into a nested sub-document by dotted path isn't currently possible through the query string on a Mongo-backed model.
+:::
+
+A few query keys are reserved and never treated as a filter: `limit`, `page`, and `sort` (see below, case-insensitive), and anything starting with `jwt_`, `oauth_`, `auth_`, or `cache`.
+
+### Sending a filter as JSON instead
+
+For a filter that doesn't fit cleanly into the query string, pass a single `q` parameter instead: a base64-encoded JSON object, using the exact same key/value(/operator) shape as above. It replaces every other query parameter on the request, and is capped at 64 KiB decoded. It's an alternate transport for the same filter language, not a way to send arbitrary MongoDB operators the query-string form can't express.
+
+## Pagination
+
+Every list result is paginated automatically, whether you ask for it or not, so a collection with a million rows never comes back as a single million-row response:
+
+```
+GET /pets?page=0&limit=25
+```
+
+| Param | Default | Notes |
+|---|---|---|
+| `limit` | `100` | Page size, capped at `1000` regardless of what's requested |
+| `page` | `0` | Zero-indexed |
+
+There's no `offset`/`pageSize` alias, and the list response carries no total count. Get one with a separate call to `HEAD /<path>` (`doCount`, same filter query params apply), which returns the count via the `Content-Length` header rather than a body.
+
+## Sorting
+
+A `sort` parameter controls the order results come back in:
+
+```
+GET /pets?sort=name
+```
+
+On its own, that sorts ascending on the given field. For descending order, or more than one sort field at once, pass a JSON object instead:
+
+```
+GET /pets?sort={"name":"DESC","age":"ASC"}
+```
+
+There's no `-fieldName` shorthand for descending, the JSON form is the only way to express it.
+
+## Field selection
+
+Unlike filtering, pagination, and sorting, there's no way for a caller to ask for only a subset of a document's fields, every matching document comes back in full. The one exception isn't something a client requests, it's [`@RequiresScope`](/docs/models-persistence/entities-columns#requiresscope) silently stripping fields the caller isn't allowed to see at all, an access-control feature rather than a projection one.

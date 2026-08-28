@@ -5,15 +5,9 @@ sidebar_label: Overview
 
 # Default Routes
 
-RapidREST ships seven ready-made route classes for common operational concerns: admin actions, Prometheus metrics, OpenAPI docs,
-service status, WebSocket push delivery, ACL management, and static file serving. These default route classes implement all of the behavior for its
-endpoints but are not automatically registered with the class loader and do not have a `@Route` decorator. This is intentional
-to ensure you have complete control over what endpoints the server exposes.
+RapidREST ships seven ready-made route classes for common operational concerns: admin actions, Prometheus metrics, OpenAPI docs, service status, WebSocket push delivery, ACL management, and static file serving. Each one already implements its full endpoint behavior, but none of them are auto-registered or carry a `@Route` decorator of their own, deliberately, so nothing shows up on your server that you didn't choose to expose.
 
-This means that in order to use a default route you must create an exported class in your project's `src/` folder that extends
-one of these classes and adds the appropriate `@Route` or `@ApiRoute` decorator. Each default route class is prefixed with `Base`
-in the name (`BaseAdminRoute`, `BaseMetricsRoute`, `BaseOpenAPIRoute`, `BaseStatusRoute`, `BasePushRoute`, `BaseACLRoute`, `BaseStaticRoute`) so that
-you can easily name the final file as `AdminRoute`, `MetricsRoute`, and so on.
+To use one, extend it in your own project and add `@Route`/`@ApiRoute` yourself. Every class is prefixed `Base` (`BaseAdminRoute`, `BaseMetricsRoute`, `BaseOpenAPIRoute`, `BaseStatusRoute`, `BasePushRoute`, `BaseACLRoute`, `BaseStaticRoute`), so the pattern is always the same, drop the `Base` for your own file's name (`AdminRoute`, `MetricsRoute`, and so on).
 
 | Class name | Endpoints it implements | Docs |
 |---|---|---|
@@ -46,9 +40,7 @@ Because these files are ordinary auto-discovered route classes, they behave exac
 them at runtime as "built-in." You can delete the file to remove the endpoint entirely, change the `@Route` base path, or add further decorators
 (`@Auth`, `@Protect`, additional `trusted_roles`) directly on the subclass to lock it down further.
 
-`ACLRoute` (extending `BaseACLRoute`) is also scaffolded, but only for projects with a database selected. Like `AuthRoute` and `UserRoute`, it needs
-somewhere to persist to. Which `AccessControlList` model it extends depends on the database you picked: `AccessControlListMongo` for MongoDB
-projects, `AccessControlListSQL` for PostgreSQL/SQLite ones. See [ACL](/docs/default-routes/acl) for details.
+`ACLRoute` (extending `BaseACLRoute`) is also scaffolded, but only for projects with a database selected, since it needs somewhere to persist to. Which `AccessControlList` model it extends depends on the database you picked: `AccessControlListMongo` for MongoDB projects, `AccessControlListSQL` for PostgreSQL/SQLite ones. See [ACL](/docs/default-routes/acl) for details.
 
 ## Using them without the CLI scaffold
 

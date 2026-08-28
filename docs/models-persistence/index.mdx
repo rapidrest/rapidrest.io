@@ -5,8 +5,23 @@ sidebar_label: Overview
 
 # Models & Persistence
 
-Models are plain classes annotated with persistence decorators. The same class works whether it's backed by MongoDB, a SQL database (via TypeORM), or Redis.
+A model is a plain class with `@Entity`/`@DataStore` on it and `@Column` on its fields, the same class works whether it ends up in MongoDB or a SQL database (via TypeORM), with no separate schema file and no repository boilerplate to write by hand.
 
-- **[Entities & Columns](/docs/models-persistence/entities-columns)** - `@Entity`, `@Column`, `@PrimaryColumn`, `@Index`, `@Unique`.
-- **[Datastores & Connections](/docs/models-persistence/datastores)** - `@DataStore`, connecting to MongoDB/SQL/Redis, and direct repository/connection injection.
-- **[Base Entities & Caching](/docs/models-persistence/base-entities)** - the base entity classes to extend, plus `@Cache`, `@TrackChanges`, and `@ChildEntity`.
+```ts
+@Entity()
+@DataStore('mongo')
+export class Pet extends BaseMongoEntity {
+  @Column()
+  name: string = '';
+}
+```
+
+That's a complete, persistable model. Combined with a `CRUDRoute` (see [Auto CRUD Routes](/docs/auto-crud-routes)), it's also a complete REST API, list/get/create/update/delete, with no query code written anywhere.
+
+- **[Entities & Columns](/docs/models-persistence/entities-columns)** — `@Entity`, `@Column`, `@PrimaryColumn`, `@Index`, `@Unique`.
+- **[Validation](/docs/models-persistence/validation)** — `@Validator`, `@Nullable`, and the built-in checks that run automatically on every create and update.
+- **[Datastores & Connections](/docs/models-persistence/datastores)** — `@DataStore`, and connecting to MongoDB/SQL/Redis.
+- **[Repository & RepoUtils](/docs/models-persistence/repository)** — direct entity access, and when to reach for the raw ORM repository instead of the ACL/cache-aware `RepoUtils`.
+- **[Transactions](/docs/models-persistence/transactions)** — `@Transactional`, nested transactions, and compensating rollbacks across connections.
+- **[Base Entities](/docs/models-persistence/base-entities)** — the base classes to extend, plus `@TrackChanges` and `@ChildEntity`.
+- **[Caching & Sharding](/docs/models-persistence/caching-sharding)** — `@Cache` and `@Shard`.

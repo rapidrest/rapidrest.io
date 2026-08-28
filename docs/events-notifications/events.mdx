@@ -5,7 +5,13 @@ sidebar_label: Events
 
 # Events
 
-The event system lets any class listen for named events published on a Redis pub/sub channel, without knowing who published them or how many other listeners exist.
+Say a pet gets adopted, and three unrelated things need to happen: email the new owner, update a search index, and let every other running instance of your service know that pet's status changed. `PetService` shouldn't have to know about all three. Hard-coding them in means editing `PetService` again for the next thing that needs to react, and coupling a service that just records adoptions to email and search infrastructure it has nothing to do with.
+
+The event system exists to break that coupling: any class can announce that something happened, once, without knowing or caring who's listening, and any other class can listen for it, without knowing or caring who announced it. Concretely, that means letting a class listen for named events published on a Redis pub/sub channel. Redis is what makes this cross-*instance* rather than just cross-class: publish an event from one horizontally-scaled instance of your service, and every listener on every instance hears it, not just the one that happened to publish it, the way a plain in-process `EventEmitter` would be limited to.
+
+:::note[Not the same as Telemetry]
+This is for real-time, in-process reactions to something happening, across service instances. Permanently recording that something happened, for an external analytics or observability service, is a separate, unrelated system, see [Telemetry](/docs/events-notifications/telemetry), despite both using an `Event` type imported from the same place.
+:::
 
 ## Listening with `@OnEvent`
 

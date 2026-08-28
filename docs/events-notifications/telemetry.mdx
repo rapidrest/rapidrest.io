@@ -1,0 +1,72 @@
+---
+sidebar_position: 6
+sidebar_label: Telemetry
+---
+
+# Telemetry
+
+Knowing a pet was adopted matters in the moment, for the systems on the previous four pages, but it's also worth knowing about much later: which features actually get used, whether adoptions are trending up or down this quarter, what led to a specific support ticket from three weeks ago. That's a different job from reacting to something happening right now. It's about keeping a permanent record for a person or an analytics pipeline to query afterward, not about triggering anything immediately.
+
+Separate from all four systems above is a fifth, for exactly that: recording that something happened, permanently, for an external analytics or observability service to consume later, not to notify anyone, not to trigger a handler elsewhere in your own code. `EventUtils`, from `@rapidrest/core`, is that mechanism.
+
+:::note[Same name, unrelated system]
+`EventUtils.record()` takes an `Event`, the same `Event` type [Events](/docs/events-notifications/events)'s `@OnEvent` handlers receive. That's a shared TypeScript shape, not a shared implementation. A message published on the Redis event bus is whatever plain JSON object the publisher sent, it only happens to satisfy the same `{type, ...}` shape. A telemetry `Event` is a real instance of the `Event` class, constructed by `EventUtils`, carrying a `uid`, `timestamp`, `environment`, and `origin` it fills in for you. They don't talk to each other.
+:::
+
+## It's already initialized for you
+
+A scaffolded project already calls `EventUtils.init()` at startup, in `server.ts`, using a long-lived, non-expiring token that identifies the service itself, not any particular user:
+
+```ts
+const token = await JWTUtils.createToken(auth, {
+  uid: `${config.get('service_name')}-${os.hostname()}`,
+  roles: config.get('trusted_roles'),
+}, /* ... */);
+await EventUtils.init(config, logger, token);
+```
+
+Recording an event anywhere in your own code, right after that, needs nothing further:
+
+```ts
+import { EventUtils } from '@rapidrest/core';
+
+await EventUtils.record({
+  type: 'pet.adopted',
+  petUid: pet.uid,
+  ownerUid: user.uid,
+});
+```
+
+If you're wiring `service-core` into a project by hand rather than through the CLI scaffold, you'll need to call `EventUtils.init(config, logger, token)` yourself before the first `record()` call. `record()` doesn't throw if you forget, consistent with never throwing at all (see below), it just logs a warning and does nothing. `EventUtils.on()`/`off()` are less forgiving: calling either before `init()` throws immediately.
+
+## Where it goes
+
+`record()` sends the event as an HTTP `POST` to `<telemetry_services:url>/events`, authenticated with the service token from `init()`, not the calling user's own token. That's deliberate: telemetry needs to keep recording even for an action the calling user themselves wouldn't have permission to report on directly, and it lets the receiving service identify which application sent an event rather than which user triggered it.
+
+```ts
+conf.defaults({
+  telemetry_services: {
+    url: 'https://telemetry.example.com',
+  },
+});
+```
+
+Nothing about `record()` fails loudly if this isn't configured, no `telemetry_services:url` just logs a debug line and returns, the same "safe to leave on, safe to leave unconfigured" pattern [`@Cache`](/docs/models-persistence/caching-sharding) follows for Redis. A network failure when the URL *is* configured is caught and logged as a warning too, `record()` never throws, a telemetry hiccup never breaks whatever code called it.
+
+## Listening in-process
+
+Beyond sending an event out, other code in the same running service can react to one being recorded, no Redis, no network round-trip involved:
+
+```ts
+EventUtils.on('pet.adopted', (evt) => {
+  // runs synchronously, in this same process, right after record() sends the event out
+});
+
+EventUtils.off('pet.adopted', theSameCallbackReference);
+```
+
+This only ever fires for events this exact process recorded itself, a listener registered in one service instance never hears about an event recorded by another. For that, the Redis-backed [Events](/docs/events-notifications/events) bus is the right tool, not this.
+
+## Already wired into the framework
+
+Some of what RapidREST does internally is already instrumented this way, so you get it for free the moment `telemetry_services:url` is configured. `ModelRoute`'s `create`/`update`/`delete`/`truncate` all accept a `recordEvent` option that, when set, emits an event named after the operation and model (`CreatePet`, `DeletePet`, and so on) carrying the affected record's id, the acting user, and their IP address. The [Auth Library](/docs/plugins/auth-library) plugin does the same for security-relevant actions, step-up elevation, session revocation, MFA enrollment, tagged with its own event types. None of this requires you to call `record()` yourself, it's already happening, you're just choosing whether to point `telemetry_services:url` somewhere that's listening.

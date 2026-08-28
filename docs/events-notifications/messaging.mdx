@@ -5,7 +5,9 @@ sidebar_label: Messaging
 
 # Messaging
 
-`MessagingUtils` sends templated messages over email, Slack, and SMS. The same template, rendered with [Handlebars](https://handlebarsjs.com/), can drive all three depending on what a given template defines. Unlike `NotificationUtils` and `AlertUtils`, it has a no-argument constructor and uses `@Config`/`@Logger` injection internally, so it's directly `@Inject`-able like any other service:
+A password change should probably send a confirmation email. A new signup might need to notify your team's Slack channel. A one-time login code has to reach the user by SMS within seconds. These are all the same underlying problem: render a message from a template using data your code already has, then send it over whichever channel fits, without hand-rolling a Nodemailer/Slack/Twilio integration for each one separately.
+
+`MessagingUtils` is that piece: it sends templated messages over email, Slack, and SMS. The same template, rendered with [Handlebars](https://handlebarsjs.com/), can drive all three depending on what a given template defines, so the copy for "a pet was created" lives in one place regardless of how many channels it goes out on. Unlike `NotificationUtils` and `AlertUtils`, it has a no-argument constructor and uses `@Config`/`@Logger` injection internally, so it's directly `@Inject`-able like any other service:
 
 ```ts
 import {ObjectDecorators} from '@rapidrest/core';
@@ -50,7 +52,7 @@ conf.defaults({
 
 ## Templates
 
-Every message is sent by name, referencing a template defined under the `templates` config key:
+Keeping a message's wording in configuration, rather than inline in whichever code path triggers it, means the copy can change without a code deploy, and the same template can be reused anywhere that needs to send it. Every message is sent by name, referencing a template defined under the `templates` config key:
 
 ```ts
 conf.defaults({

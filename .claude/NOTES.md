@@ -38,6 +38,20 @@ Keep entries terse — this is a reference, not a transcript.
   running comparison throughout the page is not. A dedicated migration guide (not yet written)
   is the right home for direct, sustained Express/Next comparisons.
 
+- **Every page's opening needs to explain, not just define.** This has been corrected
+  repeatedly (Auto CRUD Routes intro, the Filtering page, ModelRoute vs CRUDRoute, and again
+  across all of Events & Notifications) and applies everywhere, not just conceptual pages —
+  reference-heavy sections too. A page or `##` section that opens with a one-line class/API
+  definition and drops straight into a signature or code block reads as terse reference
+  material, which is explicitly not the goal anywhere on this site. Before dropping into
+  syntax, ground the reader: what real problem does this solve, what's a concrete scenario
+  where you'd reach for it, why does it exist as a separate thing from its neighbors. This is
+  NOT the same as the "don't over-describe" rule above, that rule is about cutting tangential
+  or restated detail from prose that's already explaining the right thing; this rule is about
+  making sure the explanation is there at all before the reference material starts. Reference
+  tables/parameter lists still stay tight and tabular per the rule above, it's the prose
+  around them that needs the room to actually teach something.
+
 ## Session Log
 
 ### 2026-08-26 — Framework-alignment pass + Auth/Plugins restructure + doc voice calibration
@@ -268,3 +282,185 @@ Keep entries terse — this is a reference, not a transcript.
   terse/reference voice even after everything else moved on. Reference tables presented as
   reference tables is correct; the sentences around them jumping straight from heading to code
   block with zero framing is what needed fixing.
+- Full rewrite of Auth & RBAC (4 pages now, was 3): Overview, Authentication, Authorization
+  (trimmed to role/scope checks), **Access Control Lists** (new). Old content had real
+  grammar/typo issues ("coonfig", "decoratoring", "The RapidREST's authorization system") on
+  top of the usual stale voice, but the bigger finding was depth genuinely missing, verified
+  via a research pass over `RouteDecorators.ts`, `RouteUtils.ts`, `AuthMiddleware.ts`, and
+  `security/ACLUtils.ts`:
+  - `@Auth(strategies, require?)` has an undocumented second argument: `require: false` makes
+    authentication best-effort rather than mandatory (missing and invalid/expired tokens are
+    treated identically, request proceeds anonymously either way). Never mentioned before.
+  - **ACL inheritance does not work the way "inheritance" implies.** Verified the exact
+    algorithm in `ACLUtils.getRecord()`: a wildcard match on a *child* ACL blocks falling back
+    to the parent even when the parent has a far more specific match. Parent is consulted only
+    when the child ACL has zero matches of any kind. The old docs had one throwaway line
+    ("an optional `parent` association when inheritance is desired") with no explanation of
+    resolution order at all — this is exactly the kind of thing that causes a real production
+    permission bug, so it got a dedicated, carefully-worded section with a concrete example.
+  - **`@Protect` is two unrelated decorators that share a name**: one in `ModelDecorators.ts`
+    (model classes, class vs. record-level ACLs) and one in `RouteDecorators.ts` (route classes
+    and endpoint methods, with a class→method automatic parent chain via `parentUid`). The old
+    docs only ever showed the model-level one; route-level `@Protect` had zero examples despite
+    being real and having a genuinely useful zero-argument default (`@Protect()` → anonymous
+    gets nothing, any authenticated caller gets everything, uid auto-generated from the class
+    name — confirmed in `RouteDecorators.ts:278-301`).
+  - `trusted_roles` and `@RequiresRole`/`@RequiresTrustedRole` are independent mechanisms that
+    don't call into each other (confirmed in `RouteUtils.ts`'s `checkRequiredRoles`/
+    `checkTrusedRoles` vs. `ACLUtils.hasPermission`'s own separate `trusted_roles` check) — a
+    likely point of confusion, now called out explicitly as a note on both Authorization and
+    the new ACL page.
+  - Documented `ACLUtils`'s real public API (`hasPermission`/`findACL`/`saveACL`/`removeACL`
+    for app code; `checkRequestPerms`/`populateParent`/`saveDefaultACL`/batch forms are
+    framework-internal plumbing), previously only `hasPermission` had ever been shown.
+  - Fixed 5 stale cross-links elsewhere on the site that pointed at `authorization.mdx` for
+    content that moved to the new ACL page: `auto-crud-routes/crud-route.mdx`,
+    `default-routes/acl.mdx` (×2), `http-engine/websockets.mdx`, `performance.mdx`.
+- Background Jobs and Testing: both pages were already reasonably well-written technically
+  (unlike the pre-rewrite Auth & RBAC), so this pass fixed a real structural bug and added
+  verified depth rather than a full rewrite.
+  - **Structural bug in both**: neither page had an actual H1 matching its section title, the
+    frontmatter jumped straight into `# BackgroundService`/`# Setup` as same-level headings, so
+    Docusaurus was rendering multiple H1s stacked on one page. Added the real `# Background
+    Jobs`/`# Testing` H1 and demoted the rest to `##`.
+  - Background Jobs gained three things verified against `service-core/src/
+    BackgroundServiceManager.ts` and its own test suite (`test/BackgroundServiceManager.test.ts`):
+    a thrown/rejected `run()` doesn't crash the server, it's caught and logged, and the service
+    stays scheduled; overlapping ticks of a slow job are prevented automatically (a tick that
+    fires while the previous `run()` is still in flight is skipped with a warning, not run
+    concurrently); and — the one worth flagging most — **shutdown does not wait for an in-flight
+    `run()` to finish**, `stop()` fires immediately and races against still-executing work, so a
+    job doing something unsafe to interrupt has to handle that itself. None of this was
+    documented before. Also documented `BackgroundServiceManager`'s full public API
+    (`startAll`/`stopAll` alongside the already-shown `start`/`stop`/`getService`).
+  - Testing gained a new "Stubbing a dependency" section. Confirmed there's no way to hand the
+    DI container a pre-built fake ahead of real construction (`ObjectFactory` only exposes
+    `register(class)`, not `registerInstance(object)`) — the actual pattern used throughout the
+    codebase's own tests (e.g. `auth/test/routes/mongo/AuthElevationRoute.test.ts`) is
+    `objectFactory.getInstance(RealClass)` to grab the already-constructed singleton, then
+    `vi.spyOn()` one of its methods. Not documented anywhere before this.
+- Events & Notifications: the existing 4 pages (Events, Notifications, Messaging, Alerts) were
+  already well-written and accurate, so this pass was almost entirely additive rather than
+  corrective. Spot-verified the notable claims anyway rather than trusting them (`@OnEvent`'s
+  case-insensitive regex matching, confirmed in `EventListenerManager.ts:114`'s
+  `new RegExp(entry[0], "i")`) — held up.
+  - Added a new **Telemetry** page for `EventUtils`/`Event` (`@rapidrest/core`), a fifth,
+    completely undocumented system before this: permanently recording that something happened
+    via HTTP POST to an external analytics/observability service, authenticated with a
+    long-lived service-identity token (not the calling user's), with an optional same-process
+    `.on()`/`.off()` listener mechanism. Confirmed it's already initialized for every scaffolded
+    project (`cli/templates/server/src/server.ts` calls `EventUtils.init()` at startup) and
+    already wired into framework internals for free once `telemetry_services:url` is set:
+    `ModelRoute`'s `create`/`update`/`delete`/`truncate` all accept a `recordEvent` option, and
+    the Auth Library instruments elevation/rate-limit/session-revocation/MFA events the same way.
+  - **Real gotcha worth remembering**: the pub/sub `Events` system and the new `Telemetry`
+    system both import a type literally named `Event` from `@rapidrest/core` — same name, same
+    package, completely unrelated systems (one is a Redis-delivered plain JSON message that only
+    satisfies the `Event` shape structurally, the other is an actual `Event` class instance
+    HTTP-POSTed to an external service). Added an explicit disambiguation note to both pages
+    since this is an easy thing to conflate.
+  - Also corrected a mistake in my own first draft before publishing: I wrote that
+    `EventUtils.record()` throws when called before `init()`. It doesn't, verified the source,
+    the "not initialized" check is inside `record()`'s own try/catch alongside the network-
+    failure path, so it logs a warning and returns silently instead. `EventUtils.on()`/`off()`
+    genuinely do throw in that case, `record()` does not, now stated correctly.
+
+## 2026-08-27 (cont.): service-core dot-notation query fix
+- `service-core` commit `336ae35` reverted an earlier over-broad restriction: a dot-notation
+  query key (`category.name=eq(bunny)`) was being rejected outright as if it were operator
+  injection. It's reverted back to only rejecting a `$`-prefixed *segment* anywhere in the key
+  (`$where`, or `category.$where`), not the presence of a `.` itself — a dotted key is just a
+  nested-field reference, MongoDB never treats it as an operator.
+  - Updated `docs/auto-crud-routes/querying.mdx`: replaced the `:::note[No dotted or
+    $-prefixed keys...]` block (which said dotted keys are rejected entirely) with accurate
+    text plus a `GET /pets?category.name=bunny` example, and a note now scoped correctly to
+    `$`-prefixed segments only.
+  - `docs/performance.mdx`'s existing `GET /pet?category.name=bunny` benchmark example needed
+    no change, it was flagged as stale in an earlier session (would have 400'd under the old
+    restrictive behavior) but was never edited at the time; the revert makes it accurate again
+    as originally written.
+  - `docs/core-concepts/configuration.mdx`'s dot/colon note is about `nconf` key syntax, unrelated
+    despite matching the same grep terms.
+
+## 2026-08-27 (cont.): Events & Notifications intros warmed up
+- User feedback, repeated enough times across sections to become a standing rule (see above,
+  "Every page's opening needs to explain, not just define"): all six pages in this section
+  (`index.mdx`, `events.mdx`, `notifications.mdx`, `messaging.mdx`, `alerts.mdx`,
+  `telemetry.mdx`) opened with a one-line class/API definition and dropped straight into a
+  signature or code block. Rewrote each opening to lead with a concrete scenario/problem before
+  the definition: pet-adoption fan-out for Events, a live-viewing-user update for Notifications,
+  password-change/signup/OTP messages for Messaging, a silent 3am health-check failure for
+  Alerts, "useful later, not right now" framing for Telemetry, and a general "not every request
+  needs to finish before other things happen" frame for the section Overview. No factual/API
+  content changed, only the framing prose ahead of it.
+
+## 2026-08-27 (cont.): Auth Server section — verification pass + Helm PostgreSQL support
+- Full re-verification of all 5 pages against current `auth-server` source (a lot has shipped
+  since the 08-26 pass that first created this section: elevation, MFA, refresh tokens, a
+  critical JWT expiry fix, and several Helm chart bugfixes).
+- **Resolved a previously open item**: the 08-26 log flagged the Helm chart's Dependencies
+  table listing `@bitnami/postgresql` while `Chart.yaml` only actually depended on
+  mongodb/redis, chart looked Mongo-only. That's no longer true, PostgreSQL support is now
+  real and complete (`Chart.yaml`/`Chart.lock` depend on it, `values.yaml` has a full
+  `postgresql.*`/`service.postgresql.*` block, `service-config.yaml`'s templating branches on
+  `mongodb.create`/`postgresql.create` with Mongo taking priority if both are left on,
+  `service.yaml` has a postgres-probe init container). Rewrote `docs/auth-server/deployment/
+  helm.mdx` accordingly: filled in the Dependencies version, added a `### PostgreSQL`
+  configuration subsection (mirroring `### MongoDB`), added `postgresql.*`/
+  `service.postgresql.*` to the Parameters table, updated the architecture diagram/prose and
+  the two-step-install note to cover Postgres too, and noted the Mongo-wins-if-both-enabled
+  priority explicitly since nothing else surfaces that.
+- **Still open, not fixed** (docs-only pass, chart/source bugs are out of scope): `values.yaml`'s
+  `common.storageClass`/`common.logs.level` block is still unreferenced by any template, still
+  correctly left out of the Parameters table rather than documented as if it did something.
+- **New finding, fixed**: `docker.mdx` and `helm.mdx` both cited a fabricated `1.0.0` version
+  for the published image/chart. Checked `package.json` (`0.1.0`), `RELEASE_NOTES.md` (`v0.1.0`
+  only), and `git tag --list` (empty), there has never actually been a tagged release of this
+  repo, so `ghcr.io/rapidrest/auth-server:1.0.0` / `oci://...:1.0.0` don't correspond to
+  anything that exists. Confirmed via `.github/workflows/ci.yml` that image tags and the chart's
+  `version`/`appVersion` are all set to match the git tag at publish time (`Chart.yaml`'s
+  checked-in `1.0.0`/`0.1.0` are just placeholders CI overwrites), so there's no "current
+  version" to cite honestly yet. Fixed both pages to say so plainly and, for the Helm install
+  example, changed `--version 1.0.0` to omitting `--version` entirely (a real, correct way to
+  install "whatever's newest" from an OCI registry, not a placeholder).
+- Applied the "explain, not just define" rule (see standing decisions) to both deployment
+  pages' openings: added a sentence on when you'd reach for Docker Compose vs Helm before
+  either page's reference content starts.
+- Verified and left unchanged (all matched source exactly): `building-on-it.mdx`'s route/model/
+  job re-export examples against `src/mongo/routes/*.ts`, `src/mongo/Models.ts`, `src/mongo/
+  Jobs.ts`; `react-ui.mdx`'s page tables and `apps/shared` file listing against the actual
+  `apps/` tree; `docker.mdx`'s container topology, env var override syntax, and the production-
+  secrets guard against `src/config.defaults.ts`'s `assertProductionSecretsAreSet`.
+
+## 2026-08-27 (cont.): Plugins section — verification pass + real OIDC multi-provider bug fix
+- Re-verified all 9 pages (`auth-library/` ×5, `ssr-react/` ×6 including its `index.mdx`)
+  against current `@rapidrest/auth` (1.1.0) and `@rapidrest/react` (1.0.1) source.
+- **Real, previously-undetected inaccuracy, now fixed**: `auth` commit `2bce9ac` (before this
+  pass, already shipped in 1.1.0) fixed a genuine bug where every `BaseAuthOIDCRoute` subclass
+  registered its strategy under the same hardcoded `"oauth"` name, so a second OIDC provider
+  wired up the way the docs showed would silently collide with the first (last one loaded wins
+  for both). The fix adds an overridable `strategyName` field, but using it requires ALSO
+  overriding `login()` with a matching `@Auth([...])`, since `@Auth`'s metadata is read from the
+  declaring class and isn't re-evaluated per subclass. Two existing docs examples predated this
+  and were still showing the old, now-broken pattern (a second provider route with nothing but
+  a different `providerConfig`): `docs/plugins/auth-library/routes.mdx`'s `AuthGoogleRoute`
+  example and `docs/auth-server/building-on-it.mdx`'s `AuthGithubRoute` example. Fixed both to
+  show the required `strategyName` + `login()` override, and tightened `strategies.mdx`'s OIDC
+  paragraph and cross-linked it to `routes.mdx` for the full mechanism instead of restating it.
+- **Gap filled**: `docs/plugins/` had no top-level `index.mdx`, unlike every other top-level
+  section, so the sidebar category had nothing to land on. Added one explaining what "plugin"
+  means here (an optional npm package, not extra weight in core/service-core) before pointing
+  at Auth Library and SSR React.
+- Everything else verified accurate against source with no changes needed: `ReactRoute`'s
+  defaults (`appDir: "app"`, `hydrate: false`, `userFields: null`, `hydrateRootId`/
+  `hydratePropsId`), `RapidRestViteOptions`/`StaticExportOptions`/`StaticExportApp` shapes, and
+  the `rapidreact dev`/`build`/`export` CLI commands, all confirmed directly against
+  `react/src/ReactRoute.tsx`, `vite.ts`, `static.ts`, and `cli.ts`. React's one other recent
+  commit (a `rapidRestHydrationPlugin()` internal Vite bug fix) doesn't change any documented
+  behavior, nothing to update there.
+- Applied the "explain, not just define" rule to `data-fetching.mdx`'s opening (jumped straight
+  into the props-merge formula with no motivating "why three sources" framing). Left
+  `strategies.mdx`'s per-strategy `##` subsections alone despite being terse one-two sentence
+  definitions, that page is a 7-item catalog and each entry being tight reads as a reference
+  table in prose form, not the same failure mode as an entire page/concept skipping its
+  explanation.

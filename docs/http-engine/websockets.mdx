@@ -33,7 +33,7 @@ class EchoRoute {
 
 ## The ready-made version: channel pub/sub
 
-Writing your own connection handling, as above, is the exception. Most real-time needs (broadcast a message to everyone subscribed to a channel, gated by permissions) are already built and ready to mount: [`BasePushRoute`](/docs/default-routes/push) gives you a full subscribe/unsubscribe/publish protocol over WebSocket, backed by Redis so it works across multiple server instances, with per-channel access control already wired to your existing [ACLs](/docs/auth-rbac/authorization). Publishing from your own server-side code (rather than over HTTP) is covered in [Events & Notifications](/docs/events-notifications/notifications). Reach for a hand-written `@WebSocket()` route only when you need a protocol `BasePushRoute` doesn't already provide.
+Writing your own connection handling, as above, is the exception. Most real-time needs (broadcast a message to everyone subscribed to a channel, gated by permissions) are already built and ready to mount: [`BasePushRoute`](/docs/default-routes/push) gives you a full subscribe/unsubscribe/publish protocol over WebSocket, backed by Redis so it works across multiple server instances, with per-channel access control already wired to your existing [ACLs](/docs/auth-rbac/access-control-lists). Publishing from your own server-side code (rather than over HTTP) is covered in [Events & Notifications](/docs/events-notifications/notifications). Reach for a hand-written `@WebSocket()` route only when you need a protocol `BasePushRoute` doesn't already provide.
 
 ## Limits worth knowing about
 

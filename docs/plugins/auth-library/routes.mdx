@@ -34,17 +34,22 @@ export class AuthBasicRoute extends BaseAuthBasicRouteMongo {}
 
 Every other auth-flow route in the table above follows the identical one-line pattern — swap in the matching `Base*Mongo`/`Base*SQL` class and a `@Route`/`@ApiRoute` path (see [`auth-server`'s `src/mongo/routes/`](https://github.com/rapidrest/auth-server/tree/main/src/mongo/routes) for all seven side by side).
 
-`BaseAuthOIDCRoute` needs one more thing: since a single strategy class can front multiple providers, your subclass supplies which one by overriding `providerConfig`. `auth-server` wires up a single provider this way; the example below extends that to show naming a specific provider (`google`) so multiple providers could be registered concurrently under different names and paths.
+`BaseAuthOIDCRoute` needs a bit more for a second provider: your subclass supplies which one by overriding `providerConfig`, same as the single-provider case `auth-server` wires up. But `BaseAuthOIDCRoute`'s `login()` method is hardcoded behind `@Auth(["oauth"])`, and every subclass that doesn't override `login()` inherits that exact decorator, metadata attached to the class that declares a method isn't re-evaluated per subclass. Left alone, a second provider's strategy would register under a different name internally but still be checked against the same `"oauth"` entry as the first, so whichever provider's strategy loaded last would silently win for both routes. Overriding `strategyName` alone doesn't fix that; you also need to override `login()` with a matching `@Auth([...])`, delegating to `super.login(...)` for the actual token issuance:
 
 ```ts
 import { RouteDecorators, ObjectDecorators } from "@rapidrest/service-core";
 import { BaseAuthOIDCRouteMongo } from "@rapidrest/auth/mongo";
 import type { OIDCProvider } from "@rapidrest/auth";
-const { Route } = RouteDecorators;
+import type { JWTUser } from "@rapidrest/core";
+import type { HttpRequest, HttpResponse } from "@rapidrest/service-core";
+const { Auth, Route, Request, Response } = RouteDecorators;
 const { Config } = ObjectDecorators;
+const AuthUser = RouteDecorators.User;
 
 @Route("/auth/oidc/google")
 export class AuthGoogleRoute extends BaseAuthOIDCRouteMongo {
+  protected strategyName = "google";
+
   @Config("auth:oidc:google")
   protected providerConfig: OIDCProvider = {
     name: "google",
@@ -56,8 +61,15 @@ export class AuthGoogleRoute extends BaseAuthOIDCRouteMongo {
     protocol: "openid",
     scope: ["openid", "email", "profile"],
   };
+
+  @Auth(["google"])
+  public override async login(@AuthUser user: JWTUser, @Request req: HttpRequest, @Response res: HttpResponse) {
+    return super.login(user, req, res);
+  }
 }
 ```
+
+A single-provider setup, like `auth-server`'s, doesn't need any of this: `strategyName` already defaults to `"oauth"`, matching the base class's own `login()`, so there's nothing to override.
 
 ## Data routes
 

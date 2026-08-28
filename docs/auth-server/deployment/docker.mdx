@@ -5,7 +5,9 @@ sidebar_label: Docker Compose
 
 # Docker Compose
 
-A pre-built image for each tagged release is published to [GitHub](https://github.com/orgs/rapidrest/packages) as `ghcr.io/rapidrest/auth-server:1.0.0`.
+Docker Compose is the fastest way to run `auth-server` locally exactly the way it runs in production, together with its Redis and MongoDB/PostgreSQL dependencies, without installing any of them on your host. It's also reasonable for a small, real, single-host deployment. [Kubernetes (Helm)](/docs/auth-server/deployment/helm) is the better choice once you need more than one replica or don't want to babysit the host yourself.
+
+A pre-built image is published to [GitHub](https://github.com/orgs/rapidrest/packages) for every tagged release, as both `ghcr.io/rapidrest/auth-server:latest` and the release's own version tag. As of this writing the project is pre-1.0 (`0.1.0` in `package.json`) with no tagged release published yet, check the packages page above for the current version before pulling a specific tag. Either way, this doesn't matter for the Compose setup below: it builds the image from your own checked-out `Dockerfile` rather than pulling either of these.
 
 ## Architecture
 

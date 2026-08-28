@@ -37,7 +37,7 @@ export class AuthOIDCRoute extends BaseAuthOIDCRouteMongo {
 }
 ```
 
-`OIDCStrategy` supports multiple concurrently registered instances (see [Auth Library → Strategies](/docs/plugins/auth-library/strategies#oidcstrategy-default-name-oauth-configurable)). To add a second provider, add a second file with its own path and config key:
+`OIDCStrategy` supports multiple concurrently registered instances (see [Auth Library → Strategies](/docs/plugins/auth-library/strategies#oidcstrategy-default-name-oauth-configurable)), but a second `BaseAuthOIDCRoute` subclass needs two overrides, not just a different `providerConfig`: a distinct `strategyName`, and a `login()` override with a matching `@Auth([...])` so the base class's own hardcoded `@Auth(["oauth"])` doesn't get inherited and collide with the first provider. See [Auth Library → Base Routes](/docs/plugins/auth-library/routes#auth-flow-routes) for why that second override is necessary. With both in place, add a second file with its own path and config key:
 
 ```ts
 // src/mongo/routes/AuthGithubRoute.ts
@@ -45,11 +45,16 @@ import { RouteDecorators } from "@rapidrest/service-core";
 import { BaseAuthOIDCRouteMongo } from "@rapidrest/auth/mongo";
 import { OIDCProvider } from "@rapidrest/auth";
 import { ObjectDecorators } from "@rapidrest/core";
+import type { JWTUser } from "@rapidrest/core";
+import type { HttpRequest, HttpResponse } from "@rapidrest/service-core";
 const { Config } = ObjectDecorators;
-const { ApiRoute } = RouteDecorators;
+const { ApiRoute, Auth, Request, Response } = RouteDecorators;
+const AuthUser = RouteDecorators.User;
 
 @ApiRoute("/auth/github")
 export class AuthGithubRoute extends BaseAuthOIDCRouteMongo {
+  protected strategyName = "github";
+
   @Config("auth:github")
   protected providerConfig: OIDCProvider = {
     name: "github",
@@ -61,6 +66,11 @@ export class AuthGithubRoute extends BaseAuthOIDCRouteMongo {
     protocol: "oauth2",
     scope: ["read:user", "user:email"],
   };
+
+  @Auth(["github"])
+  public override async login(@AuthUser user: JWTUser, @Request req: HttpRequest, @Response res: HttpResponse) {
+    return super.login(user, req, res);
+  }
 }
 ```
 

@@ -5,50 +5,56 @@ sidebar_label: Authentication
 
 # Authentication
 
-`@rapidrest/service-core` ships one authentication strategy out of the box, `JWTStrategy`. It verifies a token that was already issued by an authentication provider. This provides maximum flexibility to create interoperable backend services.
+`@rapidrest/service-core` ships one authentication strategy out of the box, `JWTStrategy`. It doesn't issue tokens or run a login flow, it verifies a token that was already issued somewhere else, by your own login endpoint, by a separate auth service, by whatever identity provider your organization already uses. That's a deliberate choice: a backend service that only knows how to *verify* a token, and has no opinion on how one gets minted, stays interoperable with whatever the rest of your system already does for login.
 
-## Setting up the default strategy
+## The default strategy
 
-The framework allows for a single strategy to be designated as the global default. The global default strategy is used to optionally authenticate
-every request that is handled by the server. Typically, this is a token based strategy such as `JWTStrategy`. RapidREST projects that
-have been scaffolded using the CLI are pre-configured to use the `JWTStrategy` by default.
-
-The global default strategy can be changed by modifying the `auth.strategy` coonfig key (see [Configuration](/docs/core-concepts/configuration)).
+A single strategy is designated the global default, used to authenticate every request the server handles, whether or not a given endpoint actually requires it. Freshly scaffolded projects are already configured to use `JWTStrategy`:
 
 ```ts
 // src/config.ts
 auth: {
-  // The default authentication strategy to use
   strategy: "auth.JWTStrategy",
 }
 ```
 
-## Requiring auth for API endpoints
+Change it by editing `auth.strategy` in your [configuration](/docs/core-concepts/configuration).
 
-While the framework automatically performs authentication for every request processed, auth is optional. If no auth header is provided by a client
-request, the API endpoint will still execute. When it is desired to require auth for a given endpoint the `@Auth()` decorator is used.
+## Requiring auth on an endpoint
 
-The `@Auth` decorator takes a single argument of type `Array` with a list of auth strategies to use when attempting to
-authenticate the request. At least one strategy needs to succeed in order for the request to be considered authenticated.
-
-For example, take for example the API endpoint `GET /api/path`, you may require auth using the global default `JWTStrategy`
-strategy by decoratoring the endpoint function with `@Auth` as shown below.
+Authentication happens on every request regardless, but by default nothing is done with the result, an endpoint with no auth requirement runs identically whether the caller sent a token or not. `@Auth` is what makes a specific endpoint actually require it:
 
 ```ts
 @Auth(['jwt'])
 @Get()
 public endpointFunc() {
-  // ...
+  // only reached if 'jwt' authentication succeeded
 }
 ```
 
-## JWT (the default strategy)
+`@Auth` takes a list of strategy names to attempt, at least one has to succeed for the request to be considered authenticated. Fail every strategy on an endpoint that requires auth, and the request never reaches your handler at all, it's rejected with `401` before that, the same [error response shape](/docs/http-engine/error-handling) any other `ApiError` produces, `{ message: "Invalid or missing authentication token.", status: 401, code: "api-101" }`. That message doesn't distinguish a missing token from an invalid or expired one, on purpose, giving an attacker a different error for "no token" versus "wrong token" is a small but real information leak.
 
-`JWTStrategy` looks for a token in three places, in this order. The last one found wins:
+### Optional authentication
 
-1. **Query parameter** (`auth_token`): only if `allowQueryParam` is enabled, since passing tokens in URLs is discouraged by default
-2. **Authorization header** - matching `jwt` or `bearer` schemes, case-insensitive
-3. **Cookie** (`jwt` by default; signed cookies if `cookieSecure` is set)
+`@Auth` takes a second argument, `require`, defaulting to `true`. Pass `false` and the same strategies still run, but a failure no longer rejects the request, it just proceeds without an authenticated user:
+
+```ts
+@Auth(['jwt'], false)
+@Get('/:id')
+public getPet(@Param('id') id: string, @User user?: JWTUser) {
+  // `user` is populated if a valid token was sent, undefined otherwise, either way this runs
+}
+```
+
+This is the right shape for an endpoint that behaves differently for a logged-in caller without requiring one, showing a pet's full listing to anyone, but flagging the ones the current user already owns. A missing token and an invalid or expired one are treated identically here too, both just leave `user` undefined rather than surfacing which case actually happened.
+
+## `JWTStrategy`
+
+`JWTStrategy` looks for a token in three places, in this order, the last one found wins:
+
+1. **Query parameter** (`auth_token`): only if `allowQueryParam` is enabled, since passing tokens in URLs is discouraged by default.
+2. **Authorization header** — matching `jwt` or `bearer` schemes, case-insensitive.
+3. **Cookie** (`jwt` by default; signed cookies if `cookieSecure` is set).
 
 ```ts
 class JWTStrategyOptions {
@@ -61,7 +67,7 @@ class JWTStrategyOptions {
 }
 ```
 
-Configure the secret and token options under the `auth` config key (see [Configuration](/docs/core-concepts/configuration)):
+Configure the secret and token options under the `auth` config key:
 
 ```ts
 conf.defaults({
@@ -77,6 +83,8 @@ conf.defaults({
 });
 ```
 
-:::note[Need to build a login provider?]
-See the [Auth Library](/docs/plugins/auth-library) plugin to build your own custom auth server, or utilize [Auth Server](/docs/auth-server) for a turn-key server project that is production-ready.
+A verified token populates `@User`/`req.user` with a `JWTUser`, roles and all, for the rest of the request, see [Request Parameters](/docs/routing-controllers/request-parameters) for how `@User` and the other injection decorators work.
+
+:::note[Need a real login flow, not just token verification?]
+See the [Auth Library](/docs/plugins/auth-library) plugin to build your own custom auth server, or [Auth Server](/docs/auth-server) for a turn-key, production-ready one.
 :::

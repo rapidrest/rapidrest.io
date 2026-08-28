@@ -43,8 +43,14 @@ GET /pets?status=available&status=pending
 
 The literal string `me` in a value resolves to the authenticated caller's own uid, useful for a filter like `?ownerId=me` without the client needing to already know its own id. A literal `$or` key with an array of sub-query objects is also accepted, for anything the operator syntax above can't express on its own (MongoDB-backed models only).
 
-:::note[No dotted or `$`-prefixed keys, on MongoDB models]
-A query key containing a `.`, or starting with `$` (other than the literal top-level `$or`), is rejected with `400`, checked recursively into nested values too. This closed a real vulnerability, so it isn't a temporary restriction, filtering into a nested sub-document by dotted path isn't currently possible through the query string on a Mongo-backed model.
+On a MongoDB-backed model, a dotted key filters into a sub-document field the same way it would in a native Mongo query:
+
+```
+GET /pets?category.name=bunny
+```
+
+:::note[No `$`-prefixed segments, on MongoDB models]
+What's rejected with `400` is a `$`-prefixed segment anywhere in the key, whether it's the whole key (`$where`) or one segment of a dotted path (`category.$where`), other than the literal top-level `$or`. That's what stops a client from smuggling a raw Mongo operator in as a filter key; a dotted field path on its own is just a nested field reference and always was safe to allow.
 :::
 
 A few query keys are reserved and never treated as a filter: `limit`, `page`, and `sort` (see below, case-insensitive), and anything starting with `jwt_`, `oauth_`, `auth_`, or `cache`.

@@ -5,7 +5,9 @@ sidebar_label: Notifications
 
 # Notifications
 
-Where events are for services talking to each other, `NotificationUtils` is for pushing a message to one or more specific, currently-connected users: the kind of thing a WebSocket route forwards straight to a client.
+Say a pet's status changes while its owner happens to be looking right at that pet's listing in their browser. Nothing about a normal request/response cycle tells their already-loaded page to update, and they're not about to poll for changes on the off chance something happened while they were looking. What actually needs to happen is for the server to push the update to that exact open connection, the moment it happens.
+
+That's a different job from the event system on the previous page. Events are for services and background code reacting to each other. `NotificationUtils` is for pushing a message to one or more specific, currently-connected users: the kind of thing a WebSocket route forwards straight to a client.
 
 ```ts
 class NotificationUtils {

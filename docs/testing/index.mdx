@@ -3,9 +3,11 @@ sidebar_position: 1
 sidebar_label: Overview
 ---
 
+# Testing
+
 RapidREST projects are tested with [Vitest](https://vitest.dev/), against a real (if ephemeral) running `Server` instance rather than mocked request/response objects. A test makes an actual HTTP or WebSocket call and asserts on the real response. `@rapidrest/service-core/test` provides two supertest-style helpers, `request` and `requestws`, to make that convenient.
 
-# Setup
+## Setup
 
 RapidREST's decorators (`@Route`, `@Get`, `@Entity`, ...) rely on `experimentalDecorators` and `emitDecoratorMetadata`. Your project's `tsconfig.json` needs those enabled for `tsc` and your editor; extend the framework's base config rather than setting them by hand:
 
@@ -48,7 +50,7 @@ export default defineConfig({
 
 If your project was scaffolded with `rapidrest generate server`, `unplugin-swc` is already a dependency. This config is the piece that actually puts it to work.
 
-# Testing HTTP routes
+## Testing HTTP routes
 
 `request(app)` returns a chainable, [supertest](https://github.com/ladjs/supertest)-compatible builder. It accepts either a running `Server` instance or a raw port number.
 
@@ -101,7 +103,7 @@ describe('PetRoute', () => {
 | `headers` | The full response headers. |
 | `ok` | `true` for any `2xx` status. |
 
-## Authenticated requests
+### Authenticated requests
 
 Build a JWT the same way the server would verify one, using the project's own auth config, and set it as the `Authorization` header:
 
@@ -115,7 +117,29 @@ const result = await request(server.getApplication())
   .set('Authorization', 'jwt ' + token);
 ```
 
-# Testing WebSocket routes
+## Stubbing a dependency
+
+There's no way to hand the DI container a pre-built fake in place of an `@Inject`-resolved dependency before construction, RapidREST always constructs the real class. What works instead: let the real singleton get constructed as normal, retrieve that same instance from the `ObjectFactory`, and stub just the method you don't want actually running:
+
+```ts
+import {vi} from 'vitest';
+import {MessagingUtils} from '@rapidrest/core';
+
+it('sends a welcome email without actually sending one', async () => {
+  const messagingUtils = objectFactory.getInstance(MessagingUtils);
+  vi.spyOn(messagingUtils, 'sendEmail').mockResolvedValue(undefined as any);
+
+  await request(server.getApplication())
+    .post('/users')
+    .send({email: 'rex@example.com'});
+
+  expect(messagingUtils.sendEmail).toHaveBeenCalled();
+});
+```
+
+`objectFactory.getInstance(...)` returns the exact same object every other class in the running server has injected, `vi.spyOn` replacing a method on it affects every one of them for the rest of the test, which is usually exactly what you want, one real request exercising real routing, real validation, and real ACL checks, with only the one genuinely external side effect (an actual email going out) replaced.
+
+## Testing WebSocket routes
 
 `requestws(app)` mirrors [superwstest](https://github.com/kroeder/superwstest)'s fluent, action-queue style: chain `sendText`/`sendJson`/`expectText`/`expectJson`/`close`, then await the whole chain.
 
@@ -133,7 +157,7 @@ it('echoes a message', async () => {
 
 Each queued action runs in order once the connection opens; the chain resolves once every action has completed, or rejects on the first mismatch (or after a 10-second timeout with no response).
 
-# Testing background jobs
+## Testing background jobs
 
 A [background job](/docs/background-jobs) is a plain class. There's no HTTP surface to hit, so test it by instantiating and calling its lifecycle methods directly rather than going through `request`:
 
@@ -148,9 +172,9 @@ it('runs without error', async () => {
 });
 ```
 
-# Testing `@Transactional` methods
+## Testing `@Transactional` methods
 
-A [`@Transactional`](/docs/models-persistence/transactions#transactional) method is only meaningfully tested against a real (if in-memory, per the section below) datastore — the point of the decorator is the real session/transaction semantics of MongoDB or TypeORM, which a mocked repository can't reproduce. The most useful thing to assert is that a failure partway through leaves no partial writes behind:
+A [`@Transactional`](/docs/models-persistence/transactions#transactional) method is only meaningfully tested against a real (if in-memory, per the section below) datastore, the point of the decorator is the real session/transaction semantics of MongoDB or TypeORM, which a mocked repository can't reproduce. The most useful thing to assert is that a failure partway through leaves no partial writes behind:
 
 ```ts
 import { vi } from 'vitest';
@@ -176,9 +200,9 @@ it('rolls back both writes when the second one fails', async () => {
 
 If the method under test also calls `registerRollbackHook()` to compensate for a write it already committed on a *different* connection, assert that the compensating action actually ran once the transaction fails, the same way as above but asserting on whatever that hook undoes.
 
-# Testing event listeners
+## Testing event listeners
 
-`@OnEvent` only attaches metadata to a method — registering it with `EventListenerManager` doesn't wrap or otherwise change how it's called — so the most direct way to test a handler is to instantiate the listener class and call the method yourself, no running `Server` required:
+`@OnEvent` only attaches metadata to a method, registering it with `EventListenerManager` doesn't wrap or otherwise change how it's called, so the most direct way to test a handler is to instantiate the listener class and call the method yourself, no running `Server` required:
 
 ```ts
 import { PetEventHandler } from '../src/events/PetEventHandler.js';
@@ -190,9 +214,9 @@ it('marks the pet as processed', async () => {
 });
 ```
 
-This covers the handler logic itself. To test the full path — that an event published on the configured Redis channel actually reaches a `@EventListener()`-decorated class — start the `Server` against a real (or fake) Redis connection, publish to the same channel configured under `events:channels`, and assert on the resulting side effect; see [Events](/docs/events-notifications/events#configuring-the-event-bus) for how the channel/type routing is configured.
+This covers the handler logic itself. To test the full path, that an event published on the configured Redis channel actually reaches an `@EventListener()`-decorated class, start the `Server` against a real (or fake) Redis connection, publish to the same channel configured under `events:channels`, and assert on the resulting side effect; see [Events](/docs/events-notifications/events#configuring-the-event-bus) for how the channel/type routing is configured.
 
-# In-memory datastores
+## In-memory datastores
 
 For tests that touch a real datastore, use an in-memory server instead of a shared test database. [`mongodb-memory-server`](https://github.com/typegoose/mongodb-memory-server) is what `rapidrest dev` itself uses for local development (see [Getting Started](/docs/getting-started)), and it works the same way in tests:
 

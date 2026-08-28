@@ -5,6 +5,8 @@ sidebar_label: Alerts
 
 # Alerts
 
+A [background job](/docs/background-jobs)'s health check can start failing at 3 AM and sit quietly in a log file nobody's watching until a user notices something's broken. A log line is enough for debugging after the fact, it isn't enough when someone needs to know *right now*. That's the gap `AlertUtils` fills.
+
 `AlertUtils` sends structured, priority-leveled incident alerts to an external monitoring service: the PagerDuty/Opsgenie style of alert, meant for your team's attention, not your end users'. It's a separate concern from [Notifications](/docs/events-notifications/notifications) (which push messages to connected users) and [Messaging](/docs/events-notifications/messaging) (which sends templated email/Slack/SMS). This is specifically for "something is wrong and someone needs to look at it."
 
 ## Constructing it

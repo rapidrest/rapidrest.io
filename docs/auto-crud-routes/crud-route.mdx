@@ -30,7 +30,7 @@ That single line gives `Pet` a complete, working REST API. Here's exactly what i
 | `DELETE /<path>/:id` | `doDelete` | `@Transactional()` |
 | `PUT /<path>/:id/:property` | `doUpdateProperty` | `@Transactional()` |
 
-`POST /<path>` and `PUT /<path>` each accept either a single object or an array, bulk create and bulk update aren't separate endpoints, they're the exact same one as their single-object counterparts. None of these declare `@Auth` or a role check by default either, whatever access control applies comes entirely from [ACLs](/docs/auth-rbac/authorization): decorate the model with `@Protect`, and every endpoint above already respects it, with nothing extra to wire up per endpoint.
+`POST /<path>` and `PUT /<path>` each accept either a single object or an array, bulk create and bulk update aren't separate endpoints, they're the exact same one as their single-object counterparts. None of these declare `@Auth` or a role check by default either, whatever access control applies comes entirely from [ACLs](/docs/auth-rbac/access-control-lists): decorate the model with `@Protect`, and every endpoint above already respects it, with nothing extra to wire up per endpoint.
 
 Every one of them also already carries `@Summary`/`@Description`/`@Returns`, see [API Documentation](/docs/routing-controllers/api-documentation), so a `CRUDRoute` subclass shows up fully described in your OpenAPI spec the moment you write it, no annotation required.
 

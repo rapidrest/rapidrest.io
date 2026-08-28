@@ -5,14 +5,18 @@ sidebar_label: Overview
 
 # Authentication & Authorization
 
-RapidREST's included auth system utilizes industry standard JSON Web Tokens (JWT) with a powerful Roles Based Access Control (RBAC) authorization system, allowing
-easy integration with existing authentication providers. The RBAC system has two levels of control; simple role checks per endpoint or fine-grained Access Control Lists per resource.
+Two separate questions come up on almost every request a real API handles: who is this, and are they allowed to do this specific thing. RapidREST keeps those two questions genuinely separate.
 
-## What's Next
+**Authentication** is proving who's calling, `@rapidrest/service-core` does this with JSON Web Tokens out of the box, the same token verification you'd reach for in front of any interoperable backend service.
 
-- **[Authentication](/docs/auth-rbac/authentication)**
-- **[Authorization & RBAC](/docs/auth-rbac/authorization)**
+**Authorization** is deciding what an already-identified caller can do, and RapidREST gives you two levels of it: a quick role check per endpoint, and a full Roles Based Access Control (RBAC) system with per-record Access Control Lists when a role check alone isn't precise enough.
 
-:::note[Need to build a login provider?]
-See the [Auth Library](/docs/plugins/auth-library) plugin to build your own custom auth server, or utilize [Auth Server](/docs/auth-server) for a turn-key server project that is production-ready.
+Neither system requires the other to be elaborate. A token can prove identity without your API caring about roles at all, and role checks can gate an endpoint without a single ACL record existing anywhere in your database. Reach for the next level of precision only when a coarser one stops being enough.
+
+- **[Authentication](/docs/auth-rbac/authentication)** — `JWTStrategy`, `@Auth`, and what a caller actually has to send.
+- **[Authorization](/docs/auth-rbac/authorization)** — `@RequiresRole` and `@RequiresScope`, the fast, per-endpoint checks.
+- **[Access Control Lists](/docs/auth-rbac/access-control-lists)** — `@Protect`, per-record permissions, and everything ACL inheritance actually does.
+
+:::note[Need a real login flow, not just token verification?]
+Everything on this page verifies a token that was already issued, it has no opinion on how that token gets issued in the first place. For password/TOTP/WebAuthn/OIDC login flows, real user accounts, and the rest of what "signing in" usually means, see the [Auth Library](/docs/plugins/auth-library) plugin, or [Auth Server](/docs/auth-server) for a complete, ready-to-deploy reference implementation built from it.
 :::

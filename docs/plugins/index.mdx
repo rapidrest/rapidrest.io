@@ -1,0 +1,15 @@
+---
+sidebar_position: 1
+sidebar_label: Overview
+---
+
+# Plugins
+
+`@rapidrest/core` and `@rapidrest/service-core` are enough to build a working REST API. Not every project needs a full authentication system or a server-rendered React frontend, though, and forcing that weight into the base framework would mean paying for it even when it goes unused. Instead, those are separate, optional npm packages: install one when a project actually needs what it does, and it plugs into the same decorators, dependency injection, and auto-discovery every other part of a RapidREST project already uses. Skip it and there's nothing to pay for.
+
+Two ship today:
+
+- **[Auth Library](/docs/plugins/auth-library)** (`@rapidrest/auth`) - password, TOTP, OTP, WebAuthn passkeys, FIDO2, MFA, and OIDC login, plus the data models and routes to back them. Builds on the JWT/RBAC primitives already in `@rapidrest/service-core`, see [Auth & RBAC](/docs/auth-rbac) for those first.
+- **[SSR React](/docs/plugins/ssr-react)** (`@rapidrest/react`) - server-rendered React pages, file-convention routing, and optional client-side hydration, mounted as a route directly on your existing server.
+
+Both are ordinary npm packages you add when you need them; neither is required to use the other. If you want a working login system without wiring the Auth Library up yourself, [`auth-server`](/docs/auth-server) is a complete, deployable reference project built from these same pieces.

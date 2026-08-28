@@ -5,11 +5,7 @@ sidebar_label: Authorization
 
 # Authorization
 
-The RapidREST's authorization system is a [Roles Based Access Control](https://en.wikipedia.org/wiki/Role-based_access_control) (mRBAC) system
-allowing two primary methods for access protection.
-
-- Declared list of roles per endpoint (using `@RequiresRole`)
-- [Access Control List](https://en.wikipedia.org/wiki/Access-control_list) (ACL)
+Once a caller is authenticated, the next question is what they're actually allowed to do. RapidREST's authorization system is a [Roles Based Access Control](https://en.wikipedia.org/wiki/Role-based_access_control) system, and the cheapest, most common layer of it is a plain role check on the endpoint itself, before anything touches a database. Reach for [Access Control Lists](/docs/auth-rbac/access-control-lists) instead when a role check isn't precise enough, permission that depends on which specific record is being touched, not just who's asking.
 
 ## `@RequiresRole`
 
@@ -23,13 +19,11 @@ async deletePet(@Param('id') id: string) {
 }
 ```
 
-Requests from a user without a matching role are rejected before the handler runs.
+A request from a user without a matching role is rejected before the handler ever runs, `403`, the same [error response shape](/docs/http-engine/error-handling) as any other `ApiError`.
 
 ## `@RequiresScope` (route-level)
 
-A coarser, token-level check, distinct from ACLs: require the authenticated user's JWT to carry one or more scopes before the handler runs at all. This
-is checked *before* any per-resource ACL check, so it's a cheap way to reject requests from tokens that were never issued the right scope, without
-touching the database.
+A coarser, token-level check, distinct from ACLs: require the authenticated user's JWT to carry one or more scopes before the handler runs at all. This is checked *before* any per-resource ACL check, so it's a cheap way to reject requests from tokens that were never issued the right scope, without touching the database at all:
 
 ```ts
 @RequiresScope('pets:write')
@@ -39,154 +33,14 @@ async deletePet(@Param('id') id: string) {
 }
 ```
 
-Scopes live on `JWTUser.scopes` — set by whatever issued the token (for example, `@rapidrest/auth`'s `User.scopes`, built at runtime rather than
-stored). `ACLAction.FULL` (`"*"`) also satisfies any required scope.
+Scopes live on `JWTUser.scopes`, set by whatever issued the token (for example, `@rapidrest/auth`'s `User.scopes`, built at runtime rather than stored). `ACLAction.FULL` (`"*"`) also satisfies any required scope.
 
-This is unrelated to the property-level `@RequiresScope` documented in [Models & Persistence](/docs/models-persistence/entities-columns#requiresscope),
-which hides individual fields from a response rather than gating an entire endpoint.
+This is unrelated to the property-level `@RequiresScope` documented in [Models & Persistence](/docs/models-persistence/entities-columns#requiresscope), which hides individual fields from a response rather than gating an entire endpoint, same name, different job, different layer entirely.
 
-## Access Control Lists & `@Protect`
+## Two more guard decorators
 
-When more fine-grained control is desired an [Access Control List](https://en.wikipedia.org/wiki/Access-control_list) (ACL) can be used. ACLs protect
-resources with an Inheritance based list of mapped permissions to user IDs and roles. Each ACL contains a unique identifier of the resource to protect,
-a list of `ACLRecord` entries detailing the list of permissions for each associated role and/or user `uid` and an optional
-`parent` association when inheritance is desired.
+Beyond a plain role or scope, two further checks gate a handler the same way: [`@RequiresElevation`](/docs/routing-controllers/lifecycle-validation#guard-decorators) requires a recently confirmed elevated session, a re-authentication step, before letting a sensitive action through, and [`@RequiresTrustedRole`](/docs/routing-controllers/lifecycle-validation#guard-decorators) requires one of the roles listed in `trusted_roles` specifically. Both run as part of the same request pipeline `@RequiresRole` and `@RequiresScope` do, see [Lifecycle & Validation](/docs/routing-controllers/lifecycle-validation) for exactly where each one sits relative to the others.
 
-Each `ACLRecord` grants a `userOrRoleId` an arbitrary list of `actions` — plain strings, not fixed boolean fields:
-
-```ts
-interface ACLRecord {
-  userOrRoleId: string;
-  actions: string[];
-}
-```
-
-`ACLAction` is a predefined set of conventional action strings recognized by the built-in CRUD routes, not a closed enum — `actions` may contain any
-custom string beyond these (e.g. `"publish"`) to express service-specific permissions:
-
-```ts
-const ACLAction = {
-  FULL: "*",      // grants every action, including any not otherwise listed
-  COUNT: "count",
-  CREATE: "create",
-  DELETE: "delete",
-  EXISTS: "exists",
-  LIST: "list",
-  READ: "read",
-  TRUNCATE: "truncate",
-  UPDATE: "update",
-};
-```
-
-Protected resources include:
-
-- **URL paths** - Protect individual API endpoints by URL pattern (supports regex)
-- **Class types** - Protect entire classes of data types (e.g. `User` or `Pet`)
-- **Documents** - Protect individual documents or records
-
-To designate a resource as protected simply add the `@Protect` decorator to one of the following:
-
-- **Route Class** - Add the `@Protect` decorator to the route class to protect all endpoints for the base route path.
-- **Endpoint Function** - Add the `@Protect` decorator to a single endpoint function to protect a specific REST API endpoint.
-- **Class Type** - Add the `@Protect` decorator to a class definition to protect an entire class and its documents.
-
-The following is an example of how to define an initial ACL for the class `Pet`. The permissions granted are strictly read-only.
-
-```ts
-@Protect(
-    {
-        uid: "Pet",
-        records: [
-            {
-                userOrRoleId: "anonymous",
-                actions: [ACLAction.READ, ACLAction.LIST],
-            },
-            {
-                userOrRoleId: ".*",
-                actions: [ACLAction.READ, ACLAction.LIST],
-            }
-        ]
-    }
-)
-export class Pet extends BaseMongoEntity {
-// ...
-```
-
-The above example only creates a single ACL for the entire class of `Pet`. Thus, any documents stored in the database will use this ACL.
-When it is desired to have an ACL per document of a given class, passing in `true` as the second argument to `@Protect` will
-enable document-level ACL protection. This is shown in the example for the class `User` below.
-
-```ts
-@Protect(
-    {
-        uid: "User",
-        records: [
-            {
-                userOrRoleId: "anonymous",
-                actions: [ACLAction.CREATE],
-            },
-            {
-                userOrRoleId: ".*",
-                actions: [],
-            }
-        ]
-    },
-    true
-)
-export class User extends BaseMongoEntity {
-// ...
-```
-
-In the above example for `User` the only permission granted is for unauthenticated users to be able to create new users (e.g. register a
-new account). When document-level permission is used, the user creating the document takes full ownership in the associated ACL. As a result, the
-above ACL would deny all access for existing user accounts to all others, except for the user itself.
-
-## Permission Mapping
-
-When using the built-in `CRUDRoute` or `ModelRoute` base classes for build REST APIs in RapidREST, each permission
-(`ACLAction`) in the ACL maps to a single REST API action. The following tables describes each of those mappings.
-
-| Function | HTTP Verb/Path | Permission | Scope |
-|---|---|---|---|
-| count | `HEAD /` | `ACLAction.COUNT` | Class |
-| create | `POST /` | `ACLAction.CREATE` | Class |
-| delete | `DELETE /:id` | `ACLAction.DELETE` | Document |
-| exists | `HEAD /:id` | `ACLAction.EXISTS` | Document |
-| find | `GET /` | `ACLAction.LIST` | Class |
-| findById | `GET /:id` | `ACLAction.READ` | Document |
-| truncate | `DELETE /` | `ACLAction.TRUNCATE` | Class |
-| update | `PUT /:id` | `ACLAction.UPDATE` | Document |
-| updateBulk | `PUT /` | `ACLAction.UPDATE` | Class |
-| updateProperty | `PUT /:id/:property` | `ACLAction.UPDATE` | Document |
-
-Optionally, you can always perform custom ACL permission checks using the `ACLUtils` utility from within your code.
-
-```ts
-@Inject(ACLUtils)
-private aclUtils?: ACLUtils;
-
-@Get("/:id")
-public async getPetByID(@Param("id") id: string, @User user: JWTUser) {
-  const result: Pet | undefined = await this.repoUtils.findOne(id);
-  if (!result) {
-      throw new ApiError(ApiErrors.NOT_FOUND, 404, ApiErrorMessages.NOT_FOUND);
-  }
-
-  if (!(await this.aclUtils?.hasPermission(user, result.uid, ACLAction.READ))) {
-    throw new ApiError(ApiErrorMessages.AUTH_PERMISSION_FAILURE, 403, ApiErrorMessages.AUTH_PERMISSION_FAILURE);
-  }
-
-  return result;
-}
-```
-
-## Turning it off, and trusted roles
-
-```ts
-conf.defaults({
-  rbac: {enabled: true},
-  trusted_roles: ['admin'],
-});
-```
-
-`rbac:enabled` is a global switch. Set it to `false` to bypass every ACL check (useful in tests). Users with any role listed in `trusted_roles` bypass ACL checks entirely, regardless of what the record's ACL says.
+:::note[`trusted_roles` is its own thing]
+`@RequiresTrustedRole` checks against `trusted_roles` explicitly. `@RequiresRole` doesn't, it only ever checks the exact role list you passed it, so holding a trusted role does **not** automatically satisfy an unrelated `@RequiresRole('editor')` check. `trusted_roles` has a separate bypass effect inside the [ACL system](/docs/auth-rbac/access-control-lists#turning-it-off-and-trusted-roles), the two mechanisms don't call into each other.
+:::

@@ -5,11 +5,14 @@ sidebar_label: Overview
 
 # Events & Notifications
 
-RapidREST has several related but distinct systems for reacting to things that happen outside the normal request/response cycle, and for reaching people (or other services) when something needs their attention:
+Everything covered so far in these docs happens inside one request: a client asks for something, a route handler runs, a response goes back, done. Plenty of real work doesn't fit that shape. A pet getting adopted might need to notify the shelter's Slack channel, push a live update to anyone currently browsing that pet's listing, and get recorded somewhere for later analysis, none of which the client waiting on the response to `POST /pets/:id/adopt` should be blocked on, or even needs to know happened.
+
+RapidREST has five focused systems for that kind of work, each solving a different piece of it rather than one system trying to do all of it:
 
 - **[Events](/docs/events-notifications/events)** - `@EventListener`, `@OnEvent`, and the Redis-backed event bus for cross-service communication.
 - **[Notifications](/docs/events-notifications/notifications)** - `NotificationUtils`, for pushing real-time messages to specific connected users.
 - **[Messaging](/docs/events-notifications/messaging)** - `MessagingUtils`, for templated email, Slack, and SMS.
 - **[Alerts](/docs/events-notifications/alerts)** - `AlertUtils`, for PagerDuty/Opsgenie-style incident alerts aimed at your team, not your users.
+- **[Telemetry](/docs/events-notifications/telemetry)** - `EventUtils`, for permanently recording that something happened, for an external analytics or observability service, not for notifying anyone.
 
-Events and notifications are often used together. An event fires, and a notification goes out because of it. But all four solve different problems, so it's worth understanding them separately.
+Events and notifications are often used together, an event fires, and a notification goes out because of it, and telemetry sits alongside both, quietly recording the same kinds of happenings for later analysis rather than immediate action. All five solve different problems, so it's worth understanding them separately.

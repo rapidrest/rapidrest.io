@@ -67,7 +67,7 @@ interface OIDCProvider {
 }
 ```
 
-Because the strategy name is set per-instance (`OIDCStrategyOptions.name`, defaulting to `"oauth"`), you can register multiple providers concurrently under different names — e.g. `"google"` and `"github"` — each behind its own `@Auth([...])`-protected route.
+Each route subclass registers its strategy under a name (`BaseAuthOIDCRoute.strategyName`, defaulting to `"oauth"`), so you can register multiple providers concurrently under different names, e.g. `"google"` and `"github"`, each behind its own `@Auth([...])`-protected route. See [Base Routes → Auth-flow routes](/docs/plugins/auth-library/routes#auth-flow-routes) for the extra override a second provider needs beyond just picking a name.
 
 Implements PKCE (`S256`/`plain`), CSRF-protected `state`, OpenID `nonce` replay protection, and `id_token` signature verification via `jwks-rsa` when `jwksURI`/`issuer` are set. On first login from a given provider identity, a local `User` + `Profile` (+ `Alias` records for the provider ID and any verified email/phone) is created automatically.
 
@@ -83,4 +83,4 @@ Beyond the login strategies above, `@rapidrest/auth` ships a handful of account-
 | TOTP secret encryption at rest | Optional. Set `TOTPConfig.encryption_key` (a 64-character hex string, i.e. 32 bytes) and every newly written `TOTPSecret.secret` is encrypted with AES-256-GCM (fresh random IV per call, stored as `"enc:v1:" + base64(iv \|\| authTag \|\| ciphertext)`) before it's persisted. Decryption happens transparently on verify and on the one-time setup response. Omit the key to keep storing secrets as plaintext (the default) — a value already stored as plaintext keeps verifying correctly with no migration step if you turn encryption on later. |
 | MFA recovery codes | `SecretType.RECOVERY_CODES` — see the `recovery-code` factor above and [`BaseSecretRoute`](/docs/plugins/auth-library/routes#data-routes) for how a batch is generated and returned exactly once. |
 
-`@RequiresElevation`, rate limiting, and session revocation are all events-instrumented (`AuthEventType.ELEVATED`, `RATELIMIT_EXCEEDED`, `SESSIONS_REVOKED`, `MFA_ENROLLED`/`MFA_REMOVED`) via `EventUtils.record()`, so they show up wherever your project already collects `@rapidrest/core` events.
+`@RequiresElevation`, rate limiting, and session revocation are all events-instrumented (`AuthEventType.ELEVATED`, `RATELIMIT_EXCEEDED`, `SESSIONS_REVOKED`, `MFA_ENROLLED`/`MFA_REMOVED`) via `EventUtils.record()`, so they show up wherever your project already collects [telemetry](/docs/events-notifications/telemetry).

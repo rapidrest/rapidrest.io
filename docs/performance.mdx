@@ -396,7 +396,7 @@ A few things fall out of the full table that aren't visible in the framework com
 - **`create_user` and `login` don't move at all**, confirming the earlier point independently: Argon2 is the entire cost of those two endpoints,
   and neither caching nor RBAC has anything to do with it.
 
-Both `rbac:enabled` and the `cache` datastore are ordinary config (see [Authorization](/docs/auth-rbac/authorization) and the `@Cache()` decorator
+Both `rbac:enabled` and the `cache` datastore are ordinary config (see [Access Control Lists](/docs/auth-rbac/access-control-lists) and the `@Cache()` decorator
 in [Models & Persistence](/docs/models-persistence)). If you want to know what either one costs for your own workload, this is the same experiment
 you'd run to find out.
 

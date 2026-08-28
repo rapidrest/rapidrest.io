@@ -3,11 +3,13 @@ sidebar_position: 1
 sidebar_label: Overview
 ---
 
-RapidREST includes a built-in scheduler for running code outside the request/response cycle: metrics collection, cleanup tasks, digest emails, anything that needs to run on an interval or once at startup. As with routes and models, there's no central place where jobs get registered: extend the base class, export it, and RapidREST takes care of the rest.
+# Background Jobs
 
-# `BackgroundService`
+Not everything a service does happens in response to a request. Metrics need collecting on an interval, stale records need cleaning up, a digest email needs sending once a day, none of that belongs inside a route handler. RapidREST's built-in scheduler handles exactly this: code that runs outside the request/response cycle, on a schedule or once at startup. As with routes and models, there's no central place jobs get registered, extend the base class, export it, and RapidREST takes care of the rest.
 
-The following is the abstract base class that every background job extends.
+## `BackgroundService`
+
+Every background job extends this abstract base class:
 
 ```ts
 export abstract class BackgroundService {
@@ -21,11 +23,11 @@ export abstract class BackgroundService {
 | Member | What it's for |
 |---|---|
 | `schedule` | A cron expression (via [node-schedule](https://github.com/node-schedule/node-schedule)) describing how often `run()` fires. Returning `undefined` means "run once" (see below). |
-| `run()` | The work itself. Called on every scheduled tick (or exactly once, for `undefined`-schedule services). |
+| `run()` | The work itself. Called on every scheduled tick, or exactly once, for an `undefined`-schedule service. |
 | `start()` | Called once, before scheduling begins. Set up any state `run()` will need. |
 | `stop()` | Called on shutdown (or immediately after a one-time `run()` completes). Release whatever `start()` acquired. |
 
-The following is a real background service, adapted from the [Petstore](https://github.com/rapidrest/petstore_example) example. It collects Prometheus metrics once a minute:
+A real background service, adapted from the [Petstore](https://github.com/rapidrest/petstore_example) example, collecting Prometheus metrics once a minute:
 
 ```ts
 import {BackgroundService} from '@rapidrest/service-core';
@@ -90,18 +92,24 @@ export default class CleanupJob extends BackgroundService {
 
 Whether a service runs on a schedule or just once at startup depends entirely on what its `schedule` getter returns:
 
-- **Returns a cron string** (e.g. `"*/5 * * * *"` for every 5 minutes): the service is scheduled with `node-schedule` and `run()` fires on every tick, for the lifetime of the server.
-- **Returns `undefined`** - `run()` fires exactly once, immediately after `start()`, and the service is then stopped and torn down automatically. Use this for one-time startup work rather than a recurring job.
+- **Returns a cron string** (e.g. `"*/5 * * * *"` for every 5 minutes): the service is scheduled with `node-schedule`, and `run()` fires on every tick for the lifetime of the server.
+- **Returns `undefined`**: `run()` fires exactly once, immediately after `start()`, and the service is then stopped and torn down automatically. Use this for one-time startup work rather than a recurring job.
 
-# Auto-discovery and startup
+## If `run()` throws
 
-Background services are found the same way everything else in RapidREST is. See [Auto-Discovery](/docs/core-concepts/auto-discovery). At startup, the server scans every exported class under `src/` and hands any class whose prototype chain includes `BackgroundService` to a `BackgroundServiceManager`, which instantiates it (running the usual `@Inject`/`@Config` dependency injection first), calls `start()`, and either schedules `run()` on the configured cron expression or runs it once and stops the service.
+A failure inside `run()` doesn't crash the server. It's caught, logged (`Background service '<name>' failed during a scheduled run.`), and the service stays scheduled, the next tick still fires normally. A slow `run()` that's still executing when its next tick comes due doesn't overlap with itself either, the manager skips that tick with a warning rather than letting two invocations of the same service run concurrently. Both of these you get for free, with nothing to write yourself.
+
+What isn't automatic: shutdown doesn't wait for an in-flight `run()` to finish. `stop()` is called immediately once the server starts shutting down, racing against whatever `run()` is still doing rather than waiting for it. If a job does something that would be unsafe to interrupt partway through, coordinating that is on the job itself, check for an in-progress operation in `stop()`, or keep individual `run()` calls short enough that this doesn't matter in practice.
+
+## Auto-discovery and startup
+
+Background services are found the same way everything else in RapidREST is, see [Auto-Discovery](/docs/core-concepts/auto-discovery). At startup, the server scans every exported class under `src/` and hands any class whose prototype chain includes `BackgroundService` to a `BackgroundServiceManager`, which instantiates it (running the usual `@Inject`/`@Config` dependency injection first), calls `start()`, and either schedules `run()` on the configured cron expression or runs it once and stops the service. Services start up one at a time, in discovery order, not all at once, each one's `start()` completes before the next service's does.
 
 There's no manual registration step. Export a class extending `BackgroundService` anywhere under `src/`, and it's live on the next server start.
 
 ## Controlling services manually
 
-Most of the time, `BackgroundServiceManager` handles everything for you automatically. When you do need direct control (say, triggering a job on demand from an admin endpoint), inject the manager and use `start`/`stop`/`getService`:
+Most of the time, `BackgroundServiceManager` handles everything for you automatically. When you do need direct control, triggering a job on demand from an admin endpoint, say, inject the manager:
 
 ```ts
 import {ObjectDecorators} from '@rapidrest/core';
@@ -117,7 +125,13 @@ export class AdminRoute {
 }
 ```
 
-# Scaffolding a job with the CLI
+| Method | What it does |
+|---|---|
+| `start(name)` / `stop(name)` | Start or stop one named service |
+| `startAll()` / `stopAll()` | Start or stop every discovered service, this is what the server itself calls at startup and during [shutdown](/docs/http-engine#shutting-down) |
+| `getService(name)` | Returns the running instance of a named service, or `undefined` |
+
+## Scaffolding a job with the CLI
 
 ```bash
 rapidrest generate job MetricsCollector --schedule "*/5 * * * *"

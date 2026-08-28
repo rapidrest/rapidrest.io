@@ -5,7 +5,7 @@ sidebar_label: Data Fetching
 
 # Data Fetching
 
-A page gets its props from up to three sources, merged together on every request:
+A page rendered entirely on the server needs its data before it can render; there's no client-side fetch happening afterward the way a single-page app might do it. `@rapidrest/react` gives you three different places to supply that data, depending on how simple the need is or how deeply it has to reach into RapidREST's own dependency injection, and merges whatever each one returns into the page's props on every request:
 
 ```text
 props = { user, userUid, ...pageProps, ...serviceProps, ...routeProps }

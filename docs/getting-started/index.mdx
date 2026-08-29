@@ -23,11 +23,13 @@ This gives you the `rapidrest` command (`rr` for short, if you prefer).
 
 ## Scaffold a project
 
+To create a new RapidREST server project start with the following command:
+
 ```bash
 rapidrest generate server my-api
 ```
 
-This walks you through an interactive prompt. None of it is a permanent decision, you can add a database or React later without starting over.
+This command walks you through an interactive prompt. Don't worry if you make a mistake, nothing is a permanent decision. You can add a database or React later without starting over.
 
 | Prompt | Notes |
 |---|---|
@@ -37,30 +39,23 @@ This walks you through an interactive prompt. None of it is a permanent decision
 | Additional features | `React` (server-rendered pages from this same server), `Docker`, `Kubernetes (Helm)` |
 | Source control | `GitHub`, `GitLab`, `Git`, or none |
 
-Skip the prompts with flags once you know what you want:
-
-```bash
-rapidrest generate server my-api --output-dir ~/projects/my-api
-```
-
-:::note[Scripting or CI?]
+:::note[Non-Interactive Mode]
 Every prompt above has a matching flag, and `--answers <file>` lets you scaffold identically-configured projects with zero prompts. See [Generate Commands](/docs/cli-reference/generate-commands#rapidrest-generate-server-name) for the full flag reference.
 :::
 
-## Install dependencies
+Once the `generate` command is finished you can immediately get to work. Dependencies are installed automatically.
 
 ```bash
 cd my-api
-yarn install
 ```
 
 ## Run it
 
+When actively developing you'll want to use `rapidrest dev`. This will automatically spin up a throwaway in-memory instance of every datastore you picked (nothing to install or run separately), and start the server with file-watching, restarting on every save. If you picked React, it also runs the Vite build in watch mode alongside it. Everything shuts down cleanly on <kbd>Ctrl</kbd>+<kbd>C</kbd>, nothing is left running on your machine afterward.
+
 ```bash
 rapidrest dev
 ```
-
-`rapidrest dev` reads `src/config.ts`, automatically spins up a throwaway in-memory instance of every datastore you picked (nothing to install or run separately), and starts the server with file-watching, restarting on every save. If you picked React, it also runs the Vite build in watch mode alongside it. Everything shuts down cleanly on <kbd>Ctrl</kbd>+<kbd>C</kbd>, nothing is left running on your machine afterward.
 
 Confirm it's up:
 
@@ -80,7 +75,9 @@ yarn start
 
 This still starts the same in-memory datastores `rapidrest dev` does, so it's not yet pointed at real data, just running the compiled output instead of `tsx --watch`. [Deployment](/docs/deployment) covers pointing this at real, persistent datastores and shipping it to an actual server or container.
 
-## What did `generate server` actually build?
+## What did `generate server` actually do?
+
+The `generate server` command scaffolds your project with the following file and folder structure.
 
 ```text
 my-api/
@@ -99,7 +96,7 @@ my-api/
 └── package.json
 ```
 
-**There's no router file, and no model registry.** Every class you export anywhere under `src/` is discovered and wired up automatically at startup. Add a route file, it's live on the next restart; there's nothing else to touch. [Core Concepts](/docs/core-concepts) explains the mechanism behind this (and the decorator-heavy style, `@Route`, `@Get`, `@Inject`, that you'll see throughout the rest of these docs).
+**Notice that there's no router file, and no model registry.** Every class you export anywhere under `src/` is discovered and wired up automatically at startup. When you add a new file it becomes live on the next restart; there's nothing else to touch. [Core Concepts](/docs/core-concepts) explains the mechanism behind this (and the decorator-heavy style that you'll see throughout the rest of these docs).
 
 :::note[tsconfig.json]
 RapidREST's decorators need `experimentalDecorators` and `emitDecoratorMetadata` turned on. Your generated `tsconfig.json` already extends the framework's base config so you don't have to set these by hand:
@@ -127,7 +124,15 @@ This creates `src/models/Pet.ts` (open it and add fields like `name` or `species
 rapidrest generate route PetRoute --model Pet
 ```
 
-One command, and you have the standard CRUD set, `GET /pets`, `POST /pets`, `PUT /pets/:id`, `DELETE /pets/:id`, and more, with no repository or query code to write by hand. See [Auto CRUD Routes](/docs/routing/auto-crud-routes) for the exact endpoint list.
+With this single command you have the standard CRUD set, `GET /pets`, `POST /pets`, `PUT /pets/:id`, `DELETE /pets/:id`, and more. There is no repository or query code to write by hand. See [Auto CRUD Routes](/docs/routing/auto-crud-routes) for the exact endpoint list.
+
+:::note[Pro Tip]
+You can skip `generate model` and create both model and route at the same time using:
+
+```bash
+rapidrest generate route PetRoute --model Pet
+```
+:::
 
 Save, and `rapidrest dev` picks the new files up automatically:
 
@@ -135,8 +140,6 @@ Save, and `rapidrest dev` picks the new files up automatically:
 curl -X POST http://localhost:3000/pets -H "Content-Type: application/json" -d '{"name":"Rex"}'
 curl http://localhost:3000/pets
 ```
-
-The data only lives as long as `rapidrest dev` keeps running, it's still the in-memory datastore, but the exact same route and model code keeps it forever once pointed at a real one.
 
 ## What to learn next
 

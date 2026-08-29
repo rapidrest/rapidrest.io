@@ -11,6 +11,31 @@ Keep entries terse — this is a reference, not a transcript.
 
 ## Standing design decisions & constraints
 
+- **Docs versioning** (added 2026-08-29, revised same day). The live `docs/` folder is always
+  labeled **"latest"** (`versions.current.label` in `docusaurus.config.ts`'s docs preset config,
+  a static string, not derived from anything), and `lastVersion: 'current'` +
+  `versions.current.path: ''` keep it permanently at the bare `/docs/...` path, before and after
+  any freeze. A `docsVersionDropdown` navbar item is already in place (`themeConfig.navbar.
+  items`); with zero frozen versions it just renders as a plain "latest" link, and becomes a
+  real switcher automatically the moment a frozen version exists alongside it, no further config
+  needed when that happens.
+  **Freezing a version is a deliberate, user-triggered action, never something a session does on
+  its own initiative.** Running `yarn docusaurus docs:version X.Y.Z` snapshots the current
+  `docs/` tree verbatim into `versioned_docs/version-X.Y.Z/` + `versioned_sidebars/version-X.Y.Z-
+  sidebars.json` and records it in `versions.json` — this is real, meaningful history, not
+  something to trigger speculatively or "while we're at it." **1.0.0 has NOT been frozen yet as
+  of this writing** (it was run once on 2026-08-29, then explicitly reverted at the user's
+  request because more site changes were still planned before locking that snapshot in — `rm -rf
+  versioned_docs versioned_sidebars versions.json` cleanly undoes an unwanted freeze as long as
+  it hasn't been committed). The setup above is ready to go; freezing 1.0.0 (or whatever's
+  current) is simply running that command when the user says it's time, then committing the three
+  resulting paths.
+  Beyond that first freeze, the site's stated policy is to snapshot only at major-version
+  boundaries, not every minor/patch: before starting doc changes for a future 2.0.0, freeze
+  whatever the last 1.x release was (e.g. `docusaurus docs:version 1.4.0`) first, then keep
+  editing the live "latest" folder for 2.0.0's actual changes. Repeat at each future major
+  boundary, always freezing the last release of the outgoing major line before moving on.
+
 - **Commit discipline.** Don't `git commit` unless explicitly asked, even after a full
   review-and-fix cycle with passing tests. Leave changes staged/unstaged and say so.
 
@@ -776,3 +801,33 @@ Keep entries terse — this is a reference, not a transcript.
   tooling and README badges, not user-facing).
 - Confirmed clean: `yarn docusaurus build` succeeds with no broken links or anchors after all of
   the above (7 files modified, 1 new page).
+
+## 2026-08-29 (cont.): Docs versioning set up, then corrected mid-session
+- First pass: `docusaurus.config.ts` read `../cli/package.json`'s version live at build time for
+  the docs preset's `versions.current.label`, requiring a new `cli` sibling checkout in
+  `.github/workflows/deploy.yml`. User then asked for something simpler instead: freeze 1.0.0 as
+  an actual snapshot, and have the live docs just be statically labeled **"latest"** rather than
+  a tracked version number. Reworked accordingly: removed the `../cli`-reading helper and its
+  now-unnecessary CI checkout step entirely, set `versions.current.label` to the literal string
+  `'latest'`. `lastVersion: 'current'` and `path: ''` are unchanged, still keeping "latest" at
+  the bare `/docs/` path permanently.
+- Ran `yarn docusaurus docs:version 1.0.0` to test the freeze, it succeeded (created
+  `versions.json`, `versioned_sidebars/version-1.0.0-sidebars.json`, `versioned_docs/version-
+  1.0.0/`) before the user's "wait, don't freeze yet" landed, they want to make more site changes
+  first and control the freeze timing themselves rather than have a session trigger it. Reverted
+  cleanly since nothing was committed: `rm -rf versioned_docs versioned_sidebars versions.json`.
+  **Lesson**: freezing a docs version is exactly the kind of action worth pausing on/confirming
+  before running, not just because it's technically reversible pre-commit, but because it's a
+  meaningful "lock this in as history" decision the user clearly wants to make deliberately, not
+  have happen as a side effect of setting up the surrounding config. Captured this as a standing
+  rule above rather than just a one-off note.
+- Verified locally after the revert: `yarn docusaurus build` succeeds, and the built navbar HTML
+  shows `<a href=/docs/intro>latest</a>`. No `versions.json`/`versioned_docs/`/`versioned_sidebars/`
+  exist, correctly, freezing 1.0.0 for real is still pending on the user's own timing.
+- **Noticed, not touched**: two edits appeared in `src/pages/index.tsx` since the last homepage
+  session (presumably the user's own) — the hero's `CopyCommand` now reads
+  `"npm global @rapidrest/cli"`, which isn't a valid npm invocation (`npm global` isn't a
+  subcommand; the working form is `npm install -g @rapidrest/cli`, what it said before). Flagged
+  to the user directly rather than fixing unasked, per instructions not to revert an unexplained
+  change silently. The `WhyRapidREST` list's first bullet was also reworded ("Auth Server" instead
+  of "Real login"), which reads fine, no issue there.

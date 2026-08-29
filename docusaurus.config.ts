@@ -132,6 +132,20 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           editUrl: 'https://github.com/rapidrest/rapidrest.dev/tree/main/',
+          // "current" (this live, actively-edited docs/ folder) is always labeled "latest"
+          // rather than a specific version number, and always serves at the bare /docs/ path
+          // via `lastVersion` — a frozen release (starting with 1.0.0, snapshotted the same day
+          // this was set up) never displaces it. See .claude/NOTES.md's "Docs versioning" entry
+          // for the full policy: routine 1.x releases just update this same live content with
+          // no version-related changes needed here; only cutting the *next major* version calls
+          // `docusaurus docs:version` to snapshot whatever the last 1.x release was first.
+          lastVersion: 'current',
+          versions: {
+            current: {
+              label: 'latest',
+              path: '',
+            },
+          },
         },
         blog: {
           showReadingTime: true,
@@ -176,6 +190,10 @@ const config: Config = {
           label: 'API Reference',
         },
         {to: '/blog', label: 'Blog', position: 'left'},
+        {
+          type: 'docsVersionDropdown',
+          position: 'right',
+        },
         {
           href: 'https://github.com/rapidrest',
           label: 'GitHub',

@@ -30,7 +30,7 @@ function HomepageHeader() {
             Get Started
           </Link>
         </div>
-        <CopyCommand command="npx @rapidrest/cli generate server my-api" />
+        <CopyCommand command="npm install -g @rapidrest/cli" />
       </div>
     </header>
   );
@@ -69,7 +69,7 @@ function CliBand() {
       <div className="container">
         <Heading as="h2">From nothing to running in three steps</Heading>
         <div className={styles.cliSteps}>
-          <CodeStep n={1} cmd="npx @rapidrest/cli generate server my-api" label="Scaffold a project" />
+          <CodeStep n={1} cmd="rapidrest generate server my-api" label="Scaffold a project" />
           <CodeStep n={2} cmd="rapidrest generate route Pet --model" label="Add a model + CRUD routes" />
           <CodeStep n={3} cmd="rapidrest dev" label="Run it!" />
         </div>

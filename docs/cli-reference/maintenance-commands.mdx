@@ -1,11 +1,11 @@
 ---
-sidebar_position: 6
+sidebar_position: 7
 sidebar_label: Maintenance
 ---
 
 # Maintenance Commands
 
-A project generated months ago drifts from what the CLI would produce today: templates get bug fixes, dependency versions move on, and the project itself accumulates its own changes on top. `doctor` and `upgrade` both close that gap, from two different directions. `doctor` looks for specific, known-bad patterns from past template bugs and fixes what it safely can. `upgrade` re-syncs the project's generator-owned files and dependency versions against whatever templates the CLI you have installed right now actually ships, whether or not anything about them was ever "wrong."
+A project generated months ago drifts from what the CLI would produce today: templates get bug fixes, dependency versions move on, and the project itself accumulates its own changes on top. `doctor` and `upgrade` both close that gap, from two different directions. `doctor` looks for specific, known-bad patterns from past template bugs and fixes what it safely can. `upgrade` re-syncs the project's generator-owned files and dependency versions against whatever templates the CLI you have installed right now actually ships, whether or not anything about them was ever "wrong." `release` is a different kind of maintenance, cutting an actual new version of the project once it's ready to ship.
 
 ## `rapidrest doctor`
 
@@ -52,3 +52,24 @@ It only ever touches a file that already exists in the project, and never create
 - If `src/routes/HelloRoute.ts` was deleted, the API route prefix can't be recovered, which can cause a false-positive diff on any surviving default-route file's decorator line.
 - Dependency sync never *removes* a stale or renamed dependency (e.g. a package the template dropped) — that's [`doctor`](#rapidrest-doctor)'s job.
 :::
+
+## `rapidrest release BUMP`
+
+Cuts an actual new version of the project: bumps `package.json`, promotes `RELEASE_NOTES.md`'s `## Unreleased` section to the new version number, summarizes commit history into `CHANGELOG.md`, updates the Helm chart's version if `helm/` exists, then commits, tags, and **pushes to your git remote**, all in one command.
+
+```bash
+rapidrest release patch
+rapidrest release 2.1.0 --dry-run
+rapidrest release prerelease --preid rc --no-push
+```
+
+| Argument/Flag | Description |
+|---|---|
+| `BUMP` (required) | Release strategy: `major`, `minor`, `patch`, `premajor`, `preminor`, `prepatch`, `prerelease`, or an explicit `x.y.z` version |
+| `--preid <value>` | Prerelease identifier (e.g. `rc`) for the `pre*` strategies |
+| `--dry-run` | Print the computed version and exit without changing anything |
+| `--no-push` | Commit and tag locally, but skip `git push` |
+
+Two things have to be true before this does anything: the working tree must be clean (commit or stash first), and `RELEASE_NOTES.md` must already have a `## Unreleased` section for it to promote, add one as you go rather than trying to write it at release time. If a `helm/` directory exists, its chart files are validated and version-bumped too, failing before anything else changes if they're malformed.
+
+`git push` runs by default at the end, not just a local commit and tag, so a bare `rapidrest release patch` publishes the release the moment it succeeds. Use `--no-push` to stop short of that and push yourself once you're ready. If something fails partway through the mutation phase, the working tree may be left partially modified, `release` says so in the error and points you at `git status` rather than silently leaving you unsure what happened.

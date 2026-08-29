@@ -1,0 +1,60 @@
+---
+sidebar_position: 5
+sidebar_label: Dependencies
+---
+
+# Dependencies
+
+`dep` wraps your project's package manager so you don't have to remember whether a given project uses `npm` or `yarn`, it's detected automatically from the project's lockfile either way. `dep add`/`dep install`/`dep remove` are thin, same-behavior wrappers; `dep upgrade` is the one with real logic behind it, a genuine mass version upgrade that neither `npm update` nor `yarn upgrade` actually does.
+
+## `rapidrest dep add PACKAGE...`
+
+```bash
+rapidrest dep add lodash-es
+rapidrest dep add axios@1.19.0
+rapidrest dep add vitest --dev
+```
+
+| Flag | Description |
+|---|---|
+| `-D`, `--dev` | Add as a devDependency instead of a dependency |
+
+Equivalent to `yarn add`/`npm install <pkg>`. Takes one or more package names or `name@version` specs as positional arguments, not a flag.
+
+## `rapidrest dep remove PACKAGE...`
+
+```bash
+rapidrest dep remove lodash-es
+rapidrest dep remove axios lodash-es
+```
+
+Equivalent to `yarn remove`/`npm uninstall`. Takes no flags, just one or more package names.
+
+## `rapidrest dep install`
+
+```bash
+rapidrest dep install
+```
+
+Equivalent to `yarn install`/`npm install` with no arguments, installs whatever `package.json` and the lockfile already specify. Takes no flags.
+
+## `rapidrest dep upgrade [PACKAGE...]`
+
+`npm update`/`yarn upgrade` only ever move a dependency within the version range already written in `package.json` (a `^4.1.0` never becomes `5.0.0` no matter how you run either of those). `dep upgrade` actually rewrites `package.json` itself, a real mass upgrade to whatever's currently published, not just a range-respecting bump.
+
+```bash
+rapidrest dep upgrade
+rapidrest dep upgrade --dry-run
+rapidrest dep upgrade lodash-es axios
+rapidrest dep upgrade lodash-es@4.17.21 axios:1.19.0
+rapidrest dep upgrade --exclude typescript --exclude eslint
+```
+
+| Flag | Description |
+|---|---|
+| `--dry-run` | List what would be upgraded without changing anything |
+| `--exclude <name>` | Package name to exclude from the upgrade. Repeatable. Only meaningful when upgrading everything, naming a package as an argument already opts it in explicitly |
+| `--no-install` | Skip the automatic install after upgrading. Defaults to installing right away, so the new versions in `package.json` and what's actually in `node_modules` never drift apart |
+| `--peer` | Also consider `peerDependencies` when upgrading everything. Off by default since a peer dependency's version is usually a constraint your project doesn't control, not something to bump freely |
+
+With no package names given, every entry in `dependencies`, `devDependencies`, and `optionalDependencies` is checked against its latest published version (add `--peer` to include `peerDependencies` too). Name specific packages instead, and only those are touched, `peerDependencies` included automatically since naming one is unambiguous about intent. A bare name (`lodash-es`) goes to whatever's currently latest; `name@version` or `name:version` pins to an exact version instead.

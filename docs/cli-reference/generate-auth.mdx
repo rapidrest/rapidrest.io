@@ -21,9 +21,10 @@ rapidrest generate auth --method oidc --oidc-provider google --oidc-provider app
 | `--default-accounts` | Also provision a default admin account the first time the server boots against an empty user table |
 | `--method <name>` | Which authentication method(s) to enable. One of `basic`, `otp`, `totp`, `passkey`, `fido2`, `mfa`, `oidc`. Repeatable |
 | `--oidc-provider <name>` | When `oidc` is among `--method`, which third-party OIDC/OAuth provider(s) to configure. One of `google`, `apple`, `facebook`, `microsoft`, `custom`. Repeatable |
-| `--author <name>` | |
+| `-a`, `--author <name>` | |
 | `--output-dir <path>` | Defaults to the current directory |
 | `-f`, `--force` | Overwrite existing files |
+| `--no-install` | Skip the automatic package manager install that runs afterward |
 
 If `--datastore-type`, `--method`, or `--oidc-provider` are omitted, you're prompted interactively — the same checkboxes/selects as before these flags existed. `basic` is checked by default in the method checkbox; `google` is checked by default in the OIDC provider checkbox.
 
@@ -60,7 +61,7 @@ If `--datastore-type`, `--method`, or `--oidc-provider` are omitted, you're prom
 - `@simplewebauthn/server` — when `passkey`, `fido2`, or `mfa` is selected
 - `jwks-rsa` — when a selected OIDC provider uses OpenID Connect (all current presets except Facebook)
 
-Install dependencies after running this command.
+The install runs automatically right after, via your project's detected package manager, pass `--no-install` to skip it and install yourself later.
 
 **OIDC providers.** Selecting `oidc` prompts for one or more third-party providers when `--oidc-provider` isn't passed. Google, Apple, Facebook, and Microsoft come with preset, well-known endpoints (verify these against the provider's current `.well-known/openid-configuration` before deploying — they can change); `custom` prompts for every endpoint (authorization/token/profile URLs, protocol, issuer, JWKS URI, scopes) by hand. Selecting more than one provider is fully supported — each gets its own route file and a distinct registered strategy name, so they don't collide.
 

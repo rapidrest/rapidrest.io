@@ -704,3 +704,75 @@ Keep entries terse — this is a reference, not a transcript.
   and Events/Notifications/Telemetry. The two sections now answer different questions: "what
   does the core framework do" vs. "what's the rest of the ecosystem."
 - Confirmed clean: `yarn docusaurus build` succeeds with no errors after both component changes.
+
+## 2026-08-29: @rapidrest/cli v1.0.0 review — three new commands, a mass flag-shortcut fix, and an inverted build relationship
+- User pushed `cli` v1.0.0 today; reviewed every commit since the last CLI pass (`b38c75a` through
+  `47a88b1`) plus re-ran `--help` on all 16+ commands rather than trusting memory of the last pass.
+- **Three entirely new commands, previously undocumented anywhere on the site**:
+  - `dep add`/`dep install`/`dep remove`/`dep upgrade` — package-manager wrapper, `dep upgrade`
+    being the one with real logic (a genuine mass upgrade to latest-published versions, unlike
+    `npm update`/`yarn upgrade` which only move within the existing semver range; supports
+    `name@version`/`name:version` pins, `--exclude`, `--peer`, `--dry-run`, `--no-install`).
+    Verified exact section-selection behavior (`dependencies`/`devDependencies`/
+    `optionalDependencies` by default, `peerDependencies` only with `--peer` or when packages are
+    named explicitly) directly against `src/lib/depUpgrade.ts`. New page: `docs/cli-reference/
+    dependencies.mdx`.
+  - `test` — thin Vitest wrapper (`--coverage`, `--watch`, extra args pass through). Added to
+    `dev-workflow.mdx`, since it's a day-to-day dev action, not a maintenance one.
+  - `release BUMP` — bumps version, promotes `RELEASE_NOTES.md`'s `## Unreleased` section,
+    updates `CHANGELOG.md` and Helm chart versions, then **commits, tags, and pushes to the git
+    remote by default**. Flagged the push-by-default behavior explicitly in
+    `maintenance-commands.mdx`, this is the kind of surprising default worth calling out loudly,
+    a bare `rapidrest release patch` publishes immediately unless `--no-push` is passed. Also
+    requires a clean working tree and an existing `## Unreleased` section, fails before touching
+    anything otherwise.
+- **A mass "fix broken flag shortcuts" commit (`6e02e6e`) made nearly every `alias:`-based fake
+  short flag from earlier in this project's CLI pass into a real, working `char:`-based one.**
+  Verified `grep -rn "alias: '"` now returns nothing anywhere in `src/commands/` — the fix was
+  complete, not partial. This flips several things this session previously stated as fact:
+  `generate default-route --type` now genuinely has a working `-t` (re-added after removing it
+  earlier for being fake), and `-a`/`-c`/`-d`/`-o`/`-m`/`-s`/`-p` (path) are now real across
+  `generate server/model/route/job/default-route/react`. Updated every flag table across
+  `generate-commands.mdx`, `generate-auth.mdx`, and `addons.mdx`, and softened the Overview's
+  `:::note[Flags]` box since the "don't assume, some are fake" caveat no longer applies to
+  anything.
+- **`--no-install` is now a real flag on `generate server`/`model`/`k8s`/`auth`/`react`**: each
+  now runs an automatic package-manager install afterward, but only if generating actually
+  changed `package.json` (verified via `installIfPackageJsonChanged`'s before/after diff, e.g.
+  `generate model` only installs when adding a brand-new datastore pulled in a new driver
+  package). Fixed a real staleness this surfaced: `generate-auth.mdx` said "Install dependencies
+  after running this command," which is backwards now that it happens automatically by default.
+- **A real, non-obvious behavior change discovered while checking `build`/`start`: the
+  relationship between the CLI and the project's own `package.json` scripts inverted.**
+  Previously the project's `"build"` script did the real work (`rimraf dist && tsc [&& vite
+  build]`) and `rapidrest build`/`start` were thin wrappers calling it via the package manager.
+  Now it's the opposite: `templates/server/package.json`'s `"build"`/`"start"`/`"test"`/
+  `"release"` scripts are all just one-line aliases (`"rapidrest build"`, etc.), and `rapidrest
+  build` itself does the actual work directly (confirmed in `src/commands/build.ts`): lint
+  `src`/`test`/`app`/`apps` with ESLint (new, skippable with `--no-lint`), clean `dist/`,
+  compile with `tsc`, then compile+bundle the client with `vite build` if React is configured.
+  This made two existing pages state the relationship backwards, both fixed: `dev-workflow.mdx`'s
+  `build` section (previously described it as delegating to the package.json script; now
+  correctly describes `rapidrest build` as the implementation and the package.json script as the
+  alias, with the exact step order and where `--no-lint` breaks the chain) and `deployment/
+  docker.mdx`'s "## The image" section (same fix, plus noting linting is now part of what the
+  Docker builder stage runs).
+- **New (8th) `doctor` check** (`bc89c6f`): `missing-export-class-loader-ignore`, catches a React
+  project whose `class_loader.ignore` doesn't exclude `export.ts`/`export.js` (ClassLoader
+  otherwise re-imports it at ordinary startup, re-running `runStaticExport()`'s Prometheus
+  metric registration and crashing). Already covered by `maintenance-commands.mdx`'s deliberately
+  non-exhaustive "and a few others" phrasing, no page update needed for this one specifically.
+- **`generate react` gained real multi-app auto-migration** (verified in `migrateToNamespacedAppDir`
+  in `src/commands/generate/react.ts`): adding a second app automatically moves an existing
+  single-app layout (`app/`) to `apps/<name>/` and rewrites its route's `appDir`, no manual
+  restructuring needed the way `auth-server` needed before multi-app support existed. Added a new
+  "### Adding a second app" subsection to `addons.mdx`'s `generate react` entry.
+- **Checked and found NOT doc-affecting**: `c603436` (k3s_install.sh's hardcoded `petstore`
+  placeholder strings replaced with `{{project_name}}`, and a real bug fix pointing the script's
+  `helm upgrade --install` at the local `../helm` chart instead of a hardcoded remote petstore
+  chart — a correctness fix, not a documented-behavior change); `238b292` (template dependency
+  version bumps, no specific versions are cited in the docs to go stale); `4a9b278` (child_process
+  → cross-spawn, Windows-compat internal change); `9a63485`/`47a88b1` (the CLI repo's own release
+  tooling and README badges, not user-facing).
+- Confirmed clean: `yarn docusaurus build` succeeds with no broken links or anchors after all of
+  the above (7 files modified, 1 new page).

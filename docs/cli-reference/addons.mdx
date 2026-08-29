@@ -35,6 +35,7 @@ rapidrest generate k8s
 |---|---|
 | `--output-dir <path>` | Project directory to add to. Defaults to the current directory |
 | `-f`, `--force` | Overwrite existing files |
+| `--no-install` | Skip the automatic package manager install that runs afterward, if generating added a new dependency |
 
 Same idempotent-regeneration behavior as `generate docker`.
 
@@ -54,9 +55,9 @@ rapidrest generate default-route --type admin --api 2
 | `-f`, `--force` | Overwrite existing files |
 | `--api-route` / `--no-api-route` | Use `@ApiRoute` instead of `@Route` for the generated route(s), with no version. Omit both this and `--api` to be prompted interactively |
 | `--api <version>` | Sets the API version to use with `--api-route` (e.g. `--api 2` for `/api/v2`). Passing `--api` alone (without `--api-route`) also implies `--api-route`. **`--api` always requires a value** — a bare `--api` with nothing after it fails with `Flag --api expects a value`; use `--api-route` by itself for an unversioned `/api` prefix |
-| `--author <name>` | |
+| `-a`, `--author <name>` | |
 | `--output-dir <path>` | Defaults to `./src/routes` |
-| `--type <name>` | One of `acl`, `admin`, `metrics`, `openapi`, `push`, `static`, `status`. Pass more than once to generate multiple route types |
+| `-t`, `--type <name>` | One of `acl`, `admin`, `metrics`, `openapi`, `push`, `static`, `status`. Pass more than once to generate multiple route types |
 | `--static-path <path>` | Only meaningful with `--type static`. Path containing the static files to serve. Defaults to `public` |
 
 If `--type` is omitted, you're prompted interactively to check off which routes to generate (Admin, Metrics, OpenAPI, and Status are checked by default; ACL and Static aren't).
@@ -73,10 +74,15 @@ rapidrest generate react app --path /dashboard --hydrate
 | Flag | Description |
 |---|---|
 | `--output-dir <path>` | Project directory to add to. Defaults to the current directory |
-| `--author <name>` | |
-| `--path <base-path>` | Base path the app routes to. Defaults to `/<NAME>` |
+| `-a`, `--author <name>` | |
+| `-p`, `--path <base-path>` | Base path the app routes to. Defaults to `/<NAME>` |
 | `--hydrate` | Enables client-side hydration |
 | `-f`, `--force` | Overwrite existing files |
+| `--no-install` | Skip the automatic package manager install that runs afterward |
+
+### Adding a second app
+
+Run this command again with a different `NAME` and it adds another app alongside the first, rather than overwriting it. `vite.config.ts` is regenerated every time to include every app the project now has (see [Hydration → Multiple Apps](/docs/ssr-react/hydration#multiple-apps)), so it never needs hand-editing as apps are added. If the project's first app still uses the older single-app layout (a plain `app/` directory rather than `apps/<name>/`), adding a second app migrates it to `apps/<name>/` automatically and updates its route class's `appDir` to match, no manual restructuring required.
 
 ## `rapidrest generate react-page APP NAME`
 
@@ -93,7 +99,7 @@ rapidrest generate react-page app my/path/page --service
 | Flag | Description |
 |---|---|
 | `--output-dir <path>` | Project directory to add to. Defaults to the current directory |
-| `--author <name>` | |
+| `-a`, `--author <name>` | |
 | `-s`, `--service` | Also generate a companion service class for server-side data fetching (see [Data Fetching](/docs/ssr-react/data-fetching)) |
 | `-f`, `--force` | Overwrite existing files |
 

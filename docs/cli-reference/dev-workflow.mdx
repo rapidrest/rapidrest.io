@@ -1,11 +1,11 @@
 ---
-sidebar_position: 5
+sidebar_position: 6
 sidebar_label: Dev Workflow
 ---
 
 # Dev Workflow
 
-Three commands cover the whole lifecycle of running a project outside a generated Docker/Kubernetes deployment: `dev` for local iteration with hot reload, `start` for running it the way it'll actually run in production, and `build` for just the compile step underneath both. All three read `src/config.ts` to know which datastores to start, so there's nothing extra to configure for local development beyond what the project already has.
+Four commands cover the whole lifecycle of running and testing a project outside a generated Docker/Kubernetes deployment: `dev` for local iteration with hot reload, `start` for running it the way it'll actually run in production, `build` for just the compile step underneath both, and `test` for the test suite. `dev` and `start` both read `src/config.ts` to know which datastores to start, so there's nothing extra to configure for local development beyond what the project already has.
 
 ## `rapidrest dev`
 
@@ -45,6 +45,7 @@ rapidrest start --bun        # run on Bun instead of Node.js
 | Flag | Description |
 |---|---|
 | `--no-build` | Skip the build step |
+| `--no-lint` | Skip linting as part of that build step |
 | `-d`, `--docker` | Skips starting in-memory database servers |
 | `-p`, `--port <n>` | Preferred port to bind to — same automatic-fallback behavior as `dev`, described above |
 | `--bun` | Use the Bun engine instead of Node.js. Requires Bun v1.4.0+; downloads a compatible version automatically if none is installed. See [Deployment → Bun](/docs/deployment/bun). |
@@ -53,13 +54,36 @@ rapidrest start --bun        # run on Bun instead of Node.js
 
 ## `rapidrest build`
 
-`start` already builds before it runs; `build` is that same compile step on its own, for a CI pipeline that wants to produce `dist/` once and hand it to a separate deploy step, rather than building and running in the same process.
+`start` already builds before it runs; `build` is that same step on its own, for a CI pipeline that wants to produce `dist/` once and hand it to a separate deploy step, rather than building and running in the same process.
 
 ```bash
 rapidrest build
+rapidrest build --no-lint
 ```
 
-Runs the project's `build` script via the detected package manager, equivalent to `yarn build` or `npm run build` from the project root. Takes no flags.
+| Flag | Description |
+|---|---|
+| `--no-lint` | Skip linting before building |
+
+A generated project's own `"build"` script in `package.json` is just `rapidrest build`, so `yarn build`/`npm run build` and calling this command directly do the exact same thing. In order: lint `src`/`test`/`app`/`apps` with ESLint (unless `--no-lint`), clean out `dist/`, compile with `tsc`, then, if the project has React configured, compile the client `tsconfig.client.json` and run `vite build` for the hydration bundle. Fails on the first step that errors, a lint failure stops the build before `tsc` ever runs.
+
+## `rapidrest test`
+
+Runs the project's test suite. Every generated project already has this wired up as its own `"test"` script, so `yarn test` and this command are equivalent.
+
+```bash
+rapidrest test
+rapidrest test --coverage
+rapidrest test --watch
+rapidrest test src/routes/HelloRoute.test.ts
+```
+
+| Flag | Description |
+|---|---|
+| `--coverage` | Run with code coverage |
+| `--watch` | Watch mode instead of a single pass |
+
+A thin wrapper around Vitest, running it through your project's own detected package manager. Extra arguments (a specific test file or a glob) pass straight through to Vitest itself, exactly as if you'd run `vitest` directly.
 
 :::note[`rapidrest dev` vs. `rapidreact dev`]
 If your project was scaffolded with `rapidrest generate server`, use `rapidrest dev` day-to-day. It already runs the Vite watcher for you when the React feature is configured. `rapidreact` (from `@rapidrest/react` directly, covered in [SSR React → Dev Mode](/docs/ssr-react/dev-mode)) is a lower-level tool for driving just the SSR dev workflow, useful if you're integrating `@rapidrest/react` outside of a CLI-scaffolded project.

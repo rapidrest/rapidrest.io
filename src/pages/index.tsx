@@ -109,7 +109,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title={siteConfig.title}
-      description="A high performance TypeScript framework for rapidly building RESTful APIs and web apps in minutes.">
+      description={siteConfig.tagline}>
       <HomepageHeader />
       <main>
         <CodeShowcase />

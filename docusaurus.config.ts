@@ -6,7 +6,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'RapidREST',
-  tagline: 'A high performance TypeScript framework for rapidly building RESTful APIs and web apps in minutes.',
+  tagline: 'The high-performance TypeScript framework for the modern web.',
   favicon: 'img/favicon.ico',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future

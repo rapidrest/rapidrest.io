@@ -7,5 +7,5 @@
   </defs>
   <rect width="1200" height="630" fill="url(#bg)"/>
   <text x="380" y="300" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="72" font-weight="700" fill="#FFFFFF">Rapid<tspan fill="#F0B429">REST</tspan></text>
-  <text x="122" y="480" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="30" font-weight="400" fill="#CFFAFE">Rapid REST APIs. First-class server-rendered React.</text>
+  <text x="122" y="480" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="30" font-weight="400" fill="#CFFAFE">The high-performance TypeScript framework for the modern web.</text>
 </svg>

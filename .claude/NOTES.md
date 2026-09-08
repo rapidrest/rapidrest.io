@@ -11,6 +11,19 @@ Keep entries terse — this is a reference, not a transcript.
 
 ## Standing design decisions & constraints
 
+- **Commit discipline.** Don't `git commit` unless explicitly asked for *that specific piece of
+  work*. An autonomous-execution/"commit as you go" approval given for one approved plan (e.g. via
+  plan mode) is scoped to that plan only — it does not carry forward to later, separate requests in
+  the same session, even ones that look similar in kind (a follow-up review-and-fix pass, a
+  refactor, a new feature), and even after a full review-and-fix cycle with passing tests. Default
+  to leaving changes staged/unstaged and saying so; only commit automatically within the exact
+  scope of a plan that was explicitly approved as autonomous. If unsure whether new work falls
+  inside that scope, treat it as outside and ask.
+  
+- **Commit message style: concise, one line per task/bug/feature — no verbose prose.** A commit
+  message is a short list of one-line bullets, one per item. This mirrors JP's standing convention
+  across his other repos.
+
 - **Docs versioning** (added 2026-08-29, revised same day). The live `docs/` folder is always
   labeled **"latest"** (`versions.current.label` in `docusaurus.config.ts`'s docs preset config,
   a static string, not derived from anything), and `lastVersion: 'current'` +
@@ -35,9 +48,6 @@ Keep entries terse — this is a reference, not a transcript.
   whatever the last 1.x release was (e.g. `docusaurus docs:version 1.4.0`) first, then keep
   editing the live "latest" folder for 2.0.0's actual changes. Repeat at each future major
   boundary, always freezing the last release of the outgoing major line before moving on.
-
-- **Commit discipline.** Don't `git commit` unless explicitly asked, even after a full
-  review-and-fix cycle with passing tests. Leave changes staged/unstaged and say so.
 
 - **Prose style for reference pages** (Helm/CLI parameter references, deployment guides, and
   similar). Minimize em dashes (" — "); split into separate sentences instead. Don't

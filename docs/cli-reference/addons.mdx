@@ -20,6 +20,8 @@ docker compose up
 |---|---|
 | `--output-dir <path>` | Project directory to add to. Defaults to the current directory |
 | `-f`, `--force` | Overwrite existing files |
+| `--has-react` / `--no-has-react` | Whether the project includes a React app, which affects the directories the `Dockerfile` copies. Defaults to detecting it from the existing project |
+| `--templates <value>` | A templates release version, or a local templates directory or `.zip` (see [Templates](/docs/cli-reference/templates)) |
 
 Safe to re-run with `--force` whenever your project's datastores change. It regenerates the output from the current project state rather than patching the existing files.
 
@@ -36,6 +38,7 @@ rapidrest generate k8s
 | `--output-dir <path>` | Project directory to add to. Defaults to the current directory |
 | `-f`, `--force` | Overwrite existing files |
 | `--no-install` | Skip the automatic package manager install that runs afterward, if generating added a new dependency |
+| `--templates <value>` | A templates release version, or a local templates directory or `.zip` (see [Templates](/docs/cli-reference/templates)) |
 
 Same idempotent-regeneration behavior as `generate docker`.
 
@@ -56,9 +59,10 @@ rapidrest generate default-route --type admin --api 2
 | `--api-route` / `--no-api-route` | Use `@ApiRoute` instead of `@Route` for the generated route(s), with no version. Omit both this and `--api` to be prompted interactively |
 | `--api <version>` | Sets the API version to use with `--api-route` (e.g. `--api 2` for `/api/v2`). Passing `--api` alone (without `--api-route`) also implies `--api-route`. **`--api` always requires a value** — a bare `--api` with nothing after it fails with `Flag --api expects a value`; use `--api-route` by itself for an unversioned `/api` prefix |
 | `-a`, `--author <name>` | |
-| `--output-dir <path>` | Defaults to `./src/routes` |
+| `--output-dir <path>` | Project directory to write into (routes land in its `src/routes`). Defaults to the current directory |
 | `-t`, `--type <name>` | One of `acl`, `admin`, `metrics`, `openapi`, `push`, `static`, `status`. Pass more than once to generate multiple route types |
 | `--static-path <path>` | Only meaningful with `--type static`. Path containing the static files to serve. Defaults to `public` |
+| `--templates <value>` | A templates release version, or a local templates directory or `.zip` (see [Templates](/docs/cli-reference/templates)) |
 
 If `--type` is omitted, you're prompted interactively to check off which routes to generate (Admin, Metrics, OpenAPI, and Status are checked by default; ACL and Static aren't).
 
@@ -69,6 +73,7 @@ Adds [SSR React](/docs/ssr-react) support to an existing project: the `app/` dir
 ```bash
 rapidrest generate react app
 rapidrest generate react app --path /dashboard --hydrate
+rapidrest generate react app --path /dashboard --router
 ```
 
 | Flag | Description |
@@ -76,9 +81,13 @@ rapidrest generate react app --path /dashboard --hydrate
 | `--output-dir <path>` | Project directory to add to. Defaults to the current directory |
 | `-a`, `--author <name>` | |
 | `-p`, `--path <base-path>` | Base path the app routes to. Defaults to `/<NAME>` |
-| `--hydrate` | Enables client-side hydration |
+| `--router` / `--no-router` | Enables client-side navigation between the app's pages. Implies `--hydrate` |
+| `--hydrate` / `--no-hydrate` | Enables client-side hydration |
 | `-f`, `--force` | Overwrite existing files |
 | `--no-install` | Skip the automatic package manager install that runs afterward |
+| `--templates <value>` | A templates release version, or a local templates directory or `.zip` (see [Templates](/docs/cli-reference/templates)) |
+
+Without `--router` or `--hydrate` you're asked first whether to enable client-side navigation and, if not, whether to enable hydration. `--router` sets `router = true` on the app's route: pages are still rendered on the server, and once loaded, clicking between the app's pages fetches the next page's data instead of a whole document. `vite.config.ts` builds the router entry for every app that uses it.
 
 ### Adding a second app
 
@@ -100,10 +109,13 @@ rapidrest generate react-page app my/path/page --service
 |---|---|
 | `--output-dir <path>` | Project directory to add to. Defaults to the current directory |
 | `-a`, `--author <name>` | |
-| `-s`, `--service` | Also generate a companion service class for server-side data fetching (see [Data Fetching](/docs/ssr-react/data-fetching)) |
+| `-s`, `--service` / `--no-service` | Also generate (or skip, without prompting) a companion service class for server-side data fetching (see [Data Fetching](/docs/ssr-react/data-fetching)) |
 | `-f`, `--force` | Overwrite existing files |
+| `--templates <value>` | A templates release version, or a local templates directory or `.zip` (see [Templates](/docs/cli-reference/templates)) |
 
 `NAME` may include a subpath (e.g. `my/path/page`). Each segment is PascalCased to derive the generated component/service name (`my/path/page` → `MyPathPage`).
+
+The service's `@ReactService` path is the page's public URL, the app's mount path plus `NAME` (`/dashboard/my/path/page` for an app mounted at `/dashboard`), which is how `@rapidrest/react` matches a service to its page. The mount path is read from the app's route class. If you decline the service, the page exports a client-side `fetchProps` helper instead.
 
 ## `rapidrest react export`
 

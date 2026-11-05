@@ -42,6 +42,10 @@ subscribe to a channel it doesn't have read access to. The server acknowledges w
 
 Every message published on a channel the socket is subscribed to is forwarded to the client verbatim, as the raw JSON string that was published.
 
+The WebSocket upgrade is subject to the same Origin check as every other WebSocket route, so a browser client must connect from an allowed origin (see [WebSockets](/docs/http-engine/websockets)).
+
+The change notifications `RepoUtils` publishes when a record is created, updated or deleted never include fields marked with `@RequiresScope`. A channel can have many subscribers with different scopes, so those fields are removed for everyone. Clients that need a scoped field should fetch the record through the API when they receive the notification.
+
 ## Publishing to a channel
 
 There are two ways to get a message onto a channel that `connect` is listening on:

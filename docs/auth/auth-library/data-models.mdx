@@ -5,7 +5,20 @@ sidebar_label: Data Models
 
 # Data Models
 
-`@rapidrest/auth` provides four data models. Each has a Mongo and a SQL implementation, distinguished by a `Mongo`/`SQL` suffix on the class name — e.g. `User` becomes `UserMongo` for MongoDB projects, `UserSQL` for PostgreSQL/SQLite ones, matching the convention used throughout `@rapidrest/service-core`. Import them from the matching subpath: `@rapidrest/auth/mongo` or `@rapidrest/auth/sql`.
+`@rapidrest/auth` provides ten persisted data models: four for accounts and credentials, one for runtime settings, and five that back the [OAuth server](/docs/auth/auth-library/oauth-server). Each has a Mongo and a SQL implementation, distinguished by a `Mongo`/`SQL` suffix on the class name. For example `User` becomes `UserMongo` for MongoDB projects and `UserSQL` for PostgreSQL/SQLite ones, matching the convention used throughout `@rapidrest/service-core`. Import them from the matching subpath: `@rapidrest/auth/mongo` or `@rapidrest/auth/sql`.
+
+| Model | Purpose |
+|---|---|
+| [`User`](#user) | The account itself. |
+| [`Alias`](#alias) | An alternate identifier for an account (email, phone, name, OAuth ID). |
+| [`Secret`](#secret) | A credential: password, app password, TOTP seed, passkey, recovery codes. |
+| [`Profile`](#profile) | Personal details and verified contacts. |
+| [`SystemSettings`](#systemsettings) | Deployment policy an administrator can change at runtime. |
+| [`Client`](#client) | A registered OAuth 2.0 / OIDC application. |
+| [`AuthorizationCode`](#authorizationcode) | A short-lived, single-use code issued by `/authorize`. |
+| [`ConsentGrant`](#consentgrant) | A user's recorded consent for a client. |
+| [`OAuthRefreshToken`](#oauthrefreshtoken) | A refresh token issued to an OAuth client. |
+| [`SigningKey`](#signingkey) | A key used to sign OAuth access and ID tokens. |
 
 ## `User`
 
@@ -14,10 +27,13 @@ The account itself.
 | Field | Type | Notes |
 |---|---|---|
 | `roles` | `string[]` | Persisted. Same roles consumed by `@RequiresRole` and ACL checks elsewhere in the framework. |
-| `scopes` | `string[]` | **Not** persisted — purposefully built at runtime (from the strategy/JWT), not stored in the database. |
+| `scopes` | `string[]` | **Not** persisted. Built at runtime (from the strategy/JWT), not stored in the database. |
 | `verified` | `boolean` | Whether the account's contact info (email/phone) has been verified. |
+| `requireMFA` | `boolean?` | Requires a second factor for this account. Defaults to the `auth:requireMFA` config value. |
+| `passwordChangeRequired` | `boolean?` | The account holder must choose a new password. Only a trusted user can set it, and it clears automatically when the holder changes their own password. Default `false`. |
+| `sessionsRevokedAt` | `number?` | Epoch milliseconds. Refresh tokens issued before this moment are rejected. Set by `POST /accounts/:id/revokeSessions`. |
 
-`User` implements service-core's `JWTUser`, so an authenticated `User` is exactly what `@User` injects into your route handlers elsewhere in the framework. It's locked down by `@Protect` by default — anonymous and every role are denied unless you override the ACL yourself.
+`User` implements service-core's `JWTUser`, so an authenticated `User` is exactly what `@User` injects into your route handlers elsewhere in the framework. It's locked down by `@Protect` by default: anonymous and every role are denied unless you override the ACL yourself.
 
 ## `Alias`
 
@@ -30,21 +46,23 @@ An alternate identifier for a user account: an email address, a phone number, a 
 | `userUid` | `string` | Foreign key to the owning `User`. |
 | `verified` | `boolean` | |
 
-A user can have multiple aliases — e.g. an email alias and a Google OAuth alias both pointing at the same `User`. Login flows that resolve "who is this" (basic, OTP, OIDC) look the caller up by alias.
+A user can have multiple aliases, for example an email alias and a Google OAuth alias both pointing at the same `User`. Login flows that resolve "who is this" (basic, OTP, OIDC) look the caller up by alias.
 
 ## `Secret`
 
-An authentication secret tied to a user — a hashed password, a TOTP seed, or a WebAuthn credential.
+An authentication secret tied to a user: a hashed password, a TOTP seed, or a WebAuthn credential.
 
 | Field | Type | Notes |
 |---|---|---|
 | `data` | `any` | Shape depends on `type`: a password hash string, a `TOTPSecret` object, a `StoredPasskeyCredential` object, or a `RecoveryCodesSecret` object. |
-| `type` | `SecretType` | `FIDO2`, `PASSKEY`, `PASSWORD`, `RECOVERY_CODES`, or `TOTP`. |
+| `type` | `SecretType` | `APP_PASSWORD` (`app-password`), `FIDO2`, `PASSKEY`, `PASSWORD`, `RECOVERY_CODES`, or `TOTP`. |
+| `hint` | `string?` | A short label shown to the user. Required for `app-password` secrets. |
+| `lastUsedAt` | `string?` | ISO-8601 timestamp of the last successful authentication with this secret. Unset if never used. |
 | `userUid` | `string` | |
 
 For WebAuthn secrets (`fido2`/`passkey`), the `Secret`'s own `uid` is set equal to the WebAuthn credential ID, so login-time verification can look it up directly by credential ID rather than scanning a user's secrets.
 
-`data` is always stripped from API responses — see [`BaseSecretRoute`](/docs/auth/auth-library/routes) for how secrets are created and returned safely.
+`data` is always stripped from API responses. See [`BaseSecretRoute`](/docs/auth/auth-library/routes#data-routes) for how secrets are created and returned safely.
 
 ## `Profile`
 
@@ -54,22 +72,111 @@ Additional, personally identifying information about a user.
 |---|---|---|
 | `avatar` | `string?` | |
 | `birthdate` | `Date?` | |
-| `contacts` | `Contact[]` | `{contact, type: EMAIL\|PHONE, verified}`. Gated behind `@RequiresScope("profile:email")` — see [Models & Persistence → `@RequiresScope`](/docs/models-persistence/entities-columns#requiresscope). |
+| `contacts` | `Contact[]` | `{contact, type: EMAIL\|PHONE, verified}`. Gated behind `@RequiresScope("profile:contacts")`. See [Models & Persistence → `@RequiresScope`](/docs/models-persistence/entities-columns#requiresscope). |
 | `givenName` | `string?` | |
 | `familyName` | `string?` | |
 | `preferences` | `Preferences` | `{contact: string[]}`. Gated behind `@RequiresScope("profile:preferences")`. |
 
-A `Profile`'s `uid` must equal its owning `User`'s `uid` — it's a 1:1 extension of the account, not a separately-identified resource.
+A `Profile`'s `uid` must equal its owning `User`'s `uid`. It's a 1:1 extension of the account, not a separately-identified resource.
+
+## `SystemSettings`
+
+Deployment-wide policy that an administrator can change while the server is running. It is stored as a single record (uid `default`), created the first time it is read and seeded from the matching config keys. After that the stored values win, so changes made through [`BaseSettingsRoute`](/docs/auth/auth-library/account-security#runtime-settings) take effect without a restart.
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `allowRegistration` | `boolean` | `true` | Seeded from `auth:allowRegistration`. When `false`, only a trusted user can create accounts. |
+| `requireMFA` | `boolean` | `false` | Seeded from `auth:requireMFA`. Forces a second factor for every account. Only reported to a trusted caller (`@RequiresScope("system")`). |
+| `allowMultiplePasswords` | `boolean` | `false` | Seeded from `auth:allowMultiplePasswords`. Lets an account hold more than one `password` secret. Only reported to a trusted caller (`@RequiresScope("system")`). |
+
+## `Client`
+
+A registered OAuth 2.0 / OpenID Connect application. Its `uid` is the OAuth `client_id`. The separate `clientId` field from the 2.0 betas no longer exists.
+
+| Field | Type | Notes |
+|---|---|---|
+| `clientName` | `string` | Shown on the consent screen. |
+| `clientType` | `ClientType` | `CONFIDENTIAL` (can keep a secret) or `PUBLIC` (SPA or native app, never issued a secret). |
+| `clientSecretHash` | `string?` | Argon2id hash of the secret. Never returned by the API. Unset for a public client. |
+| `redirectUris` | `string[]` | Exact-match allow-list of redirect URIs. |
+| `grantTypes` | `string[]` | Permitted grants: `authorization_code`, `refresh_token`, `client_credentials`. |
+| `responseTypes` | `string[]` | Permitted response types, e.g. `code`. |
+| `scope` | `string` | Space-delimited scopes the client may request. |
+| `tokenEndpointAuthMethod` | `TokenEndpointAuthMethod` | `client_secret_basic`, `client_secret_post`, `private_key_jwt` (not yet supported) or `none`. |
+| `requirePkce` | `boolean` | Always `true` for a public client, whatever was requested. |
+| `firstParty` | `boolean` | Skips the consent screen. Only a trusted user can set it. |
+| `disabled` | `boolean?` | Rejects every authorization and token request for this client. |
+| `ownerUid` | `string?` | The `User` who registered the client. |
+| `jwksUri`, `jwks` | `string?`, `any?` | Client key material, reserved for `private_key_jwt`. |
+| `contacts`, `logoUri`, `clientUri`, `tosUri`, `policyUri`, `softwareId`, `softwareVersion` | | Optional RFC 7591 descriptive metadata. |
+| `registrationAccessTokenHash` | `string?` | Argon2id hash of an RFC 7592 registration access token. |
+
+## `AuthorizationCode`
+
+A one-time authorization code issued by `/authorize` and redeemed at `/token`. Only a SHA-256 digest of the code is stored.
+
+| Field | Type | Notes |
+|---|---|---|
+| `codeHash` | `string` | SHA-256 hex digest of the opaque code. |
+| `clientId` | `string` | `uid` of the `Client`. |
+| `userUid` | `string` | The resource owner who authorized it. |
+| `redirectUri` | `string` | Must match exactly again at `/token`. |
+| `scope` | `string` | Space-delimited granted scopes. |
+| `codeChallenge`, `codeChallengeMethod` | `string?`, `"S256" \| "plain"?` | PKCE challenge and method. |
+| `nonce` | `string?` | Carried into the `id_token` for `openid` requests. |
+| `expiresAt` | `Date` | About 60 seconds after issue (`auth:oauth_server:codeTTL`). |
+| `used` | `boolean` | A second presentation of a used code is treated as a replay. |
+
+## `ConsentGrant`
+
+Remembers the scopes a user approved for a client so a returning user is not prompted again. Never created for a `firstParty` client.
+
+| Field | Type | Notes |
+|---|---|---|
+| `userUid` | `string` | |
+| `clientId` | `string` | `uid` of the `Client`. |
+| `scope` | `string` | Cumulative set of scopes approved so far. |
+| `grantedAt` | `Date` | |
+| `lastUsedAt` | `Date?` | Last time this grant let a request skip the consent screen. |
+
+## `OAuthRefreshToken`
+
+A refresh token issued to an OAuth client. Only a SHA-256 digest of the token is stored.
+
+| Field | Type | Notes |
+|---|---|---|
+| `tokenHash` | `string` | SHA-256 hex digest of the opaque token. |
+| `clientId` | `string` | `uid` of the `Client`. |
+| `userUid` | `string?` | Absent for `client_credentials` tokens. |
+| `scope` | `string` | |
+| `familyId` | `string` | Groups every token produced by rotating one original token. |
+| `expiresAt` | `Date` | |
+| `revoked`, `revokedAt` | `boolean`, `Date?` | Set when the token is rotated out or explicitly revoked. |
+| `replacedByHash` | `string?` | Hash of the token that replaced this one on rotation. |
+
+## `SigningKey`
+
+An RSA key pair used to sign access and ID tokens. The private half is encrypted at rest.
+
+| Field | Type | Notes |
+|---|---|---|
+| `kid` | `string` | Key ID, placed in every token's `kid` header. |
+| `alg` | `"RS256"` | |
+| `publicKeyJwk` | `any` | Served from the JWKS endpoint. |
+| `privateKeyEncrypted` | `string` | PEM encrypted with AES-256-GCM using `auth:oauth_server:keys:encryption_key`. |
+| `status` | `SigningKeyStatus` | `ACTIVE` (signs new tokens, exactly one at a time) or `RETIRED` (still published so old tokens verify). |
+| `activatedAt`, `retiredAt` | `Date`, `Date?` | |
 
 ## `AuthResult`
 
-Not a persisted model — the response DTO every auth-flow route returns on success:
+Not a persisted model. It is the response DTO every auth-flow route returns on success:
 
 ```ts
-interface AuthResult {
-  token: string;
-  user: User;
+class AuthResult {
+  token: string;   // access JWT
+  refresh: string; // refresh token
+  user: JWTUser;
 }
 ```
 
-`token` is a JWT minted via `JWTUtils.createToken`, using the same `auth` config every other part of the framework uses (see [Configuration](/docs/auth/auth-library/configuration)).
+`token` is a JWT minted via `JWTUtils.createToken`, using the same `auth` config every other part of the framework uses (see [Configuration](/docs/auth/auth-library/configuration)). `refresh` is empty for an [impersonation](/docs/auth/auth-library/account-security#impersonation) session.

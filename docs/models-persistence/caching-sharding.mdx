@@ -23,6 +23,8 @@ export class Category extends BaseMongoEntity {}
 
 Caching only activates when a Redis connection named `"cache"` is configured, without one `@Cache` is a silent no-op rather than an error, so it's safe to leave on a model even in an environment that doesn't run Redis. See [Datastores & Connections](/docs/models-persistence/datastores) for configuring that connection.
 
+Cached results are kept per caller where it matters: a query that uses `me` is never shared between users, and fields hidden by `@RequiresScope` are stripped from each response rather than from the cached copy. An update or truncate invalidates cached lists for the model, and a change to an ACL invalidates the cached permissions straight away.
+
 ## `@Shard(config?)`
 
 MongoDB-only, configures sharding for a collection (sharded on `uid` by default):

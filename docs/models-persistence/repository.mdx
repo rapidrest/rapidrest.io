@@ -65,6 +65,38 @@ The methods worth knowing:
 
 Every one of these takes an `options` object that carries the acting `user` (for the ACL check), among other things, pass it through, the same way a route handler would. Skip it and the call runs as if no one were authenticated, which usually means it gets rejected once ACLs are enabled.
 
+### Options
+
+Every `options` object extends a common base, then adds fields specific to the operation.
+
+| Option | Applies to | Description |
+|---|---|---|
+| `user` | all | The authenticated user the ACL check runs as. |
+| `ignoreACL` | all | Skips the ACL permission check. |
+| `transaction` | all | The transactional session to run the operation within. |
+| `skipPush` | all | Suppresses the push notification for the change. |
+| `pushChannels` | all | Extra channel names to send the push notification to. |
+| `recordEvent` | all | Whether a telemetry event is broadcast for the request. |
+| `limit`, `page`, `skipCache`, `includeDeleted`, `version` | `find`, `findOne`, `count`, `exists` | Pagination, bypassing the cache, including soft-deleted records, and selecting a specific version. |
+| `acl` | `create` | The `AccessControlList` to use for the new record. |
+| `preserveId` | `create` | Keeps the `_id` carried by the object instead of discarding it. The create is still insert-only, and an `_id` that is already taken fails with `IDENTIFIER_EXISTS`. Default `false`. |
+| `allowExistingACL` | `create` | Lets a record-level-ACL create adopt an ACL that already exists at the new record's uid. Default `false`. |
+| `version` | `update` | The version the update must apply to. |
+| `allowReadOnly` | `update` | Lets the update write `@ReadOnly` fields instead of resetting them to their persisted value. Default `false`. |
+| `purge`, `version` | `delete` | Permanently removes the record, and scopes the delete to an exact version. |
+
+`preserveId`, `allowExistingACL` and `allowReadOnly` are for trusted server-side code only, such as a migration restoring documents with their original `_id` or a background job that owns a `@ReadOnly` field. Never derive them from a client request.
+
+### Behavior worth knowing
+
+- **Creates only insert.** On MongoDB, a `create()` never overwrites an existing document, even when the input carries an `_id`. A duplicate key on any supported database (MongoDB, PostgreSQL, MySQL, SQLite) fails with `400` `IDENTIFIER_EXISTS`.
+- **Record ACL uids are reserved.** A create can't claim an existing ACL that shares its uid, including a route, class or `default_*` ACL. The ACL is reused only for a new version of a `trackChanges` record or when trusted code passes `allowExistingACL`. Otherwise the create fails with `IDENTIFIER_EXISTS`. Deleting or truncating a record never removes a protected ACL.
+- **Updates detect conflicts.** When the stored record's `version` differs from the one being updated, `update()` fails with `409`, on both MongoDB and SQL, including when `existing` is a plain document with a numeric `version`.
+- **Update keys are validated.** A patch containing a dotted key (`a.b`) or a `$`-prefixed key is rejected with `400`, for single, bulk and property updates.
+- **Dates are coerced.** A `Date`-typed column accepts an ISO 8601 string (a missing zone means UTC) or epoch milliseconds on create and update. Invalid dates, numeric strings and epoch-second numbers are rejected with `400`. SQL `date` columns take `YYYY-MM-DD` strings.
+- **Truncate is bounded.** On a `recordACL` model with ACL checks on, `truncate()` removes at most one page of records per call. `count()` is not capped.
+- **Searching uses literal values for code.** When your code passes a value it doesn't control into `find()`, wrap it in `ModelUtils.literal(value)` (or `ModelUtils.literal(values, 'in')`) so it is never parsed as an operator, never has `me` or `null` substituted and isn't type-coerced.
+
 ## Which one to use
 
 - Building a service that does what a CRUD endpoint does, list/get/create/update/delete for one model, permission-checked, cached: use `RepoUtils`.

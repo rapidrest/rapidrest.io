@@ -5,9 +5,9 @@ sidebar_label: Messaging
 
 # Messaging
 
-A password change should probably send a confirmation email. A new signup might need to notify your team's Slack channel. A one-time login code has to reach the user by SMS within seconds. These are all the same underlying problem: render a message from a template using data your code already has, then send it over whichever channel fits, without hand-rolling a Nodemailer/Slack/Twilio integration for each one separately.
+A password change should probably send a confirmation email. A new signup might need to notify your team's Slack channel. A one-time login code has to reach the user by SMS within seconds. These are all the same underlying problem: render a message from a template using data your code already has, then send it over whichever channel fits, without hand-rolling a Nodemailer/Slack/SMS integration for each one separately.
 
-`MessagingUtils` is that piece: it sends templated messages over email, Slack, and SMS. The same template, rendered with [Handlebars](https://handlebarsjs.com/), can drive all three depending on what a given template defines, so the copy for "a pet was created" lives in one place regardless of how many channels it goes out on. Unlike `NotificationUtils` and `AlertUtils`, it has a no-argument constructor and uses `@Config`/`@Logger` injection internally, so it's directly `@Inject`-able like any other service:
+`MessagingUtils` is that piece: it sends templated messages over email, Slack, SMS, and WhatsApp. The same template, rendered with [Handlebars](https://handlebarsjs.com/), can drive all four depending on what a given template defines, so the copy for "a pet was created" lives in one place regardless of how many channels it goes out on. Unlike `NotificationUtils` and `AlertUtils`, it has a no-argument constructor and uses `@Config`/`@Logger` injection internally, so it's directly `@Inject`-able like any other service:
 
 ```ts
 import {ObjectDecorators} from '@rapidrest/core';
@@ -35,9 +35,16 @@ conf.defaults({
   slack: [
     {name: 'default', token: 'xoxb-...', signingSecret: 'change-me'},
   ],
-  twilio: {
-    accountSid: 'AC...',
-    token: 'change-me',
+  sms_config: {
+    provider: 'twilio',
+    config: {
+      accountSid: 'AC...',
+      token: 'change-me',
+    },
+  },
+  whatsapp: {
+    accessToken: 'change-me',
+    phoneNumberId: '105500000000000',
   },
 });
 ```
@@ -46,9 +53,53 @@ conf.defaults({
 |---|---|---|
 | `smtp_config` | Email | A single SMTP config, sent via [Nodemailer](https://nodemailer.com/). |
 | `slack` | Slack | An array, you can register more than one Slack app/workspace. |
-| `twilio` | SMS | A single [Twilio](https://www.twilio.com/) account config. |
+| `sms_config` | SMS | Names the provider (`twilio` or `telnyx`) in `provider` and holds that provider's settings in `config`. |
+| `whatsapp` | WhatsApp | A single WhatsApp Business Cloud API config. |
 
-`@slack/bolt`, `nodemailer`, and `twilio` are all lazily `import()`-ed only for the channels you actually configure, so you only need to install the ones you use.
+`@slack/bolt`, `nodemailer`, and `twilio` are lazily `import()`-ed only for the channels you actually configure, so you only need to install the ones you use. Telnyx and WhatsApp are called over HTTP with `axios`, a peer dependency of `@rapidrest/core` that a RapidREST project already has, so they need no extra package.
+
+### SMS providers
+
+SMS goes out through one provider at a time, chosen by `sms_config.provider`. Each provider's settings live under `sms_config.config`.
+
+| Setting | Provider | Description |
+|---|---|---|
+| `config.accountSid` | `twilio` | The Twilio account SID. Required. |
+| `config.token` | `twilio` | The Twilio auth token. Required. |
+| `config.options` | `twilio` | Optional. Extra options passed to the Twilio client constructor. |
+| `config.apiKey` | `telnyx` | The Telnyx v2 API key. Required. |
+| `config.messagingProfileId` | `telnyx` | Optional. The messaging profile to send with. Telnyx otherwise uses the profile that owns the `from` number. |
+
+```ts
+conf.defaults({
+  sms_config: {
+    provider: 'telnyx',
+    config: {apiKey: 'KEY...', messagingProfileId: '4001...'},
+  },
+});
+```
+
+:::warning[Breaking change in `@rapidrest/core` 6.0.0]
+SMS settings used to live under a top-level `twilio` key. That key is now ignored, so `sendSMS()` fails until you move it:
+
+```ts
+// Before
+twilio: {accountSid: 'AC...', token: 'change-me'},
+
+// After
+sms_config: {provider: 'twilio', config: {accountSid: 'AC...', token: 'change-me'}},
+```
+:::
+
+### WhatsApp
+
+WhatsApp messages are sent through Meta's WhatsApp Business Cloud API.
+
+| Setting | Description |
+|---|---|
+| `whatsapp.accessToken` | The access token (a Meta system user token). Required. |
+| `whatsapp.phoneNumberId` | Meta's ID for the WhatsApp Business number to send from. This is not the phone number itself. Required. |
+| `whatsapp.apiVersion` | Optional. The Graph API version to use. Defaults to `v23.0`. |
 
 ## Templates
 
@@ -69,12 +120,13 @@ conf.defaults({
       slack_channel: '#pets',
       slack_text: 'New pet: {{name}} ({{species}})',
       sms: 'New pet added: {{name}}',
+      whatsapp: 'New pet added: {{name}}',
     },
   },
 });
 ```
 
-Each field (`subject`, `html`/`text`, `slack_text`, `sms`) is compiled independently as its own Handlebars template the first time the template is used, and cached from then on. `enabled: false` makes a template a no-op without deleting its configuration, which is handy for turning a notification off temporarily.
+Each field (`subject`, `html`/`text`, `slack_text`, `sms`, `whatsapp`) is compiled independently as its own Handlebars template the first time the template is used, and cached from then on. `enabled: false` makes a template a no-op without deleting its configuration, which is handy for turning a notification off temporarily.
 
 ### Loading templates from a file
 
@@ -95,14 +147,53 @@ conf.defaults({
 });
 ```
 
-`htmlPath`/`textPath` and their inline `html`/`text` counterparts are interchangeable per-template. Use whichever fits a given message. There's no file-based equivalent for `subject`, `slack_text`, or `sms`; those are always inline strings.
+`htmlPath`/`textPath` and their inline `html`/`text` counterparts are interchangeable per-template. Use whichever fits a given message. There's no file-based equivalent for `subject`, `slack_text`, `sms`, or `whatsapp`; those are always inline strings.
+
+### WhatsApp templates
+
+WhatsApp only delivers free-form text (the `whatsapp` field) within 24 hours of the recipient's last message to you. To message anyone else, define `whatsapp_template` with a message template approved in Meta's WhatsApp Manager. When both are set, `whatsapp_template` wins.
+
+```ts
+'one-time-code': {
+  enabled: true,
+  whatsapp_template: {
+    name: 'one_time_code',
+    language: 'en_US',
+    parameters: ['{{code}}'],
+  },
+},
+```
+
+`parameters` are Handlebars strings rendered into the approved template's body placeholders (`{{1}}`, `{{2}}`, and so on), in order.
+
+### Template fields
+
+| Field | Used by | Description |
+|---|---|---|
+| `enabled` | All | Set to `false` to turn the template into a no-op. |
+| `subject` | Email | The subject line. Email is skipped if missing. |
+| `html`, `htmlPath` | Email | The HTML body inline, or a path to a file containing it. |
+| `text`, `textPath` | Email | The plain text body inline, or a path to a file containing it. |
+| `email_options` | Email | Extra options passed to Nodemailer's `sendMail`. |
+| `slack_channel` | Slack | The channel to post to. |
+| `slack_text` | Slack | The message text. |
+| `sms` | SMS | The message text. |
+| `sms_options` | SMS | Extra options passed to the SMS provider. |
+| `whatsapp` | WhatsApp | Free-form message text. |
+| `whatsapp_template` | WhatsApp | An approved template (`name`, `language`, `parameters`). Takes precedence over `whatsapp`. |
+| `whatsapp_options` | WhatsApp | Extra options merged into the WhatsApp request body. |
 
 ## Sending messages
 
 ```ts
 await this.messaging?.sendEmail('pet-created', {name: pet.name, species: pet.species});
 await this.messaging?.sendSlack('pet-created', {name: pet.name, species: pet.species});
-await this.messaging?.sendSMS('pet-created', {name: pet.name, species: pet.species});
+await this.messaging?.sendSMS('pet-created', {name: pet.name, species: pet.species}, {to: '+15555550123'});
+await this.messaging?.sendWhatsApp('pet-created', {name: pet.name, species: pet.species}, {to: '15555550123'});
 ```
 
-All three methods take the template name and the variables to render it with, and return `undefined` (rather than throwing) if the template exists but is disabled or missing the fields that channel needs. They only throw if the channel itself isn't configured at all, or the named template doesn't exist.
+All four methods take the template name and the variables to render it with, and return `undefined` (rather than throwing) if the template exists but is disabled or missing the fields that channel needs. They only throw if the channel itself isn't configured at all, or the named template doesn't exist.
+
+`sendSMS` and `sendWhatsApp` take the recipient as `to` in the third `options` argument, and any other options are passed through to the provider. `sendSMS` sends from `templates.from.sms` and `sendEmail` from `templates.from.email`, and neither can be overridden through `options`. `sendWhatsApp` sends from `whatsapp.phoneNumberId`. A resolved `sendWhatsApp` means WhatsApp accepted the message, not that it was delivered. When the Telnyx or WhatsApp API rejects a request, the thrown error includes the provider's own explanation of the failure.
+
+When no SMS provider is configured, `sendSMS` throws an `SMS is not configured.` error (before 6.0.0 it threw `Twilio is not configured.`).

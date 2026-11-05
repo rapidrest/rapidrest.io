@@ -12,6 +12,7 @@ rapidrest generate auth
 rapidrest generate auth --datastore-type sql --sql-type better-sqlite3 --method basic
 rapidrest generate auth --datastore-type mongo --default-accounts --method basic --method mfa
 rapidrest generate auth --method oidc --oidc-provider google --oidc-provider apple
+rapidrest generate auth --method oidc --oidc-provider google --oidc-client-id google=1234.apps.googleusercontent.com --oidc-credentials-from-env
 ```
 
 | Flag | Description |
@@ -21,12 +22,22 @@ rapidrest generate auth --method oidc --oidc-provider google --oidc-provider app
 | `--default-accounts` | Also provision a default admin account the first time the server boots against an empty user table |
 | `--method <name>` | Which authentication method(s) to enable. One of `basic`, `otp`, `totp`, `passkey`, `fido2`, `mfa`, `oidc`. Repeatable |
 | `--oidc-provider <name>` | When `oidc` is among `--method`, which third-party OIDC/OAuth provider(s) to configure. One of `google`, `apple`, `facebook`, `microsoft`, `custom`. Repeatable |
+| `--oidc-client-id <provider>=<id>` | A provider's OIDC client ID (e.g. `google=1234.apps.googleusercontent.com`). Repeatable |
+| `--oidc-credentials-from-env` | Don't prompt for OIDC client secrets, or for client IDs not given by `--oidc-client-id`. They are left empty in `config.ts`, to be supplied through the environment |
+| `--oidc-custom-authorization-url <url>` | With `--oidc-provider custom`, the provider's authorization URL |
+| `--oidc-custom-token-url <url>` | With `--oidc-provider custom`, the provider's token URL |
+| `--oidc-custom-profile-url <url>` | With `--oidc-provider custom`, the provider's profile URL. Omit it when using only an `id_token` |
+| `--oidc-custom-protocol <name>` | With `--oidc-provider custom`, one of `openid` (the default) or `oauth2` |
+| `--oidc-custom-issuer <value>` | With `--oidc-provider custom` and `openid`, the expected `iss` claim |
+| `--oidc-custom-jwks-uri <url>` | With `--oidc-provider custom` and `openid`, the JWKS URI |
+| `--oidc-custom-scope <scope>` | With `--oidc-provider custom`, a scope to request. Defaults to `openid`, `email`, `profile`. Repeatable |
 | `-a`, `--author <name>` | |
-| `--output-dir <path>` | Defaults to the current directory |
+| `--output-dir <path>` | Project directory to write into. Defaults to the current directory |
 | `-f`, `--force` | Overwrite existing files |
 | `--no-install` | Skip the automatic package manager install that runs afterward |
+| `--templates <value>` | A templates release version, or a local templates directory or `.zip` (see [Templates](/docs/cli-reference/templates)) |
 
-If `--datastore-type`, `--method`, or `--oidc-provider` are omitted, you're prompted interactively — the same checkboxes/selects as before these flags existed. `basic` is checked by default in the method checkbox; `google` is checked by default in the OIDC provider checkbox.
+If `--datastore-type`, `--method`, or `--oidc-provider` are omitted, you're prompted interactively. `basic` is checked by default in the method checkbox; `google` is checked by default in the OIDC provider checkbox.
 
 ## What gets generated
 
@@ -34,11 +45,12 @@ If `--datastore-type`, `--method`, or `--oidc-provider` are omitted, you're prom
 
 | File | Generated when |
 |---|---|
-| `src/models/auth.ts` | always — re-exports `User`/`Alias`/`Secret`/`Profile` (SQL or Mongo variant) |
-| `src/routes/RegistrationRoute.ts` | always — self-service sign-up (creates a user + login alias, issues a token) |
-| `src/routes/UserRoute.ts` | always — admin CRUD over user accounts (deny-by-default ACL) |
-| `src/routes/AuthLogoutRoute.ts` | always — clears the session cookie |
-| `src/routes/SecretRoute.ts` | always — password changes and TOTP/Passkey/FIDO2 enrollment |
+| `src/models/auth.ts` | always, re-exports `User`/`Alias`/`Secret`/`Profile`/`SystemSettings` (SQL or Mongo variant) |
+| `src/routes/RegistrationRoute.ts` | always, self-service sign-up (creates a user + login alias, issues a token) |
+| `src/routes/UserRoute.ts` | always, admin CRUD over user accounts (deny-by-default ACL) |
+| `src/routes/AuthLogoutRoute.ts` | always, clears the session cookie |
+| `src/routes/AuthElevationRoute.ts` | always, `/auth/elevation`: elevates the session after re-verifying identity, which every `@RequiresElevation` action needs (changing secrets, managing users, the admin `restart` and `clear-cache` endpoints) |
+| `src/routes/SecretRoute.ts` | always, password changes and TOTP/Passkey/FIDO2 enrollment |
 | `src/routes/AuthBasicRoute.ts` | `--method basic` |
 | `src/routes/AuthOTPRoute.ts` | `--method otp` |
 | `src/routes/AuthTOTPRoute.ts` | `--method totp` |
@@ -52,7 +64,7 @@ If `--datastore-type`, `--method`, or `--oidc-provider` are omitted, you're prom
 
 ## Wiring into the project
 
-`src/config.ts` is patched to add the config block(s) your selection needs under `auth:` — `auth.totp` and/or `auth.fido2` when `totp`/`fido2` (or `mfa`, which needs both under the hood) is selected, `auth.passkey` when `passkey` is selected, and `auth.oidc_<provider>` for each selected OIDC provider. OIDC Client ID/Secret are written in as plain strings, matching this file's existing convention for every other secret-shaped value — override them via the environment in a real deployment (e.g. `AUTH__OIDC_GOOGLE__CLIENTSECRET`).
+`src/config.ts` is patched to add the config block(s) your selection needs under `auth:` — `auth.totp` and/or `auth.fido2` when `totp`/`fido2` (or `mfa`, which needs both under the hood) is selected, `auth.passkey` when `passkey` is selected, and `auth.oidc_<provider>` for each selected OIDC provider. The same blocks are added to `test/config.ts` too, with an in-memory test datastore for auth, so the project's tests can still start the server. OIDC Client ID/Secret are written in as plain strings, matching this file's existing convention for every other secret-shaped value. Override them via the environment in a real deployment (e.g. `AUTH__OIDC_GOOGLE__CLIENTSECRET`), or pass `--oidc-credentials-from-env` to leave them empty in the first place.
 
 `package.json` is updated automatically via a JSON merge (no manual edit needed):
 
@@ -63,8 +75,8 @@ If `--datastore-type`, `--method`, or `--oidc-provider` are omitted, you're prom
 
 The install runs automatically right after, via your project's detected package manager, pass `--no-install` to skip it and install yourself later.
 
-**OIDC providers.** Selecting `oidc` prompts for one or more third-party providers when `--oidc-provider` isn't passed. Google, Apple, Facebook, and Microsoft come with preset, well-known endpoints (verify these against the provider's current `.well-known/openid-configuration` before deploying — they can change); `custom` prompts for every endpoint (authorization/token/profile URLs, protocol, issuer, JWKS URI, scopes) by hand. Selecting more than one provider is fully supported — each gets its own route file and a distinct registered strategy name, so they don't collide.
+**OIDC providers.** Selecting `oidc` prompts for one or more third-party providers when `--oidc-provider` isn't passed. Google, Apple, Facebook, and Microsoft come with preset, well-known endpoints (verify these against the provider's current `.well-known/openid-configuration` before deploying — they can change); `custom` prompts for every endpoint (authorization/token/profile URLs, protocol, issuer, JWKS URI, scopes) by hand, or takes them from the `--oidc-custom-*` flags. Scopes can be separated by commas or spaces. Selecting more than one provider is fully supported — each gets its own route file and a distinct registered strategy name, so they don't collide.
 
 :::note[Out of scope]
-Not scaffolded by this command, though all real, working parts of `@rapidrest/auth`: session refresh, account elevation, auth-method discovery, and direct Profile/Account/Alias management routes. Add those by hand, following the same thin-subclass pattern as the routes this command generates. See [Auth Library](/docs/auth/auth-library) for the library's full capabilities.
+Not scaffolded by this command, though all real, working parts of `@rapidrest/auth`: session refresh, auth-method discovery, and direct Profile/Account/Alias management routes. Add those by hand, following the same thin-subclass pattern as the routes this command generates. See [Auth Library](/docs/auth/auth-library) for the library's full capabilities.
 :::

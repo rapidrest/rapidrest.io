@@ -22,6 +22,7 @@ export default createViteConfig({ appDir: 'app' });
 export interface RapidRestViteOptions {
   appDir?: string | string[];   // default: "app"
   outDir?: string;              // default: "dist/public"
+  router?: boolean | string[] | RouterViteOptions; // default: no router, see Client-Side Navigation
   plugins?: any[];              // additional Vite plugins, e.g. @tailwindcss/vite
 }
 ```
@@ -29,6 +30,12 @@ export interface RapidRestViteOptions {
 `createViteConfig`'s `appDir` defaults to `"app"`, which matches `ReactRoute.appDir`'s own default — so a single-app project needs no `appDir` configuration on either side as long as it uses the default directory name.
 
 `outDir` (default `dist/public`) should resolve to the directory RapidREST auto-serves static files from in production.
+
+`router` builds a client-side router entry per app. It is covered in [Client-Side Navigation](/docs/ssr-react/client-navigation).
+
+Pages and the layout can import plain stylesheets for their effect (`import './app.css'`), and the server renders them without error. CSS Modules (`styles.card`) and imported images or fonts are not supported in a server-rendered page, because the class names and URLs are decided by the client build, which the server can't know. Use a plain stylesheet and reference static files by URL instead. Stylesheets imported along a page's module graph are injected into the document for you.
+
+Dynamic pages (`app/pets/[id].tsx`) hydrate like any other. Vite sanitizes the brackets in its output names and `ReactRoute` accounts for that when it looks up the page's assets.
 
 ## Multiple apps
 
@@ -100,7 +107,13 @@ conf.defaults({
 });
 ```
 
-When `NODE_ENV=production` and `react:manifestPath` is set, `ReactRoute` reads the Vite-generated manifest to resolve each page's hashed script/style URLs. In dev mode, the manifest (if present) is watched and hot-reloaded instead.
+When `NODE_ENV=production` and `react:manifestPath` is set, `ReactRoute` reads the Vite-generated manifest to resolve each page's hashed script/style URLs. In dev mode, the manifest (if present) is watched and hot-reloaded instead. A compiled `appDir` under `dist/` is also resolved against its source directory when looking up manifest entries.
+
+## Static assets
+
+With a manifest configured, `ReactRoute` also serves the built client files from Vite's `outDir`, which it derives from `react:manifestPath` (the manifest lives at `<outDir>/.vite/manifest.json`). Files named for their content, such as `index-BvT3x9_a.js`, are sent with an immutable, one-year `Cache-Control`. The served types are `.js`, `.mjs`, `.css`, `.json`, `.map`, `.png`, `.jpg`, `.jpeg`, `.jfif`, `.gif`, `.svg`, `.webp`, `.avif`, `.ico`, `.woff`, `.woff2` and `.ttf`. Requests for any other extension go straight to page resolution without touching the filesystem.
+
+Only real files inside that directory are served. A request can't escape it with `..` or encoded separators, and a symlink pointing outside it is not followed. Dot files and dot folders are never served, so `/.vite/manifest.json` is not reachable, with the single exception of `.well-known`, which is where the web puts files like `security.txt` on purpose.
 
 ## Production: Redis response caching
 

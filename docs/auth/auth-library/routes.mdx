@@ -9,14 +9,14 @@ Like the default routes documented in [Default Routes](/docs/routing/default-rou
 
 ## Auth-flow routes
 
-One per strategy. Each is `GET`/`POST /` behind `@Auth([strategyName])`, and returns an [`AuthResult`](/docs/auth/auth-library/data-models#authresult) on success.
+One per strategy. Each is `GET`/`POST /` behind `@Auth([strategyName])` (`BaseAuthBasicRoute` is `GET` only, since credentials arrive in the `Authorization` header), and returns an [`AuthResult`](/docs/auth/auth-library/data-models#authresult) on success.
 
 | Class | Strategy | Config |
 |---|---|---|
-| `BaseAuthBasicRoute` | `BasicStrategy` | `@Config("auth")` (JWT signing) |
+| `BaseAuthBasicRoute` | `BasicStrategy` | `@Config("auth")` (JWT signing), `auth:password`, `auth:app_password:enabled` |
 | `BaseAuthFIDO2Route` | `FIDO2Strategy` | `@Config("auth:fido2")` |
 | `BaseAuthMFARoute` | `MFAStrategy` | `@Config("auth")` |
-| `BaseAuthOIDCRoute` | `OIDCStrategy` | `providerConfig: OIDCProvider` — an abstract field you must supply, typically via your own `@Config("auth:oidc")` |
+| `BaseAuthOIDCRoute` | `OIDCStrategy` | `providerConfig: OIDCProvider` — an abstract member you must supply, typically from your own config keys (`auth-server` reads `auth:google:*`, `auth:microsoft:*`, `auth:apple:*` and `auth:facebook:*`, one block per provider) |
 | `BaseAuthOTPRoute` | `OTPStrategy` | `@Config("auth")` |
 | `BaseAuthPasskeyRoute` | `PasskeyStrategy` | `@Config("auth:passkey")` |
 | `BaseAuthTOTPRoute` | `TOTPStrategy` | `@Config("auth")` |
@@ -32,9 +32,11 @@ const { ApiRoute } = RouteDecorators;
 export class AuthBasicRoute extends BaseAuthBasicRouteMongo {}
 ```
 
-Every other auth-flow route in the table above follows the identical one-line pattern — swap in the matching `Base*Mongo`/`Base*SQL` class and a `@Route`/`@ApiRoute` path (see [`auth-server`'s `src/mongo/routes/`](https://github.com/rapidrest/auth-server/tree/main/src/mongo/routes) for all seven side by side).
+Every other auth-flow route in the table above follows the identical one-line pattern — swap in the matching `Base*Mongo`/`Base*SQL` class and a `@Route`/`@ApiRoute` path (see [`auth-server`'s `src/mongo/routes/`](https://github.com/rapidrest/auth-server/tree/main/src/mongo/routes) for all of them side by side, including its per-provider Google, Microsoft, Apple and Facebook OIDC routes).
 
-`BaseAuthOIDCRoute` needs a bit more for a second provider: your subclass supplies which one by overriding `providerConfig`, same as the single-provider case `auth-server` wires up. But `BaseAuthOIDCRoute`'s `login()` method is hardcoded behind `@Auth(["oauth"])`, and every subclass that doesn't override `login()` inherits that exact decorator, metadata attached to the class that declares a method isn't re-evaluated per subclass. Left alone, a second provider's strategy would register under a different name internally but still be checked against the same `"oauth"` entry as the first, so whichever provider's strategy loaded last would silently win for both routes. Overriding `strategyName` alone doesn't fix that; you also need to override `login()` with a matching `@Auth([...])`, delegating to `super.login(...)` for the actual token issuance:
+A `GET` to `BaseAuthOIDCRoute` with no `code` redirects the browser to the provider. Pass `?no_redirect=true` to receive `{ url }` as JSON instead, which suits a JavaScript frontend that wants to handle a failure to build the URL as a normal API error.
+
+`BaseAuthOIDCRoute` needs a bit more once you support more than one provider. Each provider gets its own subclass (`auth-server` ships `AuthGoogleRoute`, `AuthMicrosoftRoute`, `AuthAppleRoute` and `AuthFacebookRoute`, each mounted at `/auth/<provider>` and configured under `auth:<provider>:*`), and the subclass supplies its provider by overriding `providerConfig`. But `BaseAuthOIDCRoute`'s `login()` method is hardcoded behind `@Auth(["oauth"])`, and every subclass that doesn't override `login()` inherits that exact decorator, metadata attached to the class that declares a method isn't re-evaluated per subclass. Left alone, a second provider's strategy would register under a different name internally but still be checked against the same `"oauth"` entry as the first, so whichever provider's strategy loaded last would silently win for both routes. Overriding `strategyName` alone doesn't fix that; you also need to override `login()` with a matching `@Auth([...])`, delegating to `super.login(...)` for the actual token issuance:
 
 ```ts
 import { RouteDecorators, ObjectDecorators } from "@rapidrest/service-core";
@@ -50,7 +52,7 @@ const AuthUser = RouteDecorators.User;
 export class AuthGoogleRoute extends BaseAuthOIDCRouteMongo {
   protected strategyName = "google";
 
-  @Config("auth:oidc:google")
+  @Config("auth:google")
   protected providerConfig: OIDCProvider = {
     name: "google",
     authorizationURL: "https://accounts.google.com/o/oauth2/v2/auth",
@@ -69,7 +71,7 @@ export class AuthGoogleRoute extends BaseAuthOIDCRouteMongo {
 }
 ```
 
-A single-provider setup, like `auth-server`'s, doesn't need any of this: `strategyName` already defaults to `"oauth"`, matching the base class's own `login()`, so there's nothing to override.
+A project with only one OIDC provider doesn't need any of this: `strategyName` already defaults to `"oauth"`, matching the base class's own `login()`, so there's nothing to override.
 
 ## Data routes
 
@@ -79,6 +81,7 @@ A single-provider setup, like `auth-server`'s, doesn't need any of this: `strate
 | `BaseAliasRoute` | `CRUDRoute<Alias>` | Standard CRUD over `Alias`. |
 | `BaseProfileRoute` | `CRUDRoute<Profile>` | Standard CRUD over `Profile`. |
 | `BaseSecretRoute` | `ModelRoute<Secret>` | Full CRUD over `Secret`, plus registration ceremonies (see below). |
+| `BaseSettingsRoute` | | Reads and updates [`SystemSettings`](/docs/auth/auth-library/data-models#systemsettings). See [Account Security](/docs/auth/auth-library/account-security#runtime-settings). |
 
 `BaseUserRoute`, `BaseAliasRoute`, and `BaseProfileRoute` are thin, unmodified subclasses of [`CRUDRoute`](/docs/routing/auto-crud-routes) — see that page for the full endpoint list.
 
@@ -88,10 +91,14 @@ A single-provider setup, like `auth-server`'s, doesn't need any of this: `strate
 |---|---|
 | `GET /`, `GET /:id` | Find secrets. `data` is stripped from every result. |
 | `HEAD /`, `HEAD /:id` | Count / exists. |
-| `POST /` | Create a secret. Behavior depends on `type`: `password` hashes `data` with argon2; `totp` generates/validates a Base32 TOTP secret and returns an `otpauth://` provisioning URI (for QR-code enrollment) as `data.uri` instead of storing it; `fido2`/`passkey` verify a WebAuthn registration response against a session-stored challenge and replace `data` with the resulting credential; `recovery-codes` discards any client-supplied `data`, generates a fresh batch of codes, persists only their argon2 hashes, and returns the plaintext codes exactly once in the response (`data.codes`) — they can never be retrieved again afterward. |
+| `POST /` | Create a secret. Behavior depends on `type`: `password` enforces the [password policy](/docs/auth/auth-library/account-security#password-policy) and hashes `data` with argon2 (accepting a client-side pre-hash); `app-password` discards any client `data`, generates a high-entropy value, requires a non-empty `hint`, and returns the plaintext once as `password` (see [App passwords](/docs/auth/auth-library/account-security#app-passwords)); `totp` generates/validates a Base32 TOTP secret and returns an `otpauth://` provisioning URI (for QR-code enrollment) as `data.uri` instead of storing it; `fido2`/`passkey` verify a WebAuthn registration response against a session-stored challenge and replace `data` with the resulting credential; `recovery-codes` discards any client-supplied `data`, generates a fresh batch of codes, persists only their argon2 hashes, and returns the plaintext codes exactly once in the response (`data.codes`) — they can never be retrieved again afterward. |
+| `PUT /:id` | Update a secret. Elevation-gated (`@RequiresElevation(60)`), except for an account holder changing their own password while `passwordChangeRequired` is set. The `data` of FIDO2, passkey and app password secrets cannot be changed, delete and recreate instead. |
 | `DELETE /:id`, `DELETE /` | Delete one secret (supports `?version=`, `?purge=true`) or truncate all secrets the caller can access. |
 | `GET /passkey/register` | Begins a WebAuthn passkey registration ceremony for the authenticated caller (401 if anonymous), excluding already-registered credentials. |
-| `GET /fido2/register` | Same, for FIDO2 hardware keys — a separate relying-party config from passkeys. |
+| `GET /fido2/register` | Same, for FIDO2 hardware keys, which use a separate relying-party config from passkeys. |
+| `GET /password` | Returns the `auth:password` policy (lengths, required character classes, client-hashing flags), anonymous, so a UI can show requirements before the user types. |
+
+A trusted user creating or resetting another account's `password` can add `?allowUserChange=true` to `POST /` or `PUT /:id` to grant that account `READ`, `EXISTS` and `UPDATE` on the new secret (not `DELETE`), or `?allowUserChange=false` on `PUT /:id` to remove the account holder's rights on it entirely.
 
 ```ts
 import { RouteDecorators } from "@rapidrest/service-core";
@@ -106,18 +113,19 @@ Again taken directly from `auth-server` — `UserRoute`, `AliasRoute`, and `Prof
 
 ## Session & Account Management
 
-Six more base routes round out a login flow beyond the strategies and models above — issuing/refreshing tokens, self-service registration, step-up re-authentication, and account-level actions like "log out everywhere". All but `BaseAuthLogoutRoute` follow the same `Mongo`/`SQL` subclassing pattern as every other route family on this page.
+Eight more base routes round out a login flow beyond the strategies and models above — issuing/refreshing tokens, self-service registration, step-up re-authentication, and account-level actions like "log out everywhere". All but `BaseAuthLogoutRoute` follow the same `Mongo`/`SQL` subclassing pattern as every other route family on this page.
 
 | Class | HTTP | What it does |
 |---|---|---|
 | `BaseAccountRoute` | `GET/DELETE /:id`, `POST /:id/revokeSessions` | Aggregates a user's account data (profile, aliases, secrets with `data` stripped) behind `GET`; `DELETE` removes the account and every associated alias/secret/profile; `POST /:id/revokeSessions` is the "log out everywhere" action — see [Strategies → Security Features](/docs/auth/auth-library/strategies#security-features). `:id` accepts the literal `me` for the caller's own account. Requires `@Auth(["jwt"])`; `revokeSessions` also requires `@RequiresElevation(60)`. |
-| `BaseAuthDiscoverRoute` | `GET /?id=` | Anonymous endpoint: given a claimed identifier, returns which sign-in methods (`password`, `totp`, `passkey`, `fido2`, obfuscated OTP contacts) are configured for it, so a sign-in UI can show only the methods that will work. Always returns the same shape whether or not the identifier resolves to a real account, to resist enumeration. |
+| `BaseAuthDiscoverRoute` | `GET /?id=` | Anonymous endpoint: given a claimed identifier, returns which sign-in methods (`password`, `totp`, `passkey`, `fido2`, obfuscated OTP contacts, including a `channel: "whatsapp"` hint for each verified phone when WhatsApp is configured) are configured for it, so a sign-in UI can show only the methods that will work. Always returns the same shape whether or not the identifier resolves to a real account, to resist enumeration. |
 | `BaseAuthElevationRoute` | `GET /`, `POST /` | Issues a short-lived elevated token after the already-authenticated caller re-proves their identity with one more factor — their own enrolled `fido2`/`otp`/`totp` method (`GET` lists which are available), or their password if none is enrolled. Backs `@RequiresElevation`-gated routes such as `BaseSecretRoute` and `BaseAccountRoute.revokeSessions()`. Requires `@Auth(["jwt"])` and `session`. |
-| `BaseAuthLogoutRoute` | `POST /` | Clears the authentication cookie (if cookie-based token issuance is enabled) and the session-bound refresh token. Model-agnostic — imported straight from `@rapidrest/auth` with no `Mongo`/`SQL` variant, since logging out doesn't touch any persisted model. Always succeeds, even for a caller that was never issued a cookie. |
+| `BaseAuthLogoutRoute` | `POST /` | Clears the authentication cookie, the CSRF cookie (if cookie-based token issuance is enabled) and the session-bound refresh token. Model-agnostic — imported straight from `@rapidrest/auth` with no `Mongo`/`SQL` variant, since logging out doesn't touch any persisted model. Always succeeds, even for a caller that was never issued a cookie. |
 | `BaseAuthRefreshRoute` | `GET /`, `POST /` | Exchanges a valid refresh token (request body, or the `refresh` cookie) for a fresh access/refresh pair, via the same `AuthResult` shape every auth-flow route returns. Rejects a token issued before the account's last `revokeSessions()` call. |
+| `BaseImpersonationRoute` | `POST /impersonate`, `POST /impersonate/stop` | Lets a trusted user act as another account without its credentials. See [Account Security → Impersonation](/docs/auth/auth-library/account-security#impersonation). |
 | `BaseRegistrationRoute` | `POST /start`, `POST /verify` | Self-service account creation: `POST /start` sends an OTP code to a claimed e-mail or phone number; `POST /verify` checks the code and, on success, creates a new `User` + verified `Alias` and returns an elevated `AuthResult` (elevated so the new account can immediately register MFA secrets without a separate elevation round-trip). |
 
-This is the exact set of classes `auth-server` wires up (`src/mongo/routes/`, mirrored under `src/sql/routes/`):
+`auth-server` wires up all of these classes (`src/mongo/routes/`, mirrored under `src/sql/routes/`). The account route looks like this:
 
 ```ts
 import { RouteDecorators } from "@rapidrest/service-core";
@@ -128,7 +136,7 @@ const { ApiRoute } = RouteDecorators;
 export class AccountRoute extends BaseAccountRouteMongo {}
 ```
 
-`BaseAuthDiscoverRoute`, `BaseAuthElevationRoute`, and `BaseAuthRefreshRoute` follow the identical one-line pattern (`@ApiRoute("/auth/discover")`, `@ApiRoute("/auth/elevation")`, `@ApiRoute("/auth/refresh")` respectively), and `BaseRegistrationRoute` the same at `@ApiRoute("/register")`. `BaseAuthLogoutRoute` is the one exception to the `Mongo`/`SQL` naming pattern in this table, since it takes no model type parameters:
+`BaseAuthDiscoverRoute`, `BaseAuthElevationRoute`, and `BaseAuthRefreshRoute` follow the identical one-line pattern (`@ApiRoute("/auth/discover")`, `@ApiRoute("/auth/elevation")`, `@ApiRoute("/auth/refresh")` respectively), and `BaseRegistrationRoute` the same at `@ApiRoute("/register")`. `BaseImpersonationRoute` takes the same form (`auth-server` mounts it at `@ApiRoute("/admin")`, giving `/admin/impersonate`). `BaseAuthLogoutRoute` is the one exception to the `Mongo`/`SQL` naming pattern in this table, since it takes no model type parameters:
 
 ```ts
 import { RouteDecorators } from "@rapidrest/service-core";
@@ -138,3 +146,19 @@ const { ApiRoute } = RouteDecorators;
 @ApiRoute("/auth/logout")
 export class AuthLogoutRoute extends BaseAuthLogoutRoute {}
 ```
+
+## OAuth 2.0 / OpenID Connect routes
+
+Nine further base routes turn the project into an authorization server. They follow the same subclass-and-mount pattern, and are documented together on the [OAuth Server](/docs/auth/auth-library/oauth-server) page.
+
+| Class | Purpose |
+|---|---|
+| `BaseOAuthAuthorizeRoute` | Authorization endpoint and consent decision. |
+| `BaseOAuthTokenRoute` | Token endpoint. |
+| `BaseOAuthClientRoute` | Owner/admin CRUD for registered clients. |
+| `BaseOAuthDiscoveryRoute` | Discovery metadata. |
+| `BaseOAuthJwksRoute` | Public signing keys. |
+| `BaseOAuthUserInfoRoute` | OIDC `/userinfo`. |
+| `BaseOAuthIntrospectRoute` | Token introspection. |
+| `BaseOAuthRevokeRoute` | Token revocation. |
+| `BaseOAuthSessionTokenRoute` | Exchanges an OAuth access token for a session JWT. |

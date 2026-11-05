@@ -52,10 +52,11 @@ function WhyRapidREST() {
             </p>
           </div>
           <ul className={styles.whyList}>
-            <li>Auth Server <span>→</span> the optional Auth Library adds password, MFA, and OAuth sign-in, or deploy the ready-made Auth Server</li>
+            <li>Auth Server <span>→</span> the optional Auth Library adds password, MFA, and OAuth sign-in, or run your own OAuth 2.0 / OpenID Connect provider with the ready-made Auth Server</li>
             <li>Server-rendered React <span>→</span> unify your front-end and back-end code on the same server, no second framework to run</li>
             <li>Background jobs <span>→</span> perform background work alongside your API automatically with crontab-style scheduling</li>
             <li>Events, notifications &amp; telemetry <span>→</span> cross-instance events, live push to connected users, and permanent activity records, all included</li>
+            <li>Claude Code plugin <span>→</span> describe what you want and Claude scaffolds, runs, tests and upgrades your project through the CLI</li>
           </ul>
         </div>
       </div>
@@ -67,11 +68,12 @@ function CliBand() {
   return (
     <section className={styles.cliBand}>
       <div className="container">
-        <Heading as="h2">From nothing to running in three steps</Heading>
+        <Heading as="h2">From nothing to running in four steps</Heading>
         <div className={styles.cliSteps}>
           <CodeStep n={1} cmd="rapidrest generate server my-api" label="Scaffold a project" />
-          <CodeStep n={2} cmd="rapidrest generate route Pet --model" label="Add a model + CRUD routes" />
-          <CodeStep n={3} cmd="rapidrest dev" label="Run it!" />
+          <CodeStep n={2} cmd="rapidrest generate model Pet" label="Add a data model" />
+          <CodeStep n={3} cmd="rapidrest generate route PetRoute --model Pet" label="Add CRUD routes for it" />
+          <CodeStep n={4} cmd="rapidrest dev" label="Run it!" />
         </div>
       </div>
     </section>

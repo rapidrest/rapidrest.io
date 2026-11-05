@@ -5,7 +5,7 @@ sidebar_label: Strategies
 
 # Strategies
 
-`@rapidrest/auth` ships seven `AuthStrategy` implementations. Each registers itself against `AuthMiddleware` under a name, and that name is what you pass to `@Auth([...])` on a route — the same mechanism [Authentication](/docs/auth/rbac/authentication) already documents for `JWTStrategy`.
+`@rapidrest/auth` ships eight `AuthStrategy` implementations. Each registers itself against `AuthMiddleware` under a name, and that name is what you pass to `@Auth([...])` on a route — the same mechanism [Authentication](/docs/auth/rbac/authentication) already documents for `JWTStrategy`.
 
 :::note[Session requirement]
 `FIDO2Strategy`, `PasskeyStrategy`, `OIDCStrategy`, `OTPStrategy`, and `MFAStrategy` all need `session` configured — they store challenge/state between the first and second request of a login flow. `BasicStrategy` and `TOTPStrategy` don't, since they verify in a single request. See [Configuration](/docs/auth/auth-library/configuration) and [HTTP Engine → Sessions](/docs/http-engine/sessions) for how the underlying session system works.
@@ -13,7 +13,7 @@ sidebar_label: Strategies
 
 ## `BasicStrategy` (`basic`)
 
-Simple ID and password authentication via the `Authorization: Basic` header, JSON body, or form-encoded body. Verifies against a stored `Secret` of type `PASSWORD` (argon2-hashed).
+Simple ID and password authentication via the `Authorization: Basic` header, JSON body, or form-encoded body. Verifies against a stored `Secret` of type `PASSWORD` (argon2-hashed), or against an `APP_PASSWORD` secret. The submitted password can be plaintext or already hashed in the browser; see [Client-side password hashing](/docs/auth/auth-library/account-security#client-side-password-hashing).
 
 ## `FIDO2Strategy` (`fido2`)
 
@@ -29,11 +29,13 @@ RFC 6238 Time-Based One-Time Password (Google Authenticator, Authy, 1Password, e
 
 ## `OTPStrategy` (`otp`)
 
-Password-less login: a one-time code is sent to a verified contact (email or SMS, via `MessagingUtils`) and the user submits it back. Three phases: optional discovery (obfuscated contact list for a given ID, off by default via `allowDiscovery`), challenge (send the code), and verify.
+Password-less login: a one-time code is sent to a verified contact (email, SMS or WhatsApp, via `MessagingUtils`) and the user submits it back. Three phases: optional discovery (obfuscated contact list for a given ID, off by default via `allowDiscovery`), challenge (send the code), and verify.
+
+A verified phone can receive its code over WhatsApp as well as SMS. WhatsApp (`OTPContactType.WHATSAPP`) is only offered while it is configured, meaning the `MessagingUtils` instance's optional `isWhatsAppConfigured()` hook returns `true`, or its core `whatsapp` config was accepted at startup. To use it, the challenge request passes `channel: "whatsapp"` next to `id`. `BaseAuthDiscoverRoute` adds a hint with `channel: "whatsapp"` after each verified phone's SMS hint, and `BaseAuthMFARoute` and `BaseAuthElevationRoute` list a method with id `<alias uid>:whatsapp` (the SMS method keeps the plain alias uid). Contact verification and registration codes stay email/SMS only.
 
 ## `MFAStrategy` (`mfa`)
 
-Composable two-factor authentication: ID and password as the first factor, then a second factor chosen from `fido2`, `otp`, `recovery-code`, or `totp`. `require2FA` (default `true`) controls whether users with no registered second factor are rejected outright.
+Composable two-factor authentication: ID and password as the first factor, then a second factor chosen from `fido2`, `otp`, `recovery-code`, or `totp`. `require2FA` (default `true`) controls whether users with no registered second factor are rejected outright. `BaseAuthMFARoute` drives it from the runtime [`requireMFA` setting](/docs/auth/auth-library/account-security#runtime-settings).
 
 ```ts
 class MFAStrategyOptions {
@@ -71,6 +73,10 @@ Each route subclass registers its strategy under a name (`BaseAuthOIDCRoute.stra
 
 Implements PKCE (`S256`/`plain`), CSRF-protected `state`, OpenID `nonce` replay protection, and `id_token` signature verification via `jwks-rsa` when `jwksURI`/`issuer` are set. On first login from a given provider identity, a local `User` + `Profile` (+ `Alias` records for the provider ID and any verified email/phone) is created automatically.
 
+## `OAuthBearerStrategy` (`oauth_bearer`)
+
+Verifies an access token issued by this library's own [OAuth server](/docs/auth/auth-library/oauth-server) (`Authorization: Bearer <token>`). It checks the RS256 signature, expiry and issuer, then rejects any token whose `jti` was revoked. The resulting user has the token's `sub` as `uid`, the token's scopes, and **no roles**, so protect role-gated routes with `@Auth(["jwt"])` instead and use `POST /oauth/session-token` to bridge. The strategy is not exported. It is registered automatically under the fixed name `oauth_bearer` by `BaseOAuthUserInfoRoute` and `BaseOAuthSessionTokenRoute`, and a route opts in with `@Auth(["oauth_bearer"])`.
+
 ## Security Features
 
 Beyond the login strategies above, `@rapidrest/auth` ships a handful of account-security mechanisms that apply across every strategy:
@@ -79,8 +85,11 @@ Beyond the login strategies above, `@rapidrest/auth` ships a handful of account-
 |---|---|
 | Step-up re-authentication | `@RequiresElevation(seconds)` (from `@rapidrest/service-core`) gates a route behind a recently-issued *elevated* JWT. [`BaseAuthElevationRoute`](/docs/auth/auth-library/routes#session--account-management) re-verifies the caller with one additional factor — their enrolled `fido2`/`otp`/`totp` method, or their password if none is enrolled — and mints a short-lived elevated token. `BaseSecretRoute`'s create/update/delete endpoints and `BaseAccountRoute.revokeSessions()` are elevation-gated out of the box. |
 | Session revocation ("log out everywhere") | `BaseAccountRoute.revokeSessions()` stamps `User.sessionsRevokedAt = Date.now()`. `BaseAuthRefreshRoute` rejects any refresh token whose `iat` predates that timestamp, so every device is forced to sign in again. This does **not** invalidate an already-issued access token, which remains valid until its own short natural expiry — there's no server-side access-token revocation list. |
-| Rate limiting | `RateLimiter` throttles every credential-verification endpoint (`BasicStrategy`, `MFAStrategy`'s password/challenge/verify phases, `OTPStrategy`, registration, account discovery) with two independent sliding-window counters: one keyed on the claimed identifier (default 5 attempts / 300s) and a more permissive one keyed on source IP (default 100 attempts / 300s, reverse-proxy aware via `trusted_proxies`). Backed by Redis when a `cache` datastore is configured (shared across instances), an in-memory store otherwise. Configure via `@Config("auth:rateLimit")`. |
+| Rate limiting | `RateLimiter` (from `@rapidrest/service-core`) throttles every credential-verification endpoint (`BasicStrategy`, `MFAStrategy`'s password/challenge/verify phases, `OTPStrategy`, registration, account discovery, the OAuth token, introspection and revocation endpoints) with two independent sliding-window counters: one keyed on the claimed identifier and a more permissive one keyed on source IP (reverse-proxy aware via `trusted_proxies`). Routes with no natural per-caller identifier (OIDC discovery, JWKS, client secret regeneration, impersonation) use the `@RateLimit()` route decorator for an endpoint-wide cap instead. Backed by Redis when a `cache` datastore is configured (shared across instances), an in-memory store otherwise. Configure via the framework-wide `rateLimit` key, which replaces `auth:rateLimit` from 1.x. |
 | TOTP secret encryption at rest | Optional. Set `TOTPConfig.encryption_key` (a 64-character hex string, i.e. 32 bytes) and every newly written `TOTPSecret.secret` is encrypted with AES-256-GCM (fresh random IV per call, stored as `"enc:v1:" + base64(iv \|\| authTag \|\| ciphertext)`) before it's persisted. Decryption happens transparently on verify and on the one-time setup response. Omit the key to keep storing secrets as plaintext (the default) — a value already stored as plaintext keeps verifying correctly with no migration step if you turn encryption on later. |
+| App passwords | A user-generated `app-password` secret lets one legacy Basic-auth client sign in without an MFA challenge. See [Account Security → App passwords](/docs/auth/auth-library/account-security#app-passwords). |
+| CSRF protection | A host-only double-submit `csrf` cookie is issued alongside the session cookies. See [Account Security → CSRF protection](/docs/auth/auth-library/account-security#csrf-protection). |
+| Audit log | `AuditLogUtils` durably records sign-ins, impersonation and secret lifecycle events. See [Account Security → Audit logging](/docs/auth/auth-library/account-security#audit-logging). |
 | MFA recovery codes | `SecretType.RECOVERY_CODES` — see the `recovery-code` factor above and [`BaseSecretRoute`](/docs/auth/auth-library/routes#data-routes) for how a batch is generated and returned exactly once. |
 
-`@RequiresElevation`, rate limiting, and session revocation are all events-instrumented (`AuthEventType.ELEVATED`, `RATELIMIT_EXCEEDED`, `SESSIONS_REVOKED`, `MFA_ENROLLED`/`MFA_REMOVED`) via `EventUtils.record()`, so they show up wherever your project already collects [telemetry](/docs/events-notifications/telemetry).
+Elevation, session revocation, MFA enrollment and the secret lifecycle are events-instrumented (`AuthEventType.ELEVATED`, `SESSIONS_REVOKED`, `MFA_ENROLLED`/`MFA_REMOVED`, `PASSWORD_CHANGED`, `APP_PASSWORD_*`, `RECOVERY_CODE_USED`) via `EventUtils.record()`, so they show up wherever your project already collects [telemetry](/docs/events-notifications/telemetry). Rate-limit rejections now emit service-core's `RATELIMIT_EXCEEDED_EVENT` (`ratelimit.exceeded`); `AuthEventType.RATELIMIT_EXCEEDED` was removed in 2.0.

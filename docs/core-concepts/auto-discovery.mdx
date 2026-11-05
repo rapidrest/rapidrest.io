@@ -11,7 +11,7 @@ RapidREST only has the first step. **There is no file where you register your ro
 
 ## How it actually finds your code
 
-When your server starts, the `ClassLoader` walks through every file in your source folder, opens each one, and looks for anything it exports. If a file exports a class, that class gets registered. That's the entire rule. It doesn't matter what the file is named, what folder it's in, or what the class does.
+When your server starts, the `ClassLoader` walks through every file in your source folder, opens each one, and looks for anything it exports. If a file exports a class, that class gets registered. That's the entire rule. It doesn't matter what the file is named, what folder it's in, or what the class does. Files are loaded one at a time, in order, so a module's imports are always fully resolved before the next file is opened.
 
 ```text
 src/

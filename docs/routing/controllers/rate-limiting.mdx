@@ -1,0 +1,109 @@
+---
+sidebar_position: 5
+sidebar_label: Rate Limiting
+---
+
+# Rate Limiting
+
+Some endpoints are worth protecting from callers who hit them too often: a search that runs an expensive query, a signup form a bot can hammer, anything guessable. **Rate limiting** caps how many requests one caller (or the whole world) can make to an endpoint within a time window, and answers everything over the cap with `429 Too Many Requests` until the window resets. `@RateLimit` turns it on for a single endpoint or a whole route class.
+
+```ts
+import { RouteDecorators } from '@rapidrest/service-core';
+const { Get, Post, RateLimit, Route } = RouteDecorators;
+
+@Route('/pets')
+export class PetRoute {
+  @RateLimit({ perUser: true, maxAttempts: 10, windowSeconds: 60 })
+  @Post()
+  async createPet(pet: Pet) {
+    /* ... */
+  }
+
+  @Get()
+  async findPets() {
+    /* not rate limited */
+  }
+}
+```
+
+Put `@RateLimit` on the class instead and every endpoint in it is limited. A method-level `@RateLimit` replaces the class-level one for that method.
+
+## Options
+
+`@RateLimit()` takes an optional options object. Every field is optional, and any field you leave out falls back to the service-wide defaults described in [Configuration](#configuration).
+
+| Option | Default | What it does |
+|---|---|---|
+| `perUser` | `true` when called with no arguments, otherwise unset (`false`) | Gives each authenticated user their own counter, and each anonymous caller one per client IP, instead of one counter shared by every caller of the endpoint |
+| `id` | method and path | Sets the counter's identifier explicitly. Endpoints that share an `id` share a counter |
+| `maxAttempts` | `100` | Requests allowed within the window |
+| `windowSeconds` | `60` | Length of the window, in seconds |
+| `ip` | see below | Overrides for the per-IP counter: `{ enabled?, maxAttempts?, windowSeconds? }` |
+
+`@RateLimit()` with no arguments is `perUser: true`. Passing an options object replaces that default, so `@RateLimit({ maxAttempts: 5 })` is **not** per-user. Add `perUser: true` explicitly when you want it.
+
+When no `id` is given, the identifier is the HTTP method plus the matched route pattern with its parameter values filled in (percent-decoded, then normalized), for example `GET|/pets/42`. That means `/pets/1` and `/pets/2` count separately, and percent-encoding a path (`/pets/%34%32`) doesn't get around the limit.
+
+## Two counters per request
+
+Every limited request is counted twice, and exceeding either one returns `429`:
+
+1. The **identifier counter** described above.
+2. A **per-IP counter**, keyed on the caller's IP address and shared by every rate-limited endpoint. It defaults to a more permissive `100` attempts per `300` seconds, since one IP can be many users behind a corporate proxy. This catches a caller rotating through identifiers from a single address.
+
+Disable the second counter for one endpoint with `ip: { enabled: false }`. Behind a reverse proxy, set `trusted_proxies` so the real client IP is used instead of the proxy's, see [Client IP and trusted proxies](/docs/http-engine#client-ip-and-trusted-proxies).
+
+## Configuration
+
+Service-wide defaults live under the `rateLimit` key:
+
+```ts
+conf.defaults({
+  rateLimit: {
+    enabled: true,
+    maxAttempts: 100,
+    windowSeconds: 60,
+    ip: {
+      enabled: true,
+      maxAttempts: 100,
+      windowSeconds: 300,
+    },
+  },
+});
+```
+
+| Key | Default | What it does |
+|---|---|---|
+| `rateLimit.enabled` | `true` | Set to `false` to turn rate limiting off entirely, for example in tests |
+| `rateLimit.maxAttempts` | `100` | Default attempts per window for the identifier counter |
+| `rateLimit.windowSeconds` | `60` | Default window length for the identifier counter |
+| `rateLimit.ip.enabled` | `true` | Whether the per-IP counter runs |
+| `rateLimit.ip.maxAttempts` | `100` | Attempts per window for the per-IP counter |
+| `rateLimit.ip.windowSeconds` | `300` | Window length for the per-IP counter |
+
+The window starts at a caller's first request and is not extended by later ones.
+
+Counters live in Redis when a `cache` datastore is configured, so the limit is shared across every instance of your service. Without one they are kept in memory per process. Redis counting uses the `INCREX` command (Redis 8.8 or newer). On an older server RapidREST logs a warning and falls back to per-process counters for the rest of that process's life, so a multi-instance deployment then enforces the limit per instance rather than globally.
+
+## What the caller sees
+
+A request over the limit never reaches your handler. It is rejected with `429` through the usual [error response](/docs/http-engine/error-handling):
+
+```json
+{ "message": "Too many attempts. Please try again later.", "status": 429, "code": "api-102" }
+```
+
+The first request to cross a limit also records a `ratelimit.exceeded` event (`RATELIMIT_EXCEEDED_EVENT`), carrying the `identifier` and which `layer` (`identifier` or `ip`) tripped, so you can alert on abuse across every limited endpoint from one place. It is sent through `EventUtils.record()`, so it reaches your configured telemetry service. See [Telemetry](/docs/events-notifications/telemetry).
+
+## Using the limiter directly
+
+`RateLimiter` is injectable for limiting something that isn't a route, a login attempt keyed on a username for instance:
+
+```ts
+@Inject(RateLimiter)
+private rateLimiter?: RateLimiter;
+
+await this.rateLimiter?.checkAndIncrement(`login:${username}`, { maxAttempts: 5, windowSeconds: 300 }, req);
+```
+
+`checkAndIncrement(identifier, config?, req?)` throws the same `429` `ApiError` once the identifier is over its limit. Passing `req` also applies the per-IP counter. The second argument overrides the service-wide `maxAttempts`, `windowSeconds` and `ip` for that call.

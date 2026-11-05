@@ -1,0 +1,102 @@
+---
+sidebar_label: Claude Code Plugin
+description: The official RapidREST plugin for Claude Code, which scaffolds, extends, runs, tests, upgrades and releases RapidREST projects through the RapidREST CLI.
+---
+
+# Claude Code Plugin
+
+The [RapidREST CLI](/docs/cli-reference) generates the parts of a project that follow a pattern: the server, its models and routes, a login system, Docker and Helm configuration. What it can't write is the part that's specific to you, the business logic inside a route, the extra validation on a model, the follow-up wiring a new feature needs. The official RapidREST plugin for [Claude Code](https://claude.com/claude-code) closes that gap. You describe what you want in plain language, Claude works out which CLI command and flags produce it, runs the CLI, checks that the result builds and passes its tests, and then writes the code the CLI couldn't.
+
+The plugin never re-implements what the CLI does. Every generated file still comes from the CLI's own templates, so a project built with Claude looks exactly like one built by hand, and the two workflows mix freely.
+
+## Installation
+
+Projects created with `rapidrest generate server` already have the plugin set up. The server template ships a `.claude/settings.json` that registers the RapidREST plugin marketplace with auto-update turned on and enables the plugin, so opening a new project in Claude Code is enough.
+
+For an existing project, or to make the plugin available everywhere, install it from inside Claude Code:
+
+```
+/plugin marketplace add rapidrest/claude-plugin
+/plugin install rapidrest@rapidrest
+```
+
+The plugin requires Node.js 24 or later. The CLI doesn't need to be installed separately. The plugin uses the project's own `@rapidrest/cli` dev dependency when it exists, then a global install, and falls back to `npx @rapidrest/cli@latest`.
+
+:::warning[Old global CLI installs]
+A global `@rapidrest/cli` of version 2.1.0 or older bundles broken templates and lacks most of the flags the plugin relies on. If you have one, update it with `npm install -g @rapidrest/cli@latest`. Claude tells you when it detects one.
+:::
+
+## Skills
+
+Claude picks the right skill from what you ask, so in most cases you never name one. Each skill can also be invoked directly as `/rapidrest:<skill>`.
+
+| Skill | What it does | CLI commands |
+|---|---|---|
+| `/rapidrest:new-project` | Scaffold a new server project: databases, default routes, React, Docker, Helm, npm or yarn | `generate server` |
+| `/rapidrest:model` | Add a data model with typed properties, a datastore binding, caching and RBAC | `generate model` |
+| `/rapidrest:route` | Add a custom route, a model-backed CRUD route, or the built-in default routes | `generate route`, `generate default-route` |
+| `/rapidrest:job` | Add a cron-scheduled background job | `generate job` |
+| `/rapidrest:react` | Add React apps and pages, and export a static site | `generate react`, `generate react-page`, `react export` |
+| `/rapidrest:auth` | Add registration and login (Basic, OTP, TOTP, Passkey, FIDO2, MFA, OIDC) | `generate auth` |
+| `/rapidrest:deploy` | Add or refresh Docker, Docker Compose and Helm configuration | `generate docker`, `generate k8s` |
+| `/rapidrest:serve` | Run the dev server (hot reload, in-memory databases), a production start, or a build | `dev`, `start`, `build` |
+| `/rapidrest:test` | Run the Vitest suite, optionally with coverage, and diagnose failures | `test` |
+| `/rapidrest:upgrade` | Health-check a project and re-sync it with the current templates | `doctor`, `upgrade` |
+| `/rapidrest:deps` | Add, remove, install and mass-upgrade dependencies | `dep add`, `dep remove`, `dep install`, `dep upgrade` |
+| `/rapidrest:release` | Bump the version, write the changelog, tag and push | `release` |
+
+`/rapidrest:release` is the one exception to automatic selection. Because `rapidrest release` commits, tags and pushes, Claude never runs it on its own initiative. It runs only when you invoke it yourself, for example `/rapidrest:release minor`.
+
+## Examples
+
+A few requests and what they turn into:
+
+```
+> Create a RapidREST service called inventory-api with Postgres and Redis, deployable to Kubernetes
+```
+
+Claude runs `generate server` with `--db postgresql --db redis --k8s` and explicit choices for every other prompt, then builds and tests the fresh project before handing it back.
+
+```
+> Add a Product model with price, sku and optional tags, cached for 2 minutes, and a CRUD route for it under /api/v1
+```
+
+Claude reads the project's datastores from `src/config.ts`, runs `generate model` with `--property price:number --property sku:string --property "tags:string[]?"` and a two-minute cache, then `generate route` for the CRUD endpoints, and builds and tests the result.
+
+```
+> Add Google and Microsoft login
+```
+
+Claude runs `generate auth` with the OIDC providers and `--oidc-credentials-from-env`, so client secrets are never collected in chat or written to `config.ts`. Claude then tells you which environment variables to set, such as `AUTH__OIDC_GOOGLE__CLIENTSECRET`.
+
+```
+> Run the server and check that GET /api/v1/products works
+> Upgrade this project to the latest RapidREST templates
+```
+
+Generated changes are left uncommitted for you to review, unless you ask Claude to commit them.
+
+## How it works
+
+The CLI asks interactive questions for anything not passed as a flag, and Claude's shell has no terminal attached. Run there directly, the CLI would stop at its first question and exit as if it had succeeded, without writing anything. Every skill therefore runs the CLI through a small, dependency-free wrapper bundled with the plugin, `scripts/rr.mjs`, which:
+
+- finds the CLI to run: the `RAPIDREST_CLI` environment variable, then the project's `node_modules`, then the global install, then `npx`
+- answers prompts one at a time, only once each prompt has actually appeared
+- stops with exit code 3 and the prompt's text when a question has no answer, so Claude asks you instead of guessing
+- masks answers to secret-looking prompts in its log
+
+Skills pass explicit flags wherever the CLI has one, and use scripted answers only for the few prompts that don't. After generating, Claude verifies the project with its own `rapidrest build` and `rapidrest test`. A generated file that doesn't compile is reported as a bug rather than quietly patched.
+
+The CLI downloads its templates from separate templates releases, so the first command in a new environment needs network access. See [Templates](/docs/cli-reference/templates) for how they are versioned and cached.
+
+### Working on the CLI itself
+
+To point the plugin at a local checkout of the CLI instead of a published release, build the checkout and set `RAPIDREST_CLI` to its `bin/run.js`:
+
+```bash
+export RAPIDREST_CLI=/path/to/cli/bin/run.js
+```
+
+## Source
+
+The plugin is open source under the MPL 2.0 license at [github.com/rapidrest/claude-plugin](https://github.com/rapidrest/claude-plugin).

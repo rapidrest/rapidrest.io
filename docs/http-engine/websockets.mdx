@@ -5,7 +5,7 @@ sidebar_label: WebSockets
 
 # WebSockets
 
-A normal route handles one request and sends one response, then the connection's done. A **WebSocket** route upgrades that connection into a persistent, two-way channel, either side can send a message at any point, for as long as the connection stays open. That's the piece SSE (see [Streaming Responses](/docs/http-engine/streaming)) doesn't give you: SSE only pushes from server to client, a WebSocket lets the client talk back over the same connection.
+A normal route handles one request and sends one response, then the connection's done. A **WebSocket** route upgrades that connection into a persistent, two-way channel, either side can send a message at any point, for as long as the connection stays open. That's the piece SSE (see [Streaming](/docs/http-engine/streaming)) doesn't give you: SSE only pushes from server to client, a WebSocket lets the client talk back over the same connection.
 
 ## Declaring a WebSocket route
 
@@ -30,6 +30,46 @@ class EchoRoute {
 ```
 
 `sock` works identically no matter which [HTTP engine](/docs/http-engine) is running underneath, it's an `EventEmitter` with `send(data)`, `close(code?, reason?)`, and the usual `message`/`close` events. `@User` gives you whoever authenticated on the upgrade request (via the same auth strategies used everywhere else, see [Authentication](/docs/auth/rbac/authentication)), if the connection isn't authenticated it's `undefined`, guard accordingly.
+
+`@Param` works here as on any route, so `@WebSocket('/relay/:id')` can take `@Param('id') id: string`, percent-decoded like HTTP routes.
+
+### Per-route limits
+
+By default every WebSocket route gets the same conservative limits. A route that moves large frames (video, say) can raise them by passing options to `@WebSocket(path?, options?)`:
+
+```ts
+@WebSocket('/stream', { maxPayloadLength: 1024 * 1024, maxBackpressure: 8 * 1024 * 1024, idleTimeout: 60 })
+stream(@Socket sock: IWebSocketShim) {
+  /* ... */
+}
+```
+
+| Option | Default | Range | What it does |
+|---|---|---|---|
+| `maxPayloadLength` | `16384` (16 KiB) | 1 to 16 MiB, in bytes | Largest single message a client may send. A larger one closes the connection: uWS drops it without a close frame (clients see code `1006`), Bun closes with `1009` |
+| `maxBackpressure` | `65536` (64 KiB) | 1 to 64 MiB, in bytes | How much may be queued for a slow client before further `send()` calls are dropped. Each connection can hold this much memory |
+| `idleTimeout` | `120` | `0` (disabled) or 8 to 960, in seconds | How long a connection may receive nothing before it is closed |
+
+Every field is optional. Values are validated when the route is registered, and a bad one (not an integer, out of range, an unknown option name) throws an error naming the route at startup. On Bun, `maxPayloadLength` is per route, but there is one configuration per server for the other two, so the largest value any route sets is used.
+
+## Authentication and origin checks
+
+Browsers can't set an `Authorization` header on a WebSocket handshake, so a route authenticates in one of two ways. A client that can send a token header (native apps) is authenticated during the upgrade. A browser authenticates with the cookie on the handshake, or sends a `LOGIN` message after connecting. Either way the route's own `@Auth([...])` strategies are used, and a route that requires auth closes connections that fail it.
+
+Because browsers attach cookies to a WebSocket handshake from *any* page, every upgrade is also checked against the request's `Origin` header, to stop a page on another site (or a sibling subdomain) opening an authenticated socket in a visitor's browser. An upgrade is accepted when:
+
+- it has no `Origin` header (a non-browser client), or
+- the origin's host matches the host the request was addressed to, or
+- the origin exactly matches an entry in `websocket.allowedOrigins`, or in `cors.origins` when that isn't set.
+
+Anything else is refused with `403` before the upgrade.
+
+| Key | Default | What it does |
+|---|---|---|
+| `websocket.allowedOrigins` | `cors.origins` | Origins allowed to open a socket, for example `['https://app.example.com']`. `['*']` allows any origin. A `*` in `cors.origins` is deliberately not treated as allow-all here |
+| `websocket.checkOrigin` | `true` | Set to `false` to skip the check entirely |
+
+Same-origin compares host and port, not scheme, since TLS is usually terminated by a proxy. If your proxy rewrites `Host`, list the public origin in `websocket.allowedOrigins`.
 
 ## The ready-made version: channel pub/sub
 

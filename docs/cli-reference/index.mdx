@@ -9,7 +9,11 @@ Every RapidREST project starts from the same place: a runnable server with a dat
 
 ```bash
 npm install -g @rapidrest/cli
+# or
+yarn global add @rapidrest/cli
 ```
+
+The CLI requires Node.js 24 or later. The project templates are not part of the npm package: the first command that needs them downloads and caches them, so it needs network access (see [Templates](/docs/cli-reference/templates)).
 
 - **[Generate Commands](/docs/cli-reference/generate-commands)** - `generate server`, `generate model`, `generate route`, `generate job`.
 - **[Auth](/docs/cli-reference/generate-auth)** - `generate auth`.
@@ -17,8 +21,9 @@ npm install -g @rapidrest/cli
 - **[Dependencies](/docs/cli-reference/dependencies)** - `dep add`, `dep install`, `dep remove`, `dep upgrade`.
 - **[Dev Workflow](/docs/cli-reference/dev-workflow)** - `dev`, `start`, `build`, `test`.
 - **[Maintenance](/docs/cli-reference/maintenance-commands)** - `doctor`, `upgrade`, `release`.
+- **[Templates](/docs/cli-reference/templates)** - how templates are released, cached and versioned, and the `--templates` flag.
 
-Every `generate` command works the same way underneath: run it bare and you're prompted interactively for whatever it needs, or pass flags (or an `--answers` file, where supported) to skip some or all of those prompts, useful for scripting a project setup or repeating one across a team. Regenerating an add-on you already have (`generate docker`, `generate k8s`, `generate default-route`) with `--force` is always safe, it rebuilds from your project's current state rather than patching the existing files by hand. A handful of `generate` commands (`server`, `model`, `auth`, `k8s`, `react`) also run your package manager's install automatically afterward, whenever generating actually changed `package.json`, pass `--no-install` to skip that and install yourself later.
+Every `generate` command works the same way underneath: run it bare and you're prompted interactively for whatever it needs, or pass flags (or an `--answers` file, where supported) to skip some or all of those prompts. Every prompt has a matching flag, including a `--no-` form to decline it, so any command can run unattended, useful for scripting a project setup or repeating one across a team. Regenerating an add-on you already have (`generate docker`, `generate k8s`, `generate default-route`) with `--force` is always safe, it rebuilds from your project's current state rather than patching the existing files by hand. A handful of `generate` commands (`server`, `model`, `auth`, `k8s`, `react`) also run your package manager's install automatically afterward, whenever generating actually changed `package.json`, pass `--no-install` to skip that and install yourself later.
 
 :::note[Flags]
 Every flag below is documented in its long form (`--flag-name`); most also have a real single-character short flag, called out explicitly where one exists, e.g. `-f`, `--force`.

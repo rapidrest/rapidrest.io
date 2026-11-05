@@ -42,9 +42,47 @@ conf.defaults({
 | `cors.origins` left unset, or the request's origin isn't in the list | Any origin may read the response (`Access-Control-Allow-Origin: *`), but without credentials |
 | `cors.origins` is set and includes the request's origin | That origin is allowed, and credentials (cookies, `Authorization` headers) are permitted too |
 
-That's the whole configuration surface, there's no separate list of allowed methods or headers to maintain. RapidREST always allows a fixed set (`GET, HEAD, OPTIONS, PUT, POST, DELETE`, and the common request headers) and answers preflight `OPTIONS` requests directly, before your route code ever runs. The unset-vs-set behavior above is deliberate: wide open with no credentials is a reasonable default for a public API, explicit origins only is the right default the moment cookies or sessions are involved, since those carry credentials.
+That's the whole configuration surface, there's no separate list of allowed methods or headers to maintain. RapidREST always allows a fixed set (`GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE`, and the common request headers) and answers preflight `OPTIONS` requests directly with a `204`, before your route code ever runs. The exception is a path where you've registered your own [`@Options`](/docs/routing/controllers/defining-routes#verb-decorators) handler: the CORS headers are still added, but your handler runs and produces the response. The unset-vs-set behavior above is deliberate: wide open with no credentials is a reasonable default for a public API, explicit origins only is the right default the moment cookies or sessions are involved, since those carry credentials.
 
 One thing worth knowing: the key is `origins`, plural. `cors.origin` (singular) is silently ignored.
+
+## CSRF protection
+
+Cookies have a hazard of their own. A browser attaches your session cookie to *any* request aimed at your API, including one fired by a malicious page the user happens to have open. **Cross-site request forgery** (CSRF) is that page tricking the browser into making a state-changing request on the user's behalf. `SameSite=Lax` stops it from other sites, but not from a sibling subdomain (`evil.example.com` against `api.example.com`), which is the same site.
+
+RapidREST defends against this automatically on every route, using a **double-submit token**:
+
+1. On any request, if the caller has no CSRF cookie yet, the response sets one (`csrf`, a random token). It is deliberately **host-only** (no `Domain` attribute) and readable by JavaScript, so a sibling subdomain cannot read it.
+2. A browser app reads that cookie and echoes its value in an `x-csrf-token` header on each state-changing request.
+3. For a `POST`, `PUT`, `PATCH` or `DELETE` that was authenticated by the `jwt` **cookie**, the header must match the cookie, or the request is rejected with `403` (`api-105`, "This request is missing a valid CSRF token.").
+
+Several things are exempt. `GET`, `HEAD` and `OPTIONS` are never checked. A request authenticated by a bearer token, API key or query-string token is never checked either, since the browser never attached those on its own. If you only call your API with `Authorization` headers, you will never see this.
+
+A caller on a different origin (an admin console on `mail.example.com` calling `auth.example.com`) cannot read the host-only cookie, so it is checked against an origin allow-list instead: the request's `Origin` (or `Referer`) must be listed. By default that list is `cors.origins`, and with none configured, cross-origin cookie-authenticated writes are refused. Note the list is enforced whenever a request carries an `Origin` and the list is non-empty, so once `cors.origins` is set it should include your own front-end's origin too.
+
+Defaults can be changed under `csrf`:
+
+| Key | Default | What it does |
+|---|---|---|
+| `csrf.enabled` | `true` | Set to `false` to turn the check and the cookie off |
+| `csrf.cookieName` | `csrf` | Name of the token cookie |
+| `csrf.headerName` | `x-csrf-token` | Header the token is echoed in |
+| `csrf.maxAge` | session cookie | `Max-Age` in seconds for the cookie |
+| `csrf.secure` | `true` | Set to `false` to drop the `Secure` attribute, for plain-HTTP local development only |
+| `csrf.allowedOrigins` | `cors.origins` | Origins trusted for the cross-origin fallback |
+
+```ts
+// browser client
+const token = document.cookie.match(/(?:^|; )csrf=([^;]+)/)?.[1];
+await fetch('/pets', {
+  method: 'POST',
+  credentials: 'include',
+  headers: { 'Content-Type': 'application/json', 'x-csrf-token': token ?? '' },
+  body: JSON.stringify({ name: 'Rex' }),
+});
+```
+
+The test helpers echo the cookie for you, see [Testing](/docs/testing).
 
 ## Extra headers on every response
 

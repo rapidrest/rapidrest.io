@@ -7,7 +7,7 @@ sidebar_label: Docker Compose
 
 Docker Compose is the fastest way to run `auth-server` locally exactly the way it runs in production, together with its Redis and MongoDB/PostgreSQL dependencies, without installing any of them on your host. It's also reasonable for a small, real, single-host deployment. [Kubernetes (Helm)](/docs/auth/auth-server/deployment/helm) is the better choice once you need more than one replica or don't want to babysit the host yourself.
 
-A pre-built image is published to [GitHub](https://github.com/orgs/rapidrest/packages) for every tagged release, as both `ghcr.io/rapidrest/auth-server:latest` and the release's own version tag. As of this writing the project is pre-1.0 (`0.1.0` in `package.json`) with no tagged release published yet, check the packages page above for the current version before pulling a specific tag. Either way, this doesn't matter for the Compose setup below: it builds the image from your own checked-out `Dockerfile` rather than pulling either of these.
+A pre-built image is published to [GitHub](https://github.com/orgs/rapidrest/packages) for every tagged release, as both `ghcr.io/rapidrest/auth-server:latest` and the release's own version tag (the current release is `1.0.0`). The Compose setup below doesn't pull either of these. It builds the image from your own checked-out `Dockerfile`.
 
 ## Architecture
 
@@ -30,6 +30,8 @@ Compose builds the image from the repository's `Dockerfile` and starts three con
 
 The `Dockerfile` builds in two stages: a `builder` stage installs dependencies and compiles the project, and a `runner` stage copies over just the compiled output, running as a non-root `node` user with a healthcheck against `/`.
 
+The `server` container starts only once Redis and the database report healthy. Each compose file defines a healthcheck for them (`redis-cli ping`, `mongosh` or `pg_isready`) and `server` waits on it with `depends_on`, because the server doesn't retry its first connection and used to exit when a database was still starting.
+
 ## Prerequisites
 
 - [Docker](https://www.docker.com/) Engine with the Compose plugin
@@ -41,15 +43,17 @@ The `Dockerfile` builds in two stages: a `builder` stage installs dependencies a
    git clone https://github.com/rapidrest/auth-server.git
    cd auth-server
    ```
-2. Run `docker compose up` using the database specific yaml (`docker-compose.mongo.yml` for Mongo, `docker-compose.sql.yml` for SQL).
+2. Run `docker compose up` using the database specific yaml (`docker-compose.mongo.yml` for Mongo, `docker-compose.sql.yml` for SQL). There is no default `docker-compose.yml`, so `-f` is required and goes before the subcommand.
    ```bash
    # MongoDB
-   docker compose -f docker-compose.mongo.yml up
-   
+   docker compose -f docker-compose.mongo.yml up --build
+
    # PostgreSQL
-   docker compose -f docker-compose.sql.yml up
+   docker compose -f docker-compose.sql.yml up --build
    ```
 3. Open a browser to [http://localhost:3000](http://localhost:3000).
+
+The compose files start the server with `NODE_ENV=dev` (override it by exporting `NODE_ENV`). The secrets below are development defaults, so don't expose this stack publicly as is.
 
 ## Configuration and installation details
 
@@ -59,7 +63,7 @@ Two optional yaml files layer on top of either datastore variant to aid during d
 
 | File | Adds |
 |---|---|
-| `docker-compose.override.yml` | Publishes the datastore ports (`5432` for Postgres, `6379` for Redis) to the host. |
+| `docker-compose.override.yml` | Publishes the datastore ports (`5432` for Postgres, `6379` for Redis) to the host. Docker Compose reads it automatically only when no `-f` is given, so name it explicitly. |
 | `docker-compose.debug.yml` | Runs `yarn debug` instead of the built server and bind-mounts `./src` and `./apps`, so edits on the host take effect without rebuilding the image. Exposes port `9229` for remote debugging. |
 
 For example, a live-reloading SQL setup with datastore ports exposed:
@@ -84,9 +88,12 @@ services:
 
 ### Production secrets
 
-`auth-server` ships with fixed development defaults for `cookie_secret`, `auth:secret`, and `session:secret`. It refuses to start in production if any of the three are still at their default value, so set `COOKIE_SECRET`, `AUTH__SECRET`, and `SESSION__SECRET` to unique values before deploying for real. It also warns, without refusing to start, if the placeholder OIDC `clientID`/`clientSecret` are still active and OIDC sign-in is enabled.
+`auth-server` ships with fixed development defaults for `cookie_secret`, `auth:secret`, `session:secret` and `auth:oauth_server:keys:encryption_key`. It refuses to start in production (`environment` or `NODE_ENV` set to `production`) if any of the four are still at their default value, and names the ones to set. Before deploying for real, set `COOKIE_SECRET`, `AUTH__SECRET`, `SESSION__SECRET` and `AUTH__OAUTH_SERVER__KEYS__ENCRYPTION_KEY` (64 hex characters) to unique values. Also set `AUTH__TOTP__ENCRYPTION_KEY` (64 hex characters), or every user's TOTP secret is stored in plaintext. The server warns, without refusing to start, if a sign-in provider still has its placeholder credentials. The [Helm chart](/docs/auth/auth-server/deployment/helm#secrets) generates and keeps all of these for you.
+
+Once data has been encrypted, the two encryption keys can't change casually, since anything encrypted with the old key becomes unreadable.
 
 ## See also
 
+- [Operations and configuration](/docs/auth/auth-server/operations) for the settings the server reads (`app_url`, `site_settings`, `sms_config`, audit log retention) and the Diagnostics page.
 - [Configuration](/docs/auth/auth-library/configuration) for the full `auth:*`/`session` config tree.
 - [Strategies → Security Features](/docs/auth/auth-library/strategies#security-features) for what to double-check before exposing a deployment publicly.

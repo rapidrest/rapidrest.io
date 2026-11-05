@@ -111,7 +111,35 @@ This is the part worth reading carefully, since it doesn't work the way "inherit
 3. Once every record on *this* ACL has been checked: a role match wins if one was found. Otherwise a wildcard match wins if one was found.
 4. Only if neither a role match nor a wildcard match was found anywhere on this ACL does resolution move to the parent ACL, if one exists, and repeat the same process there. This can chain through any number of parent levels.
 
+Wildcards only ever match an authenticated user. An anonymous caller matches only a record whose `userOrRoleId` is literally `"anonymous"`.
+
 The consequence: **a broad wildcard match on the child ACL blocks falling back to the parent, even when the parent has a far more specific match that would otherwise apply.** Take the `User` example above: its per-document ACL includes `{ userOrRoleId: ".*", actions: [] }`, a wildcard match, granting nothing. Because that wildcard match exists on the document's own ACL, resolution stops there and never consults the class-level parent ACL at all, even though the parent's own rules might say something different for a specific role. Inheritance is a fallback for *no match*, not a way to layer permissions from most specific to least specific.
+
+### Controlling the search directly
+
+`ACLUtils.getRecord(acl, user, options?)` is the function that runs the algorithm above, and it takes two options for custom checks:
+
+```ts
+const record = this.aclUtils.getRecord(acl, user, { maxDepth: 0, specificity: 'role' });
+```
+
+| Option | Default | What it does |
+|---|---|---|
+| `maxDepth` | `-1` | How many parent levels to search. `0` searches only the ACL itself, `1` adds its parent, `2` its grandparent, and so on. `-1` has no limit |
+| `specificity` | `"wildcard"` | A ceiling on how loose a match may be. `"exact"` matches only the user's uid (or `"anonymous"`), `"role"` also allows role matches, `"wildcard"` allows everything. The most specific record that fits always wins, regardless of its position in `records` |
+
+`hasPermission` itself always uses the defaults.
+
+## Reserved and protected ACLs
+
+The ACLs that come from code, the `default_<uid>` record and its user-editable twin that `@Protect` registers for each class, route and endpoint, are **reserved**. They govern a whole model or route, so no record can take one over:
+
+- Creating a record whose uid matches a reserved ACL is refused with `IDENTIFIER_EXISTS` (`400`), instead of silently adopting the ACL and granting its creator rights.
+- Deleting or truncating records never removes a protected ACL.
+- A new record's own ACL is claimed atomically and removed again if the record write fails.
+- An existing ACL is reused for a new record only for a new version of a `trackChanges` record, or when trusted server code passes `allowExistingACL` to the repository's `create()`.
+- If the user-editable half of a default ACL has been deleted, it is recreated (empty, inheriting from `default_<uid>`) at the next startup. A `@Protect`ed route whose ACL is missing denies every request rather than skipping the check.
+- Changes to any ACL, including through the [ACL routes](/docs/routing/default-routes/acl), take effect immediately: every write invalidates the permission cache.
 
 ## Permission mapping
 
@@ -159,8 +187,10 @@ The methods you'd realistically call from your own code:
 |---|---|
 | `hasPermission(user, acl \| uid, action)` | The core check, resolves inheritance per the algorithm above and returns a boolean |
 | `findACL(uid)` | Loads an ACL by id, with its parent chain already populated |
-| `saveACL(acl)` | Creates or updates an ACL record |
-| `removeACL(uid)` | Deletes an ACL record |
+| `saveACL(acl, options?)` | Creates or updates an ACL record. `{ createOnly: true }` only ever inserts and throws `IDENTIFIER_EXISTS` if the uid is taken |
+| `removeACL(uid, options?)` | Deletes an ACL record. `{ unlessProtected: true }` skips code-defined ACLs |
+| `getRecord(acl, user, options?)` | Finds the matching record in an already-loaded ACL, see above |
+| `isReservedUid(uid)` / `isProtectedACL(acl)` | Whether a uid or ACL is code-defined |
 
 `saveACLs`/`removeACLs` (batch forms), `checkRequestPerms`, `populateParent`, and `saveDefaultACL` exist too, but they're what the framework itself uses internally to enforce `@Protect` and register default ACLs at startup, not something you'd typically call directly.
 

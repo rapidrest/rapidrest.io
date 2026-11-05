@@ -98,7 +98,7 @@ export class PetRoute {
 | `HEAD` | `@Head(path?)` |
 | `OPTIONS` | `@Options(path?)` |
 
-The sub-path is always optional, omit it and the handler responds at the class's base path directly. For anything without its own decorator, or to bind more than one method to the same handler at once, `@Method(method, path?)` takes the verb (or an array of verbs) explicitly.
+The sub-path is always optional, omit it and the handler responds at the class's base path directly. An `@Options` handler also takes over `OPTIONS` requests for its path. The CORS headers are still added, but the blanket `204` preflight answer is skipped for that path, so your handler decides the response. This is how you'd serve a protocol that uses `OPTIONS` for capability discovery. Paths with no `@Options` handler keep the automatic `204` preflight, see [Cookies & CORS](/docs/http-engine/cookies-cors). For anything without its own decorator, or to bind more than one method to the same handler at once, `@Method(method, path?)` takes the verb (or an array of verbs) explicitly.
 
 ## Handler return values
 
@@ -111,4 +111,4 @@ async getPet(@Param('id') id: string): Promise<Pet | null> {
 }
 ```
 
-Need more control than "return a value, get a 200"? `@Request`/`@Response` (see [Request Parameters](/docs/routing/controllers/request-parameters)) hand you the underlying objects directly, and [Streaming Responses](/docs/http-engine/streaming) and [WebSockets](/docs/http-engine/websockets) cover writing a response yourself instead of returning one. Throwing inside a handler produces an error response the same way as anywhere else, see [Error Handling](/docs/http-engine/error-handling) for exactly how, and [Lifecycle & Validation](/docs/routing/controllers/lifecycle-validation) for where a thrown error can come from before your handler even runs.
+Need more control than "return a value, get a 200"? `@Request`/`@Response` (see [Request Parameters](/docs/routing/controllers/request-parameters)) hand you the underlying objects directly, and [Streaming](/docs/http-engine/streaming) and [WebSockets](/docs/http-engine/websockets) cover writing a response yourself instead of returning one. Throwing inside a handler produces an error response the same way as anywhere else, see [Error Handling](/docs/http-engine/error-handling) for exactly how, and [Lifecycle & Validation](/docs/routing/controllers/lifecycle-validation) for where a thrown error can come from before your handler even runs.

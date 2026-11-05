@@ -1,43 +1,48 @@
 ---
-sidebar_position: 5
+sidebar_position: 7
 sidebar_label: Configuration
 ---
 
 # Configuration
 
-`@rapidrest/auth` doesn't ship a dedicated config schema or setup step. It plugs into the same `nconf`-based `@Config` system every other part of a RapidREST project uses — see [Configuration](/docs/core-concepts/configuration) for how that works generally. The config keys below are simply what the strategies and routes look for.
+`@rapidrest/auth` doesn't ship a dedicated config schema or setup step. It plugs into the same `nconf`-based `@Config` system every other part of a RapidREST project uses (see [Configuration](/docs/core-concepts/configuration) for how that works generally). The keys below are what the strategies, routes and utilities look for. Everything is optional unless marked required, and only the strategies and routes you mount ever read their keys.
 
-The block below is adapted from [`auth-server`](https://github.com/rapidrest/auth-server)'s own `src/config.mongo.ts` — its `src/config.sql.ts` counterpart configures the same `auth`/`session` keys identically, only the `datastores` block differs (Postgres instead of MongoDB).
+The block below is adapted from [`auth-server`](https://github.com/rapidrest/auth-server)'s own `src/config.mongo.ts`. Its `src/config.sql.ts` counterpart configures the same `auth`/`session`/`csrf` keys identically, only the `datastores` block differs (Postgres instead of MongoDB).
 
 ```ts
 // src/config.ts
+csrf: { enabled: true },
+
 auth: {
   strategy: "auth.JWTStrategy", // service-core's JWTStrategy remains the framework-wide default
   secret: "change-me-in-production",
+  allowRegistration: true,
+  allowMultiplePasswords: false,
+  requireMFA: false,
+  default_scopes: ["profile:contacts", "profile:preferences"],
   options: {
-    expiresIn: "7 days",
+    expiresIn: "1 hour",
     audience: "my-api.example.com",
     issuer: "api.example.com",
   },
-  oidc: {
-    // -> BaseAuthOIDCRoute's providerConfig, via @Config("auth:oidc")
-    name: "google",
-    authorizationURL: "https://accounts.google.com/o/oauth2/v2/auth",
+  cookie: {
+    enabled: true,
+    access: { name: "jwt", maxAge: 60 * 60 },
+    refresh: { name: "refresh", maxAge: 60 * 60 * 24 * 14 },
+  },
+  csrf: { enabled: true },
+  google: {
+    // -> an auth-server per-provider route, via @Config("auth:google:clientID") etc.
     clientID: "...",
     clientSecret: "...",
-    profileURL: "...",
-    protocol: "openid",
-    redirectURI: "https://my-api.example.com/auth/oidc",
-    tokenURL: "https://oauth2.googleapis.com/token",
+    redirectURI: "https://my-app.example.com/auth/signin",
   },
   passkey: {
-    // -> @Config("auth:passkey")
     rpName: "My API",
     rpID: "my-api.example.com",
     origin: "https://my-api.example.com",
   },
   fido2: {
-    // -> @Config("auth:fido2")
     rpName: "My API",
     rpID: "my-api.example.com",
     origin: "https://my-api.example.com",
@@ -45,19 +50,21 @@ auth: {
     residentKey: "discouraged",
   },
   totp: {
-    // -> @Config("auth:totp")
     issuer: "My API",
     digits: 6,
     period: 30,
     algorithm: "sha1",
     epochTolerance: [5, 0],
   },
+  oauth_server: {
+    issuer: "https://auth.example.com",
+    keys: { encryption_key: "<64 hex characters>" },
+  },
 },
 
 // Required by FIDO2Strategy, PasskeyStrategy, OIDCStrategy, OTPStrategy, and
-// MFAStrategy — they store challenge/flow state in the session between
-// requests. See HTTP Engine → Sessions for the full option list and how it
-// works generally.
+// MFAStrategy: they store challenge/flow state in the session between
+// requests. See HTTP Engine → Sessions for the full option list.
 session: {
   secret: "change-me-in-production",
   cookieName: "rrst.sid",
@@ -65,4 +72,122 @@ session: {
 },
 ```
 
-`auth.strategy` and `auth.secret`/`auth.options` are exactly what [Authentication](/docs/auth/rbac/authentication) already documents for `JWTStrategy` — `@rapidrest/auth`'s routes mint tokens through the same `JWTUtils.createToken` call, so there's nothing extra to configure there. `oidc`, `passkey`, `fido2`, and `totp` are only read by the strategies you actually use; omit whichever you don't need. `session` is a general `service-core` feature, not specific to this package — see [HTTP Engine → Sessions](/docs/http-engine/sessions) for the full set of options and how it works under the hood.
+`auth.strategy`, `auth.secret` and `auth.options` are exactly what [Authentication](/docs/auth/rbac/authentication) already documents for `JWTStrategy`. `@rapidrest/auth`'s routes mint tokens through the same `JWTUtils.createToken` call, so there is nothing extra to configure there. `session` is a general `service-core` feature, see [HTTP Engine → Sessions](/docs/http-engine/sessions).
+
+## Reference
+
+Keys are listed by their dotted path, which maps to the `:`-separated path in `@Config`, so `auth.cookie.enabled` is `@Config("auth:cookie")`'s `enabled`.
+
+### Top-level keys
+
+| Key | Default | Description |
+|---|---|---|
+| `trusted_roles` | `["admin"]` | Roles treated as trusted. They gate impersonation, settings changes, `allowUserChange`, `firstParty` clients and unrestricted record access. |
+| `trusted_proxies` | `[]` | Proxy addresses whose `X-Forwarded-For` is honored when determining the source IP for rate limiting and audit entries. |
+| `default_accounts` | `[{ name: "admin", roles: ["admin"] }]` | Accounts `DefaultAccounts` creates at startup. Each is `{ name, email?, password?, phone?, roles? }`. Roles and verification are synced on every start. |
+| `rateLimit` | `{ enabled: true, maxAttempts: 100, windowSeconds: 60 }` | `@rapidrest/service-core`'s `RateLimiter` settings, including an `ip` sub-block. Replaces `auth:rateLimit` from 1.x. |
+| `csrf` | `{ enabled: true }` in OAuth consent | Service-core CSRF enforcement: `enabled`, `cookieName`, `headerName`, `allowedOrigins`. The origin allow-list falls back to `cors.origins`. |
+
+### `auth`
+
+| Key | Default | Description |
+|---|---|---|
+| `auth.strategy` | `"auth.JWTStrategy"` | Framework-wide authentication strategy. |
+| `auth.secret` | none | Secret used to sign and verify session JWTs. |
+| `auth.options` | none | JWT sign and verify options: `expiresIn`, `audience`, `issuer`. |
+| `auth.elevated.expiresIn` | none | Lifetime of an elevated token. Falls back to `auth.options.expiresIn` when unset. |
+| `auth.default_scopes` | `[]` | Scopes granted to every token issued at sign-in. |
+| `auth.allowRegistration` | `true` | Seeds the runtime `allowRegistration` [setting](/docs/auth/auth-library/account-security#runtime-settings). |
+| `auth.requireMFA` | `false` | Seeds the runtime `requireMFA` setting. Also the default for `User.requireMFA`. |
+| `auth.allowMultiplePasswords` | `false` | Seeds the runtime `allowMultiplePasswords` setting. |
+| `auth.app_password.enabled` | `true` | Creating and accepting [app passwords](/docs/auth/auth-library/account-security#app-passwords). Existing ones are never deleted. |
+| `auth.password_file` | `"passwords"` | Path where `DefaultAccounts` writes generated passwords. Set empty to log them once instead. |
+| `auth.passkey` | none | `PasskeyStrategy` and passkey registration: `rpName`, `rpID`, `origin`, `residentKey`, and the other WebAuthn options. |
+| `auth.fido2` | none | `FIDO2Strategy` and FIDO2 registration, same shape as passkey plus `authenticatorAttachment`. |
+| `auth.totp` | none | See the TOTP table below. |
+
+### `auth.password`
+
+Password policy and client-hashing rules. Read by `BaseAuthBasicRoute`, `BaseAuthMFARoute`, `BaseAuthElevationRoute`, `BaseSecretRoute` and `DefaultAccounts`, and returned by `GET /secrets/password`.
+
+| Key | Default | Description |
+|---|---|---|
+| `min_length` | `8` | Minimum length. |
+| `recommended_length` | `32` | Recommended length, shown to users. |
+| `require_lowercase` | `true` | Require a lowercase letter. |
+| `require_uppercase` | `true` | Require an uppercase letter. |
+| `require_numeral` | `true` | Require a number. |
+| `require_special` | `true` | Require a special character. |
+| `special_chars` | `"!@#$%^&*_+?-"` | Characters counted as special. |
+| `hash_memory_cost` | `65536` | Server-side Argon2 memory cost, in KiB. |
+| `hash_time_cost` | `3` | Server-side Argon2 iterations. |
+| `hash_parallelism` | `4` | Server-side Argon2 parallelism. |
+| `allow_client_hashing` | `true` | Accept [pre-hashed passwords](/docs/auth/auth-library/account-security#client-side-password-hashing). |
+| `require_client_hashing` | `false` | Reject plaintext when a password is set or changed. |
+| `client_hash_min_memory_cost` | `19456` | Minimum memory cost, in KiB, in a submitted hash. |
+| `client_hash_min_time_cost` | `2` | Minimum iterations in a submitted hash. |
+| `client_hash_min_parallelism` | `1` | Minimum parallelism in a submitted hash. |
+
+### `auth.cookie`
+
+Cookie-based token issuance. `access` configures the `jwt` cookie and `refresh` the `refresh` cookie, each with the same options.
+
+| Key | Default | Description |
+|---|---|---|
+| `enabled` | `false` | Also set the issued tokens as `Set-Cookie` headers. |
+| `access.name`, `refresh.name` | `"jwt"`, `"refresh"` | Cookie names. Keep `access.name` equal to the `cookieName` your `JWTStrategy` reads. |
+| `<cookie>.path` | `"/"` | `Path` attribute. |
+| `<cookie>.domain` | host-only | `Domain` attribute, e.g. `.example.com` to [share the session](/docs/auth/auth-library/account-security#shared-session-cookies) with sibling subdomains. Applied to clearing headers too. |
+| `<cookie>.maxAge` | session cookie | `Max-Age` in seconds. |
+| `<cookie>.sameSite` | `"Lax"` | `SameSite` attribute. |
+| `<cookie>.secure` | `true` | Set `false` to omit `Secure`, plain-HTTP development only. |
+| `<cookie>.httpOnly` | `true` | Set `false` to omit `HttpOnly`. |
+
+### `auth.csrf`
+
+Lifecycle of the [CSRF cookie](/docs/auth/auth-library/account-security#csrf-protection) issued by `CsrfUtils`.
+
+| Key | Default | Description |
+|---|---|---|
+| `enabled` | `false` | Issue and rotate the cookie at login, refresh and elevation, and clear it at logout. |
+| `name` | `"csrf"` | Cookie name. |
+| `path` | `"/"` | `Path` attribute. |
+| `maxAge` | session cookie | `Max-Age` in seconds. |
+| `sameSite` | `"Lax"` | `SameSite` attribute. |
+| `secure` | `true` | Set `false` for plain-HTTP development only. |
+
+### `auth.totp`
+
+| Key | Default | Description |
+|---|---|---|
+| `issuer` | none | Service name shown by the authenticator app. |
+| `digits` | `6` | Digits per code. |
+| `period` | `30` | Seconds each code stays valid. |
+| `algorithm` | `"sha1"` | `sha1`, `sha256` or `sha512`. Most authenticator apps only support `sha1`. |
+| `epochTolerance` | `[1, 0]` | Tolerance window around the current time, in periods. |
+| `encryption_key` | unset | 64 hex characters. When set, new TOTP secrets are encrypted at rest with AES-256-GCM. Existing plaintext secrets keep verifying. |
+
+### `auth.oauth_server`
+
+Read by the [OAuth server](/docs/auth/auth-library/oauth-server) routes. `issuer` and `keys.encryption_key` are required for the server to issue anything.
+
+| Key | Default | Description |
+|---|---|---|
+| `issuer` | none (required) | Issuer identifier stamped into every token's `iss` claim and published in discovery. |
+| `keys.encryption_key` | none (required) | 64 hex characters. AES-256-GCM key protecting signing key private material at rest. |
+| `keys.rotationIntervalDays` | `30` | Intended rotation interval. Informational, and half of it sets the JWKS `Cache-Control` max-age. |
+| `keys.retirementGraceDays` | `7` | How long a retired key stays in the JWKS. |
+| `accessTokenTTL` | `"15m"` | Access token lifetime. |
+| `idTokenTTL` | `"15m"` | ID token lifetime. |
+| `refreshTokenTTL` | `"30d"` | Refresh token lifetime. |
+| `codeTTL` | `"60s"` | Authorization code lifetime. |
+| `consentTicketTTL` | `"10m"` | Lifetime of the signed ticket carrying a pending consent request. |
+| `supportedScopes` | `["openid", "profile", "email", "phone", "offline_access"]` | Scopes advertised by discovery. |
+
+### Provider-specific keys
+
+`BaseAuthOIDCRoute` has no config path of its own. It takes an `OIDCProvider` from your subclass, which you can read from any keys you like. `auth-server` uses `auth:google:*`, `auth:microsoft:*`, `auth:apple:*` and `auth:facebook:*`, documented on its own pages.
+
+:::note[auth-server only]
+`audit_log.retention_days` (how long `auth-server` keeps its database-backed audit entries, unset by default) is read by `auth-server`'s own retention job, not by this library.
+:::

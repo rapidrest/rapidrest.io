@@ -1,11 +1,11 @@
 ---
 sidebar_position: 5
-sidebar_label: Streaming Responses
+sidebar_label: Streaming
 ---
 
-# Streaming Responses
+# Streaming
 
-`res.json()`/`res.send()` cover the common case: figure out the whole answer, send it back in one shot. **Streaming** is for the other case, sending a response in pieces over time, when there's no single complete answer to wait for, a periodic update pushed to a still-open connection, for as long as the client stays around.
+`res.json()`/`res.send()` cover the common case: figure out the whole answer, send it back in one shot. **Streaming** is for the other case, sending a response in pieces over time, when there's no single complete answer to wait for, a periodic update pushed to a still-open connection, for as long as the client stays around. This page also covers the reverse, receiving a large request body as a stream, in [Streaming request bodies](#streaming-request-bodies).
 
 ## The tools for it
 
@@ -16,6 +16,7 @@ sidebar_label: Streaming Responses
 | `res.flushHeaders()` | Sends the status code and headers immediately, without ending the response (normally these wait until the response is finished) |
 | `res.write(chunk)` | Sends one piece of data without ending the response, so you can call it again |
 | `res.onAbort(callback)` | Runs if the client disconnects mid-stream, your chance to clean up anything still running (a timer, an interval) |
+| `res.waitForDrain()` | Resolves once it is safe to write again after `write()` returned `false`, see below |
 
 These work identically on either [HTTP engine](/docs/http-engine).
 
@@ -40,6 +41,48 @@ async streamEvents(@Response res: HttpResponse) {
 The `content-type` marks this as an event stream rather than a normal response, `flushHeaders()` sends that immediately instead of waiting, and the interval writes a new chunk every second for as long as the connection is open. `onAbort` stops the timer once the client disconnects, so nothing keeps running against a connection nobody's reading anymore.
 
 There's no explicit "done" step here, and that's expected: once a handler starts writing chunks, RapidREST treats the response as handler-owned and won't also try to send its own response on top or time it out the way it would a handler that simply never returned.
+
+## Backpressure
+
+`res.write(chunk)` returns a boolean, like Node's `Writable.write()`. `false` means the connection's send buffer is full: the chunk was still accepted, but a producer that keeps writing against a slow client piles up memory. Wait for the buffer to drain before writing more:
+
+```ts
+for (const chunk of chunks) {
+  if (!res.write(chunk) && !(await res.waitForDrain())) return; // client went away
+}
+res.end();
+```
+
+`waitForDrain()` resolves `true` when it is safe to continue, and `false` if the client disconnected or the response ended while waiting, which means stop producing. It also resolves `true` straight away if nothing is pending. `res.onDrain(callback)` is the event form, `res.writableNeedDrain` reports whether a drain is pending, and `res.aborted` is `true` once the client has gone. `write()` also returns `false`, writing nothing, after the response has ended or aborted.
+
+## Streaming request bodies
+
+The same idea applies in the other direction. Normally RapidREST reads the whole request body into memory before your handler runs (up to `max_body_size`). For a multi-gigabyte upload that's the wrong tradeoff, so a route can opt in to receiving the body as a stream instead. Mark the route with `@StreamingBody()` and take the stream with `@BodyStream`:
+
+```ts
+import { createWriteStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import type { Readable } from 'node:stream';
+
+@Route('/uploads')
+export class UploadRoute {
+  @StreamingBody()
+  @Post('/:name')
+  async upload(@Param('name') name: string, @BodyStream stream: Readable) {
+    await pipeline(stream, createWriteStream(`/data/${name}`));
+    return { stored: name };
+  }
+}
+```
+
+The stream yields `Buffer` chunks, supports `for await` and `.pipe()`, and is also available as `req.bodyStream`. A slow consumer throttles how fast bytes are read off the connection, so memory stays flat. `@StreamingBody()` can go on a single method or a whole class. Registered by hand, the equivalent is `app.post(path, { streamingBody: true }, handler)`.
+
+A streaming route differs from an ordinary one in a few ways to be aware of:
+
+- `req.body` and `req.rawBody` are `undefined`, so `@Validate`, `@Before`/`@After` functions and an undecorated body argument that expect a parsed body don't work on it.
+- `max_body_size` and its `413` rejection don't apply. Enforcing a size limit is up to your handler, for example by counting bytes and destroying the stream.
+- If the client disconnects mid-upload the stream is destroyed with an error. Clean up partial output in a `catch` or `finally`.
+- If the handler responds without reading the body (an auth failure, say) and the client hasn't finished sending it, RapidREST closes the connection rather than leaving it open waiting for bytes that may never arrive.
 
 ## When to reach for something else
 

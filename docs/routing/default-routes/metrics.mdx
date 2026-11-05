@@ -25,6 +25,8 @@ The CLI scaffold generates exactly this at `src/routes/MetricsRoute.ts`, mounted
 | `getMetrics` | `GET /metrics` | Returns every metric currently registered, in Prometheus exposition format. |
 | `getSingleMetric` | `GET /metrics/:metric` | Returns a single named metric. |
 
+The framework's own request metrics are labelled with the matched route pattern (for example `/pets/:id`), or `<unmatched>` for a request that matched no route, never the raw request path. That keeps the number of series bounded by your routes rather than by whatever paths callers send.
+
 ## Registering your own metrics
 
 `BaseMetricsRoute` doesn't collect anything itself. It just serves whatever is in `prom-client`'s global registry. Register counters, gauges, and

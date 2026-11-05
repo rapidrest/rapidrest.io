@@ -19,7 +19,7 @@ RapidREST ships as a CLI you install once, globally, and keep using throughout t
 npm install -g @rapidrest/cli
 ```
 
-This gives you the `rapidrest` command (`rr` for short, if you prefer).
+This gives you the `rapidrest` command (`rr` for short, if you prefer). The project templates are downloaded and cached the first time a command needs them, so the first `generate` needs network access. See [Templates](/docs/cli-reference/templates).
 
 ## Scaffold a project
 
@@ -35,9 +35,10 @@ This command walks you through an interactive prompt. Don't worry if you make a 
 |---|---|
 | Description / Author | Written into `package.json`, no functional effect |
 | Package manager | `yarn` or `npm` |
-| Databases | `MongoDB` and `Redis` are checked by default (Redis also backs the `@Cache` decorator). `PostgreSQL` and `SQLite` are available too |
-| Additional features | `React` (server-rendered pages from this same server), `Docker`, `Kubernetes (Helm)` |
-| Source control | `GitHub`, `GitLab`, `Git`, or none |
+| Databases | `MongoDB` and `Redis` are checked by default (Redis also backs the `@Cache` decorator). `PostgreSQL` and `SQLite` are available too, and you can pick none (`--no-db`) |
+| Additional features | The [default routes](/docs/routing/default-routes) (all checked by default), `React` (server-rendered pages from this same server), `Docker` (checked by default), `Kubernetes (Helm)` |
+| API prefix | Whether to prefix every non-React route with `/api`, and an optional version such as `/api/v1` |
+| Source control | `GitHub`, `GitLab`, `Git`, `Perforce`, `Subversion`, or none |
 
 :::note[Non-Interactive Mode]
 Every prompt above has a matching flag, and `--answers <file>` lets you scaffold identically-configured projects with zero prompts. See [Generate Commands](/docs/cli-reference/generate-commands#rapidrest-generate-server-name) for the full flag reference.
@@ -70,7 +71,7 @@ That works because the scaffold already includes a working `StatusRoute.ts`, alo
 For a single run that builds first and then starts once, no watching, closer to how a real deployment invokes it:
 
 ```bash
-yarn start
+yarn start   # or npm start
 ```
 
 This still starts the same in-memory datastores `rapidrest dev` does, so it's not yet pointed at real data, just running the compiled output instead of `tsx --watch`. [Deployment](/docs/deployment) covers pointing this at real, persistent datastores and shipping it to an actual server or container.
@@ -86,17 +87,24 @@ my-api/
 │   ├── server.ts       # server entry point
 │   ├── models/         # entity classes (@Entity, @DataStore, ...)
 │   ├── routes/         # route classes (@Route, @Get, ...)
-│   └── jobs/           # background jobs, if generated
+│   └── jobs/           # background jobs (a MetricsCollector is included)
 ├── apps/
 │   └── app/            # SSR React pages, only if the React feature was selected
-├── test/
-├── docker-compose.yml  # only if the Docker feature was selected
+├── test/               # test config and the tests generated alongside your routes and jobs
+├── .claude/
+│   └── settings.json   # enables the RapidREST Claude Code plugin
+├── .github/            # CI workflow, only if GitHub was selected as source control
+├── Dockerfile          # plus docker-compose.yml, only if the Docker feature was selected
 ├── helm/               # only if the Kubernetes feature was selected
+├── CHANGELOG.md        # maintained by `rapidrest release`
+├── RELEASE_NOTES.md
 ├── tsconfig.json       # extends @rapidrest/service-core/tsconfig
 └── package.json
 ```
 
 **Notice that there's no router file, and no model registry.** Every class you export anywhere under `src/` is discovered and wired up automatically at startup. When you add a new file it becomes live on the next restart; there's nothing else to touch. [Core Concepts](/docs/core-concepts) explains the mechanism behind this (and the decorator-heavy style that you'll see throughout the rest of these docs).
+
+The generated `.claude/settings.json` registers the RapidREST Claude Code plugin and enables it, so anyone who opens the project in Claude Code is offered the RapidREST skills once they trust the folder. See [Claude Code Plugin](/docs/claude-code-plugin). The CLI never overwrites this file when you run `rapidrest upgrade`, so add your own Claude Code permissions and hooks to it freely.
 
 :::note[tsconfig.json]
 RapidREST's decorators need `experimentalDecorators` and `emitDecoratorMetadata` turned on. Your generated `tsconfig.json` already extends the framework's base config so you don't have to set these by hand:

@@ -24,7 +24,7 @@ rapidrest dev --port 4000 # prefer a specific port
 | `-d`, `--docker` | Skips starting in-memory database servers (use when your datastores are already running, e.g. via Docker Compose) |
 | `-p`, `--port <n>` | Preferred port to bind to |
 
-By default, `rapidrest dev` reads `src/config.ts` to see which datastores are configured, starts an in-memory instance of each (no local install needed, see [Getting Started](/docs/getting-started)), and runs your server via `tsx --watch`. If the project has React configured, it also runs `vite build --watch` alongside it. Everything is cleaned up on <kbd>Ctrl</kbd>+<kbd>C</kbd>.
+By default, `rapidrest dev` reads `src/config.ts` to see which datastores are configured, starts an in-memory instance of each (no local install needed, see [Getting Started](/docs/getting-started)), and runs your server via `tsx --watch`. If the project has React configured, it also runs `vite build --watch` alongside it. `dev` sets `NODE_ENV` to `development` for the server. Everything is cleaned up on <kbd>Ctrl</kbd>+<kbd>C</kbd>: the watcher, the server, and every subprocess they started are terminated as a whole process tree, so no stray `node` or database processes are left behind (the same applies to `start`).
 
 Ports are found automatically: starting from `--port` (or `3000` if omitted), RapidREST probes upward until it finds a free one. If you pass `--port`
 explicitly and that exact port is already taken, `dev` fails instead of silently picking a different one — the automatic fallback only applies to the

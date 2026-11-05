@@ -21,7 +21,7 @@ For anything beyond equality, wrap the value in an operator:
 GET /pets?age=gt(2)
 GET /pets?status=in(available,pending)
 GET /pets?price=range(10,50)
-GET /pets?name=like(fluff)
+GET /pets?name=like(fluff*)
 ```
 
 | Operator | Matches |
@@ -33,7 +33,13 @@ GET /pets?name=like(fluff)
 | `in(a,b,c)` | Equal to any of a comma-separated list |
 | `nin(a,b,c)` | Not equal to any of a comma-separated list |
 | `range(a,b)` | Between `a` and `b`, inclusive |
-| `like(v)` | Case-insensitive substring match, capped at 100 characters |
+| `like(pattern)` | Case-insensitive glob match against the whole value. `*` matches any run of characters and `?` any single character, so `like(fluff*)` matches `Fluffy` and `like(fluff)` matches only `fluff`. |
+| `regex(pattern)` | Case-insensitive regular expression match. Patterns over 100 characters or with catastrophic-backtracking shapes such as `(a+)+` are rejected with `400`. On SQL it needs PostgreSQL, MySQL/MariaDB or better-sqlite3. |
+| `exists(true)` / `exists(false)` | The field is set / is not set (null) |
+
+The operand is everything between the first `(` and the last `)`, verbatim. Parentheses, spaces and nested operator text are all kept, so `eq(Support(EU))` matches the value `Support(EU)`. Operator names are case-insensitive. A value shaped like `name(...)` whose name isn't an operator is rejected with `400` rather than treated as equality, so wrap it in `eq(...)` to match it literally. Inside `in()`, `nin()` and `range()`, write `\,` for a comma that belongs to a value and `\\` for a backslash, e.g. `in(a\,b,c)` matches `a,b` or `c`.
+
+Operands are converted to the field's declared type (number, boolean, date) before comparing, so a text value is never silently reinterpreted as a date. `eq(null)` matches records where the field is null.
 
 Repeat the same key more than once and the values are OR'ed together rather than the second overwriting the first:
 
@@ -41,7 +47,7 @@ Repeat the same key more than once and the values are OR'ed together rather than
 GET /pets?status=available&status=pending
 ```
 
-The literal string `me` in a value resolves to the authenticated caller's own uid, useful for a filter like `?ownerId=me` without the client needing to already know its own id. A literal `$or` key with an array of sub-query objects is also accepted, for anything the operator syntax above can't express on its own (MongoDB-backed models only).
+The literal string `me` in a value resolves to the authenticated caller's own uid, useful for a filter like `?ownerId=me` without the client needing to already know its own id. `me` also works inside an operator, e.g. `?ownerId=eq(me)` or `?ownerId=in(me,other)`.
 
 On a MongoDB-backed model, a dotted key filters into a sub-document field the same way it would in a native Mongo query:
 
@@ -50,14 +56,24 @@ GET /pets?category.name=bunny
 ```
 
 :::note[No `$`-prefixed segments, on MongoDB models]
-What's rejected with `400` is a `$`-prefixed segment anywhere in the key, whether it's the whole key (`$where`) or one segment of a dotted path (`category.$where`), other than the literal top-level `$or`. That's what stops a client from smuggling a raw Mongo operator in as a filter key; a dotted field path on its own is just a nested field reference and always was safe to allow.
+What's rejected with `400` is a `$`-prefixed segment anywhere in the key, whether it's the whole key (`$where`) or one segment of a dotted path (`category.$where`), other than the top-level `$or` and `$and` keys the `q` parameter below accepts. That's what stops a client from smuggling a raw Mongo operator in as a filter key; a dotted field path on its own is just a nested field reference and always was safe to allow.
 :::
 
 A few query keys are reserved and never treated as a filter: `limit`, `page`, and `sort` (see below, case-insensitive), and anything starting with `jwt_`, `oauth_`, `auth_`, or `cache`.
 
+A filter on a field the caller isn't allowed to read (one protected by [`@RequiresScope`](/docs/models-persistence/entities-columns#requiresscope)) is rejected with `400`, and so is sorting or counting by it. Otherwise a caller could work out a hidden value by probing it with `gt()` and `lt()`.
+
 ### Sending a filter as JSON instead
 
 For a filter that doesn't fit cleanly into the query string, pass a single `q` parameter instead: a base64-encoded JSON object, using the exact same key/value(/operator) shape as above. It replaces every other query parameter on the request, and is capped at 64 KiB decoded. It's an alternate transport for the same filter language, not a way to send arbitrary MongoDB operators the query-string form can't express.
+
+Because it's JSON, `q` is also the way to express boolean grouping. `$or` and `$and` take a non-empty array of sub-queries, each using the same shape, and behave identically on MongoDB and SQL:
+
+```json
+{"status": "available", "$or": [{"species": "rabbit"}, {"age": "lt(2)"}]}
+```
+
+The groups are ANDed with every other key, so a sibling key such as `status` above can't be overridden by a branch. An empty or malformed `$or`/`$and`, deeply nested groups and a `$`-prefixed field name are rejected with `400`.
 
 ## Pagination
 
@@ -82,13 +98,19 @@ A `sort` parameter controls the order results come back in:
 GET /pets?sort=name
 ```
 
-On its own, that sorts ascending on the given field. For descending order, or more than one sort field at once, pass a JSON object instead:
+On its own, that sorts ascending on the given field. Prefix the field with `-` for descending order:
+
+```
+GET /pets?sort=-age
+```
+
+For more than one sort field at once, pass a JSON object instead:
 
 ```
 GET /pets?sort={"name":"DESC","age":"ASC"}
 ```
 
-There's no `-fieldName` shorthand for descending, the JSON form is the only way to express it.
+Sort fields must be declared columns of the model, anything else is rejected with `400`.
 
 ## Field selection
 

@@ -117,6 +117,10 @@ const result = await request(server.getApplication())
   .set('Authorization', 'jwt ' + token);
 ```
 
+### Cookie sessions and CSRF
+
+A request authenticated only by the browser `jwt` cookie must carry a CSRF token on mutating methods. `agent(app)` from the same `test` module keeps cookies across calls like a browser does, and automatically echoes the CSRF cookie back as an `x-csrf-token` header on every `POST`, `PUT`, `PATCH` and `DELETE`, so a test that logs in and then writes works without any extra setup. Requests that send a bearer token in `Authorization`, as above, are never subject to the check.
+
 ## Stubbing a dependency
 
 There's no way to hand the DI container a pre-built fake in place of an `@Inject`-resolved dependency before construction, RapidREST always constructs the real class. What works instead: let the real singleton get constructed as normal, retrieve that same instance from the `ObjectFactory`, and stub just the method you don't want actually running:

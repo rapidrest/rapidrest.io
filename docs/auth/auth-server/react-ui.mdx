@@ -24,6 +24,7 @@ const { Route } = RouteDecorators;
 export class WwwRoute extends ReactRoute {
     protected readonly appDir: string = "apps/www";
     protected readonly hydrate: boolean = true;
+    protected readonly router: boolean = true;
 }
 ```
 
@@ -37,8 +38,11 @@ const { Route } = RouteDecorators;
 export class AdminConsoleRoute extends ReactRoute {
     protected readonly appDir: string = "apps/admin";
     protected readonly hydrate: boolean = true;
+    protected readonly router: boolean = true;
 }
 ```
+
+The shipped routes also override `fetchProps()` to feed the site branding and a few settings into every page on the server, so the first byte of a response already carries the right title, icon and stylesheet. `router: true` turns on the client-side router from `@rapidrest/react` 2.x. Moving between sign-in, sign-up and the admin pages swaps the page in place with back/forward and scroll position intact, while every URL is still rendered on the server. A cache or CDN in front of the server must respect `Vary: X-Rapidrest-Navigation`, because page data is served as JSON from the page's own URL.
 
 Both apps build together via one Vite config using the array form of `appDir`:
 
@@ -60,9 +64,17 @@ The `www` app includes sign-up and sign-in flows as well as basic account manage
 | Page | What it does |
 |---|---|
 | `/` | Redirects to `/account` if the request carries a valid session, otherwise `/auth/signin`. |
-| `/auth/signin` | Sign-in, including the MFA second-factor step when `requireMFA` comes back on the initial password check. |
-| `/auth/signup` | Self-service registration, backed by [Auth Library → `BaseRegistrationRoute`](/docs/auth/auth-library/routes#session--account-management). |
-| `/account` | Basic account management including: profile, contacts, and secret management. |
+| `/auth/signin` | Sign-in with every method: password, MFA second factor, one-time codes, passkeys, security keys and the Apple, Facebook, Google and Microsoft buttons. A provider's button only appears once its `auth.<provider>.clientID` is set to a real value. |
+| `/auth/signup` | Self-service registration, backed by [Auth Library → `BaseRegistrationRoute`](/docs/auth/auth-library/routes#session--account-management). Hidden when an admin turns registration off. |
+| `/auth/authorize` | The hosted consent screen for [OAuth clients](/docs/auth/auth-server/oauth-server). |
+| `/auth/elevate` | Step-up re-verification before a sensitive action. |
+| `/account` | Account management: username, profile, contacts, sign-in methods (password, TOTP, passkeys, security keys), app passwords and security settings. |
+
+### Signing in and returning
+
+A downstream app sends users to `/auth/signin?return_to=<url>` and gets them back after sign-in. The target must be on this server or one of its configured `cors.origins`, anything else falls back to `/account`. `/auth/elevate?return_to=<url>` works the same way for step-up. A user whose account was given a temporary password is sent to `/account` first to choose a new one.
+
+The sign-in page offers a passkey as soon as it opens, with no username asked for, when the browser remembers one for this device, and shows a **Sign in with a passkey** button otherwise. Passwords are hashed with Argon2id in the browser before they are submitted, so the plaintext never leaves the page. The `app_url` setting adds a **Return to App** button on `/account` for the app that sent the user here.
 
 ## `apps/admin`
 
@@ -71,8 +83,15 @@ The adminstration console for users with a trusted role (e.g. `admin`).
 | Page | What it does |
 |---|---|
 | `/admin` | Searchable list of all registered user accounts. |
-| `/admin/users/detail` | View and edit a single user's full account details. |
+| `/admin/users/<uid>` | View and edit a single user's account: roles, scopes, verification, MFA, sign-in methods, recent activity, set a password, impersonate, delete. |
 | `/admin/users/new` | Create a user directly, allowing for bypassing email/phone verification. |
+| `/admin/oauth-clients` | Create, edit, rotate the secret of and delete [OAuth clients](/docs/auth/auth-server/oauth-server). |
+| `/admin/messages` | Edit the e-mail, SMS and WhatsApp message templates, and the SMTP, SMS and WhatsApp delivery settings. |
+| `/admin/audit-log` | Filterable log of security-relevant account activity. |
+| `/admin/diagnostics` | Versions, runtime, live usage and service log. |
+| `/admin/settings` | Site branding, and registration and MFA policy. |
+
+See [Operations and configuration](/docs/auth/auth-server/operations) for what each of these does.
 
 ## `apps/shared` — the reusable layer
 
@@ -80,7 +99,9 @@ Both apps import from a shared library (`apps/shared`) instead of duplicating AP
 
 | Path | What's there |
 |---|---|
-| `lib/api.ts` | The `fetch` wrapper every page uses to call the API. Deliberately framework-free as no client router or HTTP client is shipped by `@rapidrest/react`. Auth is entirely via the `jwt` HttpOnly cookie the server already sets; no token ever touches JS-accessible storage. |
+| `lib/api.ts` | The `fetch` wrapper every page uses to call the API. Auth is entirely via the `jwt` HttpOnly cookie the server already sets; no token ever touches JS-accessible storage. It sends the CSRF token on state-changing requests. |
+| `lib/clientPasswordHash.ts` | Argon2id hashing of a password in the browser, matching the Auth Library's client-hash contract. |
+| `lib/siteSettings.ts`, `lib/useSiteSettings.ts` | The branding the pages render and the hook that keeps it current. |
 | `lib/adminApi.ts` | A corresponding `fetch` wrapper to call the API, but for admin-only endpoints. |
 | `lib/useSessionRefresh.ts` | A hook every authenticated page calls to proactively refresh the access token on a timer via [`BaseAuthRefreshRoute`](/docs/auth/auth-library/routes#session--account-management). |
 | `lib/elevation.ts`, `components/elevation/ElevationHost.tsx` | The UI component for [`@RequiresElevation`](/docs/auth/auth-library/strategies#security-features) step-up auth. It intercepts a 403 asking for elevation and prompts for one more factor before retrying. |
@@ -91,7 +112,7 @@ Both apps import from a shared library (`apps/shared`) instead of duplicating AP
 
 - **Add a page** the same way any SSR React page works. Create a new `.tsx` file under `apps/www/` or `apps/admin/` following the [SSR React → App Directory Convention](/docs/ssr-react/app-convention).
 - **Add an admin page for a new resource**. Simply copy the `apps/admin/users/*` pattern to create a list page plus a shared `AdminShell` layout wrapper, pointed at your own model's CRUD endpoints instead of `User`.
-- **Rebrand it**: each app's `_layout.tsx` sets the page `<title>`, favicon, and stylesheet link; swap `public/images/logo.svg`, `public/styles/globals.css`, and `public/favicon.ico` for your own.
+- **Rebrand it**: no code change is needed. Upload a logo, icon and stylesheet and set the title and header and footer HTML on the admin **Settings** page, or pre-set them for a deployment with the `site_settings` config (see [Operations](/docs/auth/auth-server/operations#site-branding-and-system-settings)). For a deeper fork, `public/images/logo.svg` and `public/styles/globals.css` are the defaults.
 - **Gate a new feature behind step-up auth**: apply [`@RequiresElevation`](/docs/auth/auth-library/strategies#security-features) to the route, and the existing `ElevationHost` already mounted in both apps' layouts will prompt for it automatically.
 
 ## See also

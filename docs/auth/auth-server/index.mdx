@@ -5,10 +5,10 @@ sidebar_label: Overview
 
 # Auth Server
 
-[`auth-server`](https://github.com/rapidrest/auth-server) is a complete, production-ready, deployable authentication and account-management service built on RapidREST. It includes every strategy, model, and route from the [Auth Library](/docs/auth/auth-library) wired together into one runnable package, with support for either MongoDB and PostgreSQL.
+[`auth-server`](https://github.com/rapidrest/auth-server) is a complete, production-ready, deployable authentication and account-management service built on RapidREST. It includes every strategy, model, and route from the [Auth Library](/docs/auth/auth-library) wired together into one runnable package, with support for either MongoDB or PostgreSQL. The current release is `1.0.0`.
 
 It is **not** an npm package you install. It's a reference project you can deploy immediately using Docker or Helm, or clone/fork to make it your own. It is the fastest way to see the Auth Library's pieces assembled into a complete service rather than hand-wiring every strategy and route yourself. It also includes a complete React-based UI
-that implements login flow, user account management and system administration.
+that implements the login flow, user account management and an admin console, and it acts as an OAuth 2.0 / OpenID Connect authorization server so your other apps can sign users in against it.
 
 :::note[Auth Library vs. Auth Server]
 [Auth Library](/docs/auth/auth-library) is the `@rapidrest/auth` npm package which includes strategies, data models, base routes, and configuration you can drop into *any* RapidREST project. This section is about `auth-server`, the standalone project built on top of the `@rapidrest/auth` that provides a simple turn-key authentication server.
@@ -16,11 +16,12 @@ that implements login flow, user account management and system administration.
 
 ## Why it exists
 
-Wiring up a working login system from the Auth Library means picking strategies, subclassing base routes, choosing a datastore, getting configuration right for each one and building a full user interface to drive it all. `auth-server` does all of that already, for every supported method at once (password, TOTP, OTP, WebAuthn passkeys, FIDO2, MFA, OIDC)
+Wiring up a working login system from the Auth Library means picking strategies, subclassing base routes, choosing a datastore, getting configuration right for each one and building a full user interface to drive it all. `auth-server` does all of that already, for every supported method at once (password, TOTP, OTP by e-mail, SMS or WhatsApp, WebAuthn passkeys, FIDO2, MFA, app passwords, and sign-in with Apple, Facebook, Google and Microsoft)
 
 With auth-server you can:
 
 - **Deploy as-is** using Docker or Helm, as a standalone auth provider microservice that issues JWTs your other RapidREST services, instead of building login into every service separately.
+- **Use it as your identity provider.** Register other apps as [OAuth clients](/docs/auth/auth-server/oauth-server) and they sign users in through a hosted consent screen, with discovery, JWKS and UserInfo endpoints.
 - **Fork it**, keeping the wiring you need and deleting the rest, as a faster starting point than an empty `generate server` project plus manual Auth Library integration.
 
 ## What's inside
@@ -31,8 +32,8 @@ Beyond the auth routes and React UI, `auth-server` is a normal RapidREST service
 |---|---|
 | `src/mongo/`, `src/sql/` | Full support for SQL or MongoDB with identical routes and behavior for each persistence backend. |
 | `src/config.mongo.ts`, `src/config.sql.ts`, `src/config.defaults.ts` | Project configuration. |
-| `apps` | The React-based frontend UI. |
-| `docker-compose.*.yml`, `Dockerfile`, `helm/` | Deployment assets. |
+| `apps` | The React-based frontend UI: sign-in and account pages, and the admin console. |
+| `docker-compose.*.yml`, `Dockerfile`, `helm/`, `scripts/k3s_install.sh` | Deployment assets, including a script that sets up a single-node k3s cluster with the chart. |
 | `test/` | A test suite covering both datastore variants. |
 | `k6-tests/` | A collection of k6 scripts for performing load testing. |
 
@@ -40,6 +41,8 @@ Beyond the auth routes and React UI, `auth-server` is a normal RapidREST service
 
 - [Building on auth-server](/docs/auth/auth-server/building-on-it): forking it, adding a provider, extending the models.
 - [React UI](/docs/auth/auth-server/react-ui): sign-in, sign-up, account and admin pages, and how to build on top of them.
+- [OAuth 2.0 / OIDC server](/docs/auth/auth-server/oauth-server): registering clients and the endpoints other apps use.
+- [Operations and configuration](/docs/auth/auth-server/operations): branding, messages, the audit log, Diagnostics and the settings the server reads.
 - [Docker Compose](/docs/auth/auth-server/deployment/docker): running it locally.
-- [Kubernetes (Helm)](/docs/auth/auth-server/deployment/helm): the chart, its dependencies, and every configurable `values.yaml` parameter.
+- [Kubernetes (Helm)](/docs/auth/auth-server/deployment/helm): the chart, Gateway and TLS, secrets and OpenBao, and every configurable `values.yaml` parameter.
 - [Auth Library](/docs/auth/auth-library): the `@rapidrest/auth` API this project is built from.

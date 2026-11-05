@@ -1,0 +1,77 @@
+---
+sidebar_position: 5
+sidebar_label: Operations and configuration
+---
+
+# Operations and configuration
+
+Once `auth-server` is running, most of what you tune falls into two groups: settings the server reads at startup, and things an administrator changes live from the admin console. Some settings do both. They seed a value the first time the server starts, and from then on the admin console owns it. This page lists those settings and covers the audit log, app passwords and Diagnostics page that help you run the service.
+
+Settings are read from `src/config.*.ts` and can be overridden from the environment. Environment variable names keep their case and use `__` for nesting, so write them as the key is written below (`smtp_config__host`, not `SMTP_CONFIG__HOST`). See [Docker](/docs/auth/auth-server/deployment/docker#environment-variable-overrides) and [Helm](/docs/auth/auth-server/deployment/helm#extra-configuration) for how to set them.
+
+## Settings
+
+| Key | What it does |
+|---|---|
+| `app_url` | The downstream application the **Return to App** button on `/account` sends the user back to. An absolute `http(s)` URL. Unset, or anything else, hides the button. |
+| `site_settings` | Pre-sets the site branding: `siteTitle`, `companyName`, `headerHtml`, `footerHtml`, `logoUrl`, `iconUrl`, `stylesheetUrl`. Seeds once, then the admin Settings page owns it. URLs must be `http(s)` or root-relative. |
+| `sms_config` | How texts are sent. `provider` is `twilio` or `telnyx`, and `config` holds that provider's settings (`{ accountSid, token }` or `{ apiKey, messagingProfileId }`). The sender is `templates.from.sms`. Seeds once, then the Messages page owns it. |
+| `whatsapp` | WhatsApp Business Cloud API credentials: `{ accessToken, phoneNumberId, apiVersion }`. Seeds once. |
+| `smtp_config` | The SMTP server for e-mail. Seeds once. |
+| `templates` | The wording of every one-time-code message. Edited on the Messages page. |
+| `auth:app_password:enabled` | Set to `false` to turn off app passwords deployment-wide. Defaults to `true`. |
+| `audit_log:retention_days` | Days to keep an audit log entry before a daily job purges it. Unset or `null`, the default, never purges. |
+| `auth:oauth_server:*` | The OAuth/OIDC server. See [OAuth 2.0 / OIDC server](/docs/auth/auth-server/oauth-server#configuration). |
+| `auth:oauth_server:keys:encryption_key` | AES-256 key (64 hex characters) encrypting the OAuth signing keys and stored messaging credentials at rest. |
+| `auth:totp:encryption_key` | AES-256 key (64 hex characters) encrypting every user's TOTP secret at rest. Unset, TOTP secrets are stored in plaintext. |
+| `csrf:enabled` | CSRF double-submit cookie protection on every cookie-authenticated, state-changing request. On by default. |
+| `diagnostics:namespace`, `diagnostics:timeout_ms` | Namespace the Diagnostics page inspects (empty is the pod's own) and the Kubernetes API request timeout (`5000`). |
+
+:::note[Seeds once]
+For the settings marked "seeds once", the environment or config value is copied into the database the first time the server starts. Changing it afterwards has no effect on a running deployment. Edit it in the admin console, or press **Reset** on the relevant page to re-apply the configured value.
+:::
+
+:::warning[`twilio` is now `sms_config`]
+With `@rapidrest/core` 6, the top-level `twilio` config key is gone. Move it to `sms_config: { provider: twilio, config: { accountSid, token } }`. A deployment that already started keeps working, because its Twilio credentials were copied into the database on first start.
+:::
+
+## Site branding and system settings
+
+The admin console's **Settings** page has two parts. The branding cards set the logo, icon, site title, company name, custom header and footer HTML and a custom stylesheet shown across the sign-in pages and the admin console. **Reset branding** returns every field to what `site_settings` says right now. The registration and security card controls whether self-registration is open, whether every account must use multi-factor authentication, and whether an account may hold more than one password.
+
+## Messages
+
+The **Messages** page edits the e-mail, SMS and WhatsApp wording of every one-time-code message with a live preview. Templates are stored in the database, so a change needs no redeploy, and they pick up the site branding by default. The same page holds the SMTP server, the SMS provider, the WhatsApp credentials and the sender addresses.
+
+To deliver one-time codes over WhatsApp, approve a message template in Meta's WhatsApp Manager and name it on the template's page. WhatsApp only delivers free-form text to someone who has messaged you in the last 24 hours, which is almost never the case for a one-time code.
+
+## App passwords
+
+Some clients can't answer a two-factor prompt, such as an older e-mail client speaking HTTP Basic Auth to a service that validates credentials against this server's `/auth/basic`. From the **App passwords** card on `/account`, a user creates a separate, server-generated password for that client. An app password may authenticate over `/auth/basic` even when the account requires MFA. A real password never can. The plaintext is shown once at creation, only a hash is stored, and each one is revoked independently. There is no rotate: remove it and create a new one.
+
+## Temporary passwords
+
+When an administrator sets a password, either when creating a user or with **Set password** on the user's page, two options appear: allow the user to change their password, and require a change at the next sign-in. A flagged account lands on `/account` after signing in with a dialog that asks for a new password and can't be dismissed.
+
+## Audit log
+
+Every security-relevant account action is written to a durable audit log: sign-ins (labeled by method), registration, elevation, impersonation, account deletion, "log out everywhere", MFA changes, password changes and the app-password lifecycle. The **Audit Log** page lists and filters entries across accounts, and each user's detail page shows their own recent activity. Writing an entry never blocks the action that triggered it, and nothing is purged unless `audit_log:retention_days` is set. This is separate from the best-effort `EventUtils` telemetry, which is not an audit trail.
+
+## Impersonation
+
+An administrator can sign in as a user from the user's detail page to reproduce a problem. A persistent banner stays on screen while impersonating, with a button to stop. Starting and stopping are recorded in the audit log.
+
+## Diagnostics
+
+The admin console's **Diagnostics** page (`/admin/diagnostics`, backed by `/api/admin/diagnostics/*`) helps troubleshoot a deployment without shelling into it. It needs the `admin` role and a fresh elevation, like the rest of the console.
+
+| Tab | Shows |
+|---|---|
+| Information | The deployed package, Node.js and V8 versions, uptime, the other containers of the deployment with their status and image tag, every installed package, and the server's environment variables and configuration. |
+| Runtime | The Kubernetes version and distribution, the namespace and the nodes the pods run on. |
+| System | Live CPU, memory, load and disk usage of the node, the server process, the namespace's pods and its persistent volumes, refreshed every 5 seconds while the tab is open. |
+| Logs | A live tail of `/api/admin/logs` from every replica, filterable by level and text, with downloads as `.log` or `.ndjson`. |
+
+**Download diagnostics report** saves the versions, runtime, configuration and latest usage sample as one JSON file, without logs. Settings named in `src/diagnostics/hiddenSettings.ts` (signing secrets, encryption keys, provider and messaging credentials, datastore passwords) show their name only, and credentials are scrubbed from every other value. Add any new secret setting you introduce to that list.
+
+The Kubernetes parts use the pod's own service account, with a read-only, namespace-scoped `Role` that the [Helm chart](/docs/auth/auth-server/deployment/helm#service-account-and-diagnostics) creates. Live pod CPU and memory need metrics-server. Outside Kubernetes those parts report that they aren't available, and everything else still works. The Logs tab needs the `logs` datastore (Redis) that the compose files and the chart both configure.

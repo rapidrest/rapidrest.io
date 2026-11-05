@@ -1,11 +1,11 @@
 ---
-sidebar_position: 7
+sidebar_position: 8
 sidebar_label: Static Export
 ---
 
 # Static Export
 
-Every page under `app/` is file-enumerable — there are no dynamic/parameterized routes like `pets/[id].tsx` — so a whole `@rapidrest/react` app can be crawled once and exported as a plain static site: HTML, CSS, and JS, deployable to any static host (S3, Netlify, GitHub Pages, a CDN) with no server required at request time.
+Every static page under `app/` is file-enumerable, and a [dynamic route](#dynamic-routes) such as `pets/[id].tsx` can enumerate its own instances, so a whole `@rapidrest/react` app can be crawled once and exported as a plain static site: HTML, CSS, and JS, deployable to any static host (S3, Netlify, GitHub Pages, a CDN) with no server required at request time.
 
 Rather than reimplementing `ReactRoute`'s rendering logic, export boots your *real* server (real DI, real config, real `@ReactService`s) and crawls it over real HTTP, so the exported output can never diverge from what a live deployment actually serves.
 
@@ -57,14 +57,45 @@ export interface StaticExportOptions {
 
 (`runStaticExport()` takes this same shape minus `port` — it supplies `port` itself from the server it starts.)
 
-- **`appDir`** — which app to discover routes from, matching the same file convention `ReactRoute.resolveAppFile()` and `createViteConfig` use (top-level `.tsx` files, plus `index.tsx` inside subdirectories). Ignored when `apps` is given.
+- **`appDir`** — which app to discover routes from, matching the same file convention `ReactRoute.resolveAppFile()` and `createViteConfig` use (every non-`_` `.tsx` page at any depth). Ignored when `apps` is given.
 - **`routePrefix`** — the URL prefix the React route is mounted at (e.g. `"/app"`). It's prepended only to the fetch URL used to crawl each page — discovered and explicit route paths themselves are always prefix-free. Ignored when `apps` is given.
-- **`paths`** — extra prefix-free route paths to crawl beyond what `appDir` discovers, for pages served from an unconventional file layout that auto-discovery can't find.
-- **`exclude`** — route paths (exact strings or `RegExp`) to skip entirely, e.g. auth-gated or personalized pages that shouldn't be baked into a public export.
+- **`paths`** — extra prefix-free route paths to crawl beyond what `appDir` discovers. Also the way to include concrete instances of a dynamic route that has no `getStaticPaths()`, such as `paths: ['/pets/1', '/pets/2']`.
+- **`exclude`** — route paths (exact strings or `RegExp`) to skip entirely, e.g. auth-gated or personalized pages that shouldn't be baked into a public export. A string containing `:name` tokens (`'/pets/:id'`) is a route template and excludes the dynamic route and every concrete page enumerated for it.
 - **`outDir`** — where the exported site is written. Cleaned (removed and recreated) exactly once per export run, regardless of how many apps are crawled. The export refuses to run if `outDir` resolves to the current working directory, one of its ancestors, or the filesystem root.
-- **`assetsDir`** — the built hydration/static assets directory (i.e. `createViteConfig`'s `outDir`), copied verbatim into `outDir` after the crawl.
+- **`assetsDir`** — the built hydration/static assets directory (i.e. `createViteConfig`'s `outDir`), copied into `outDir` before the crawl, so a crawled page is never overwritten by an asset. Dot folders and dotfiles (Vite's `.vite/manifest.json`, for example) are not copied, except `.well-known`.
 - **`notFound`** — when true, probes the app's real `_404` page and writes it to `<outDir>/404.html` for static-host fallback routing.
 - **`concurrency`** — maximum number of pages crawled at once, across all apps.
+
+## Dynamic routes
+
+A dynamic route has no fixed set of URLs, so the exporter needs to be told which concrete instances exist. A page, its matching `@ReactService`, or both can provide `getStaticPaths()`: an async function that returns one object of parameter values per instance to export. When both exist, their results are merged and de-duplicated.
+
+```tsx
+// app/pets/[id].tsx
+export async function getStaticPaths() {
+  const pets = await fetch('https://api.example.com/pets').then((r) => r.json());
+  return pets.map((pet: {id: string}) => ({id: pet.id})); // /pets/1, /pets/2, ...
+}
+```
+
+```ts
+// src/services/PetService.ts: DI-backed enumeration, e.g. a database query
+@ReactService('/pets/:id')
+export default class PetService {
+  @Inject(RepoUtils, {name: Pet.name, args: [Pet]})
+  private petRepo?: RepoUtils<Pet>;
+
+  public async getStaticPaths() {
+    return (await this.petRepo?.find({}))?.map((pet) => ({id: pet.id})) ?? [];
+  }
+}
+```
+
+A nested dynamic route (`pets/[id]/reviews/[reviewId].tsx`) needs its own `getStaticPaths()` returning the full parameter set for that route (`{id, reviewId}`), independent of its parent's. A function that throws is logged and treated as returning nothing.
+
+The exporter fetches the results from a gated endpoint on the route, `<routePrefix>/__rapidrest__/static-paths`. It answers only while `runStaticExport()` has the server running, and is inactive in a normal deployment, so `getStaticPaths()` never runs in production traffic. This is also why the export script has to start the server through `runStaticExport()` rather than crawling an already-running one.
+
+A dynamic route that nothing enumerates can't be crawled. It is skipped and reported in `result.dynamicRoutes` as its template (for example `{path: '/pets/:id'}`, prefixed with the app's `routePrefix` in the multi-app form), so you can add a `getStaticPaths()`, list instances in `paths`, or `exclude` it. An excluded route never appears in `dynamicRoutes`, since it was opted out deliberately.
 
 ## Multiple apps
 
@@ -103,9 +134,22 @@ npx rapidreact export
 
 This builds the client bundle (`vite build`) and then runs `src/export.ts` (or `src/export.tsx`) with `tsx` under `NODE_ENV=production`, writing `dist/export/index.html`, `dist/export/pets/index.html`, etc. — the trailing-slash/`index.html` convention, which works with any static file server — plus `dist/export/404.html`, and a copy of `dist/public` (the built hydration assets) into the export root.
 
+## The result
+
+`runStaticExport()` and `exportStaticSite()` resolve to:
+
+| Field | Description |
+|---|---|
+| `pages` | Every page written: `{path, outFile, status}`. |
+| `errors` | Pages that failed: `{path, status?, error?}`. A page that redirects (for example a gated page sending visitors to a login page) is reported here rather than exported as the page it leads to. |
+| `dynamicRoutes` | Dynamic-route templates that were not exported because nothing enumerated them. |
+
+## Client-side navigation
+
+An app using [client-side navigation](/docs/ssr-react/client-navigation) exports as usual. The crawl fetches the real server's HTML, so the exported pages include the app shell and hydrate under the router. Navigation between pages needs the server's JSON endpoint, which a static host doesn't provide, so the router falls back to ordinary page loads there.
+
 ## Known limitations
 
-- Route discovery uses the same file convention as hydration entry points (top-level `.tsx` files, plus nested `index.tsx`). A page served from an unconventional nested non-index file won't be auto-discovered — pass it explicitly via `paths`.
+- Route discovery uses the same file convention as the build: every `.tsx` page that doesn't start with `_`, at any depth. A page that auto-discovery can't find can be added explicitly with `paths`.
 - Hydration asset URLs are always root-absolute, so the exported site only works correctly when served from `/` — the same pre-existing constraint `hydrate` already has in a live deployment.
-- Props are frozen at export time (like Next.js's static export): pages whose `fetchProps`/`@ReactService` depend on per-request or authenticated state will bake in whatever an unauthenticated crawl request renders. Use `exclude` to skip personalized pages entirely.
-- There is no support for dynamic/parameterized routes (`pets/[id].tsx`) — `ReactRoute` doesn't have that concept today, so there's nothing to enumerate.
+- Props are frozen at export time: pages whose `fetchProps`/`@ReactService` depend on per-request or authenticated state will bake in whatever an unauthenticated crawl request renders. Use `exclude` to skip personalized pages entirely.

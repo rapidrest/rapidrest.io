@@ -1,0 +1,127 @@
+---
+sidebar_position: 6
+sidebar_label: Account Security
+---
+
+# Account Security
+
+Beyond the login strategies, `@rapidrest/auth` ships a set of features that apply across every sign-in method: policy an administrator can change without a redeploy, rules for how passwords are chosen and submitted, credentials for legacy clients, a way for support staff to act as a user, and the protections around the session cookies themselves. Each is opt-in or has a safe default, and most are driven by a handful of [config keys](/docs/auth/auth-library/configuration).
+
+## Runtime settings
+
+Some policy changes too often to live in a config file. Whether anyone may self-register, whether every account must use a second factor, or whether an account may hold several passwords are decisions an administrator makes while the service is running. [`SystemSettings`](/docs/auth/auth-library/data-models#systemsettings) holds those values in a single database record, and `BaseSettingsRoute` exposes it over HTTP.
+
+The record is created the first time it is read, seeded from `auth:allowRegistration`, `auth:requireMFA` and `auth:allowMultiplePasswords`. From then on the stored values win, so editing the config file afterwards has no effect on a deployment that has already read them.
+
+```ts
+import { RouteDecorators } from "@rapidrest/service-core";
+import { BaseSettingsRouteMongo } from "@rapidrest/auth/mongo";
+const { ApiRoute } = RouteDecorators;
+
+@ApiRoute("/settings")
+export class SettingsRoute extends BaseSettingsRouteMongo {}
+```
+
+| Endpoint | Auth | What it does |
+|---|---|---|
+| `GET /` | Anonymous | Returns the settings. Fields gated by the `system` scope (`requireMFA`, `allowMultiplePasswords`) are only included for a caller holding a trusted role. |
+| `POST /`, `PUT /` | `jwt` + trusted role | Updates the settings with the fields supplied. |
+
+The settings are read by the routes that enforce them: `BaseUserRoute` and `BaseRegistrationRoute` check `allowRegistration`, `BaseAuthMFARoute` drives `MFAStrategy`'s `require2FA` from `requireMFA`, and `BaseSecretRoute` enforces `allowMultiplePasswords`. Both `/mongo` and `/sql` variants exist; the SQL tier adds nullable `allowMultiplePasswords` and `passwordChangeRequired` columns that you may need to migrate.
+
+## Password policy
+
+Every `password` secret goes through the same rules when it is created or changed.
+
+- **Strength.** Plaintext passwords are checked against the `auth:password` config: minimum length, required lowercase, uppercase, numeral and special characters. `GET /secrets/password` returns the active policy so a UI can display it.
+- **One password per account.** With `allowMultiplePasswords` off (the default), an account that already has a password is refused a second one with a 400, and an administrator changes the existing one instead. Turning it on lets an administrator keep a password of their own on an account alongside the holder's. Lowering it later does not remove passwords already present. Upgrading from a beta or 1.x deployment that relied on several passwords per account requires setting `auth:allowMultiplePasswords` to `true`.
+- **Forced change.** A trusted user can set `User.passwordChangeRequired` on an account provisioned with a temporary password. Sign-in still succeeds and the flag is returned with the user, so your client is responsible for prompting. The flag clears when the holder changes their own password, and while it is set that change does not require an elevated token.
+- **Who may change it.** When a trusted user creates or resets another account's password, `?allowUserChange=true` grants the holder `READ`, `EXISTS` and `UPDATE` on it, and `?allowUserChange=false` removes the holder's rights so only administrators can change it.
+
+### Client-side password hashing
+
+A browser or app can hash the password with Argon2id before sending it, so the real password never reaches your server or its logs. The server accepts either form, and a single stored credential works for both kinds of client.
+
+To hash locally, derive the salt as the SHA-256 digest of the account's `uid` (returned on every login) and run Argon2id with `memoryCost: 19456`, `timeCost: 2`, `parallelism: 1` and `hashLength: 32`. Submit the resulting PHC string (`$argon2id$v=19$m=19456,t=2,p=1$...`) in place of the password. The parameters are fixed so that every device produces the same hash. A client that doesn't know the `uid` yet, such as the first login on a new device, submits plaintext instead, and the server normalizes it the same way.
+
+The parameter order inside the PHC string does not matter: implementations disagree (`m,t,p` or `m,p,t`) and the server normalizes any of them to one canonical form before comparing.
+
+| `auth:password` key | Effect |
+|---|---|
+| `allow_client_hashing` | Set `false` to reject pre-hashed submissions and force plaintext. |
+| `require_client_hashing` | Set `true` to reject plaintext when setting or changing a password. Login is unaffected. |
+| `client_hash_min_memory_cost`, `client_hash_min_time_cost`, `client_hash_min_parallelism` | Floor for the cost parameters embedded in a submitted hash, so a hand-crafted cheap hash can't smuggle a weak password past the strength checks. |
+
+Strength validation only applies to plaintext, since a hash cannot be inspected.
+
+## App passwords
+
+Multi-factor authentication breaks old clients that can only send a username and password, such as a legacy mail client. Rather than turning MFA off for the whole account, the user generates an **app password**: a separate, high-entropy credential for that one client, valid only at the Basic sign-in route.
+
+1. Create it with `POST /secrets` and a body of `{ "type": "app-password", "hint": "Thunderbird on laptop" }`. A non-empty `hint` is required, and any `data` you send is discarded.
+2. The response contains the generated value as `password`. It is shown once and can never be read again.
+3. The client sends it to `BaseAuthBasicRoute` as its password. An app password authenticates even when the account has `requireMFA` set, because the route checks app passwords before the MFA gate. A real password is still subject to `requireMFA` exactly as before.
+4. Revoke it with `DELETE /secrets/:id`. Its value can't be edited, so to rotate one, delete it and create another. Renaming the `hint` is allowed.
+
+Every successful use updates the secret's `lastUsedAt` and records `AuthEventType.APP_PASSWORD_USED`, the signal that MFA was bypassed for that login. Set `auth:app_password:enabled` to `false` to stop creating and accepting app passwords deployment-wide. Existing ones are not deleted.
+
+## Impersonation
+
+Support and operations staff sometimes need to see exactly what a user sees. `BaseImpersonationRoute` lets a trusted user start a session as another account without knowing its credentials, and return to their own session afterwards.
+
+```ts
+@ApiRoute("/admin")
+export class ImpersonateRoute extends BaseImpersonationRouteMongo {}
+```
+
+| Endpoint | What it does |
+|---|---|
+| `POST /impersonate` | Body `{ "userUid": "..." }`. Requires `jwt` and a trusted role. Stashes the caller's current `jwt` cookie in a host-only `jwt_impersonator` cookie, then issues a non-elevated token for the target with that user's own permissions (no refresh token is issued). Returns an `AuthResult`. Responds 404 if the user doesn't exist. |
+| `POST /impersonate/stop` | Restores the stashed session and clears the stash. Returns `{ "restored": true }`, or `false` if nothing was stashed. |
+
+Stopping is a `POST` rather than a `GET` because a state-changing `GET` can be triggered by a bare cross-site navigation, bypassing CSRF defenses entirely. Starting an impersonation is rate limited with an endpoint-wide `@RateLimit()`, and records an `IMPERSONATED` entry in the [audit log](#audit-logging) with the administrator as `actorUid` and the target as `userUid`. The route relies on the cookie session, so it is meant for browser-based admin consoles.
+
+## CSRF protection
+
+When the session lives in a cookie, any site the user visits can try to make the browser send requests to your API with that cookie attached. The defense is a **double-submit token**: the server sets a second, readable `csrf` cookie, and the client echoes its value in an `x-csrf-token` header on state-changing requests. A forged cross-site request can send the cookie but can't read it to copy the header.
+
+The enforcement lives in `@rapidrest/service-core` (see [CSRF protection](/docs/http-engine/cookies-cors#csrf-protection)) and is applied automatically to any non-safe request whose only credential was the `jwt` cookie. Bearer-token and API-key callers are unaffected. `@rapidrest/auth` supplies the cookie lifecycle through `CsrfUtils`: when `auth:csrf.enabled` is `true`, a fresh token is issued at login, refresh and elevation and cleared at logout, so the token rotates at every privilege change. The cookie is always host-only, even when the session cookies are shared with sibling subdomains, because a domain-wide double-submit cookie could be read by any sibling.
+
+`BaseOAuthAuthorizeRoute.decideConsent()` authenticates from the session rather than the `jwt` cookie, so it runs the same check explicitly. A forged consent could otherwise hand a malicious client an authorization code for the victim.
+
+## Shared session cookies
+
+By default the `jwt` and `refresh` cookies are host-only. To share a session with sibling subdomains, such as `mail.example.com` alongside `auth.example.com`, set `auth:cookie:access:domain` and `auth:cookie:refresh:domain` to `.example.com`. The domain is applied to the clearing headers at logout too, and impersonation restores the session with the same domain so no second host-only cookie is left behind.
+
+## Audit logging
+
+`EventUtils.record()` is best-effort telemetry. With no telemetry service or listener configured, every event is silently discarded, which is fine for metrics and not acceptable for an audit trail. `AuditLogUtils` is a separate mechanism for the actions you need a guaranteed record of.
+
+The base class just logs each entry. For a real trail, register a database-backed subclass named `AuditLogUtils`, and every `@Inject(AuditLogUtils)` in the library resolves to it, the same swap used for `MessagingUtils`.
+
+```ts
+import { AuditLogUtils as BaseAuditLogUtils, AuditLogEntry } from "@rapidrest/auth";
+
+// The class name must stay "AuditLogUtils" so the ObjectFactory resolves it in place of the base class.
+export class AuditLogUtils extends BaseAuditLogUtils {
+  public async record(entry: AuditLogEntry): Promise<void> {
+    await myAuditRepo.create(entry); // your own persistence
+  }
+}
+```
+
+An `AuditLogEntry` is `{ type, userUid?, actorUid?, ip?, path?, method?, data? }`. `type` is an `AuthEventType` string, `method` carries the "how" where one applies (the sign-in method for `SIGNED_IN`), and `actorUid` is only set when it differs from `userUid`, for example an administrator deleting another account. Writes are awaited but fail open: a failure is logged loudly and never fails the action being recorded.
+
+| `AuthEventType` | Recorded when |
+|---|---|
+| `SIGNED_IN` | A genuine new sign-in of any kind. Not fired for token refresh, elevation or impersonation. |
+| `IMPERSONATED` | A trusted user started impersonating an account. |
+| `ELEVATED` | A caller re-verified to obtain an elevated token. |
+| `REGISTRATION_COMPLETED` | A self-registration finished. |
+| `ACCOUNT_DELETED`, `SESSIONS_REVOKED` | An account was deleted, or its sessions revoked. |
+| `MFA_ENROLLED`, `MFA_REMOVED` | A second-factor secret was created or deleted. |
+| `PASSWORD_CHANGED` | A password was created or its value changed. |
+| `APP_PASSWORD_CREATED`, `APP_PASSWORD_REMOVED`, `APP_PASSWORD_USED` | App password lifecycle and use. |
+| `RECOVERY_CODE_USED` | A recovery code authenticated a login. |
+
+`SESSION_CREATED` is also recorded through `EventUtils` for every token issued. `AuthEventType.RATELIMIT_EXCEEDED` no longer exists, rate-limit events now come from service-core.

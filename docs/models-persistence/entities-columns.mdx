@@ -36,21 +36,31 @@ export class Pet extends BaseMongoEntity {
 
 ## `@Column(options?)`
 
-Marks a property as persisted:
+Marks a property as persisted. Options other than the first four only matter on SQL datastores, where they are forwarded to TypeORM so `synchronize` creates the column you describe:
 
-```ts
-export interface ColumnOptions {
-  name?: string;       // override the stored field name
-  nullable?: boolean;
-  primary?: boolean;
-  isObjectId?: boolean; // MongoDB ObjectId fields, e.g. `_id`
-}
-```
+| Option | Description |
+|---|---|
+| `name` | The stored field name. Defaults to the property name. |
+| `nullable` | Whether the column may store `null`/`undefined`. |
+| `primary` | Whether the column is a primary key. |
+| `isObjectId` | Marks a MongoDB `ObjectId` field, e.g. `_id`. |
+| `type` | Declares the SQL column type explicitly, overriding what is inferred from the TypeScript type. Needed for union or nullable types (reflected as `Object`) and for structures like `"simple-json"`. |
+| `default` | The column's database default: a string, number, boolean or `null`, or a function returning a raw SQL expression such as `() => "CURRENT_TIMESTAMP"`. SQL only. Without one, `synchronize` fails when it adds a `NOT NULL` column to a table that already has rows. |
+| `length` | The maximum length of a string column, e.g. `255`. SQL only. |
+| `unique` | Enforces unique values by registering a unique index. Equivalent to also applying `@Unique()`, and works on both SQL and MongoDB. |
+| `precision` / `scale` | Total digits and digits after the decimal point for `decimal`/`numeric` columns. SQL only. |
+| `array` | Declares an array column. PostgreSQL and CockroachDB only. |
+| `enum` | The allowed values of an `enum`/`simple-enum` column. SQL only. |
+| `unsigned` | Declares a numeric column `UNSIGNED`. MySQL and MariaDB only. |
+| `comment` | A comment stored with the column definition, where the database supports it. SQL only. |
 
 ```ts
 @Column({isObjectId: true})
 @Nullable
 _id?: any;
+
+@Column({type: 'varchar', length: 64, default: 'unknown'})
+species: string = 'unknown';
 ```
 
 ## `@PrimaryColumn(options?)`
@@ -93,11 +103,11 @@ uid: string = uuid.v4();
 
 ```ts
 @Column()
-@RequiresScope('profile:email')
+@RequiresScope('profile:contacts')
 contacts: Contact[] = [];
 ```
 
-This runs automatically inside `RepoUtils.find()`/`findOne()`, nothing to wire up in your route. It's how `@rapidrest/auth`'s [`Profile`](/docs/auth/auth-library/data-models#profile) model keeps `contacts` and `preferences` behind `profile:email` and `profile:preferences` scopes.
+This runs automatically inside `RepoUtils.find()`/`findOne()`, nothing to wire up in your route. It's how `@rapidrest/auth`'s [`Profile`](/docs/auth/auth-library/data-models#profile) model keeps `contacts` and `preferences` behind `profile:contacts` and `profile:preferences` scopes.
 
 This is a different thing from the route-level `@RequiresScope` in [Authorization](/docs/auth/rbac/authorization#requiresscope-route-level), that one gates an entire endpoint, this one hides one field.
 

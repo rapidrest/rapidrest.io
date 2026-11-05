@@ -1,0 +1,157 @@
+---
+sidebar_position: 5
+sidebar_label: OAuth Server
+---
+
+# OAuth 2.0 / OpenID Connect Server
+
+Most of this library is about signing users in to your own application. The OAuth server flips that around: your deployment becomes the identity provider, and other applications (a mobile app, a partner's web app, an internal tool, a backend service) ask it to authenticate users or to grant them access on a user's behalf. Reach for it when you want "Sign in with *YourCompany*" for third-party or first-party clients, or machine-to-machine access with scoped tokens, without writing the protocol handling yourself.
+
+The server issues RS256-signed tokens that any relying party can verify against your public keys, with no shared secret. It implements:
+
+- Authorization Code flow with PKCE (RFC 7636), with a consent step
+- Refresh tokens with rotation and reuse detection
+- The `client_credentials` grant for machine-to-machine access
+- Token revocation (RFC 7009) and introspection (RFC 7662)
+- Discovery metadata (RFC 8414 and OIDC Discovery), JWKS (RFC 7517) and the OIDC `/userinfo` endpoint
+- `POST /oauth/session-token`, a bridge to this library's ordinary session JWTs
+
+## Setting it up
+
+Each piece is a base route you subclass and mount, like every other route in the library. To run it without wiring anything yourself, see the [`auth-server` OAuth page](/docs/auth/auth-server/oauth-server). The paths below are what [`auth-server`](/docs/auth/auth-server) uses, and what its discovery document advertises. Use the `Mongo` or `SQL` variant to match your datastore.
+
+| Class | Mount at | Methods |
+|---|---|---|
+| `BaseOAuthAuthorizeRoute` | `/oauth/authorize` | `GET /` authorize, `POST /consent` |
+| `BaseOAuthTokenRoute` | `/oauth/token` | `POST /` |
+| `BaseOAuthClientRoute` | `/oauth/clients` | CRUD plus `POST /:id/regenerate-secret` |
+| `BaseOAuthDiscoveryRoute` | `/.well-known/oauth-authorization-server` and `/.well-known/openid-configuration` | `GET /` |
+| `BaseOAuthJwksRoute` | `/.well-known/jwks.json` | `GET /` |
+| `BaseOAuthUserInfoRoute` | `/oauth/userinfo` | `GET /`, `POST /` |
+| `BaseOAuthIntrospectRoute` | `/oauth/introspect` | `POST /` |
+| `BaseOAuthRevokeRoute` | `/oauth/revoke` | `POST /` |
+| `BaseOAuthSessionTokenRoute` | `/oauth/session-token` | `POST /` |
+
+```ts
+import { RouteDecorators } from "@rapidrest/service-core";
+import { BaseOAuthAuthorizeRouteMongo, BaseOAuthTokenRouteMongo } from "@rapidrest/auth/mongo";
+const { Route } = RouteDecorators;
+
+@Route("/oauth/authorize")
+export class OAuthAuthorizeRoute extends BaseOAuthAuthorizeRouteMongo {
+  // Strategies tried when the caller has no session yet.
+  protected resourceOwnerStrategies: string[] = ["jwt"];
+}
+
+@Route("/oauth/token")
+export class OAuthTokenRoute extends BaseOAuthTokenRouteMongo {}
+```
+
+Two routes need a little more from you. `BaseOAuthAuthorizeRoute` requires `resourceOwnerStrategies`. `BaseOAuthDiscoveryRoute` requires an `endpoints` getter returning the absolute URLs of your authorization, token, JWKS and (optionally) userinfo, revocation and introspection endpoints, and can be mounted at both well-known paths with `@Route([...])`. `BaseOAuthDiscoveryRoute` has no datastore dependency, so it is imported from the root `@rapidrest/auth` with no `Mongo`/`SQL` variant.
+
+### Required configuration
+
+Two keys have no fallback, and the server fails with a 500 until they are set:
+
+```ts
+auth: {
+  oauth_server: {
+    issuer: "https://auth.example.com",          // stamped into every token's iss claim
+    keys: {
+      encryption_key: "<64 hex characters>",      // AES-256-GCM key protecting signing keys at rest
+    },
+  },
+},
+```
+
+Generate the encryption key with `openssl rand -hex 32`. See [Configuration](/docs/auth/auth-library/configuration#authoauth_server) for the optional keys (token lifetimes, scopes, key rotation).
+
+## Signing keys
+
+Tokens are signed with an RSA-2048 key pair stored as a [`SigningKey`](/docs/auth/auth-library/data-models#signingkey). You don't provision it: the first request that needs a key generates and persists one, with the private half encrypted by `encryption_key`. `GET /.well-known/jwks.json` publishes the active key plus any retired key still inside the grace window (7 days by default), so relying parties can verify tokens signed shortly before a rotation. The response carries a `Cache-Control` max-age of half the rotation interval.
+
+Rotation is not automatic. `SigningKeyUtils.rotateKey()` retires the active key and creates a new one, but something has to call it on your schedule (`rotationIntervalDays` is informational only).
+
+## Registering clients
+
+An application must be registered as a [`Client`](/docs/auth/auth-library/data-models#client) before it can use the server. `BaseOAuthClientRoute` is a `CRUDRoute` where any authenticated user can register and fully manage their own clients and a trusted user can manage any. Create, update, delete and secret regeneration require an elevated token (`@RequiresElevation(60)`), and all routes require `jwt`.
+
+```json
+{
+  "clientName": "Acme Mobile",
+  "clientType": "public",
+  "redirectUris": ["com.acme.app://callback"],
+  "grantTypes": ["authorization_code", "refresh_token"],
+  "responseTypes": ["code"],
+  "scope": "openid profile email offline_access",
+  "tokenEndpointAuthMethod": "none"
+}
+```
+
+- The client's `uid` is its `client_id`. The old `clientId` field is gone.
+- A `confidential` client is issued a secret. It is returned once, as `clientSecret`, in the create response (and in the response to `POST /:id/regenerate-secret`, which invalidates the previous secret), and only its Argon2id hash is stored. A secret you supply is discarded.
+- A `public` client is never issued a secret, and `requirePkce` is forced to `true`.
+- Only a trusted user can set `firstParty`, which skips the consent screen.
+- A non-trusted caller listing clients sees only the ones they own.
+- Set `disabled: true` to reject every request from a client without deleting it.
+
+## Authorization Code flow
+
+The authorization endpoint never renders UI or issues an HTTP redirect itself. Every response is JSON, and your login and consent pages decide how to navigate the browser.
+
+1. The client sends the user to your app with the standard query parameters. Your frontend calls `GET /oauth/authorize?response_type=code&client_id=...&redirect_uri=...&scope=...&state=...&code_challenge=...&code_challenge_method=S256&nonce=...`.
+2. If the user has no session, the response is `{ "loginRequired": true }`. The user signs in with any of your normal methods, then the frontend repeats the call.
+3. If the user hasn't consented to these scopes for this client, the response is `{ "consentRequired": true, "requestId": "...", "client": {...} }`. The `requestId` is a signed, short-lived ticket (10 minutes by default) that holds the pending request, so the server stores nothing between steps.
+4. The frontend shows the consent screen and posts the decision to `POST /oauth/authorize/consent` with `{ "requestId", "approved", "scope"? }`. The user may narrow the scopes, never widen them. This call is CSRF-checked.
+5. On approval, or if consent was already on record or the client is first party, the response is `{ "redirectTo": "<redirect_uri>?code=...&state=..." }` and the frontend navigates there.
+
+The `redirect_uri` must exactly match one registered for the client, and problems with `client_id` or `redirect_uri` are reported directly rather than redirected. Other errors are delivered to the `redirect_uri` as `error` and `error_description`. PKCE is mandatory for a client with `requirePkce`, and `S256` and `plain` challenges are accepted. The `prompt` parameter follows OIDC Core: `none` fails with `login_required` or `consent_required` instead of asking, `login` and `select_account` force a fresh sign-in, and `consent` forces the consent screen.
+
+The authorization code is single-use, expires after 60 seconds, and only its SHA-256 digest is stored. The user's session can come from any login route, including a federated one, because the endpoint reads the session your sign-in routes already populate.
+
+## Token endpoint
+
+`POST /oauth/token` takes form-encoded or JSON parameters and dispatches on `grant_type`. Responses follow RFC 6749, including `Cache-Control: no-store`, and errors use the RFC 6749 §5.2 `{ "error", "error_description" }` shape rather than the library's usual error envelope. Clients authenticate with HTTP Basic (`client_secret_basic`) or body parameters (`client_secret_post`), or send only `client_id` if they are public.
+
+| `grant_type` | Behavior |
+|---|---|
+| `authorization_code` | Needs `code`, `redirect_uri` and (with PKCE) `code_verifier`. The redirect URI must match the one used at `/authorize`. Presenting a used code is treated as a replay. |
+| `refresh_token` | Exchanges a refresh token for a new access token. The refresh token is **rotated**: the old one is revoked and a new one issued in the same family. Presenting an already-rotated token is treated as theft and revokes the whole family. Scope can be narrowed, not widened. |
+| `client_credentials` | Confidential clients only. Issues an access token whose `sub` is the client itself. Never issues a refresh token or an ID token. Requested scopes must be a subset of the client's registered scope. |
+
+The response holds `access_token`, `token_type: "Bearer"`, `expires_in`, `scope`, and when applicable `id_token` and `refresh_token`. An `id_token` is issued when `openid` was granted. A refresh token is issued when the client's `grantTypes` includes `refresh_token`, and for OIDC requests only when `offline_access` was also granted, per OIDC Core.
+
+Access tokens are stateless RS256 JWTs with `iss`, `sub`, `aud` and `azp` (the client's `uid`), `client_id`, `scope` and `jti` claims. Refresh tokens are opaque, with only a SHA-256 digest stored.
+
+## Using the tokens
+
+### UserInfo
+
+`GET` or `POST /oauth/userinfo` with `Authorization: Bearer <access token>` returns claims for the token's user, protected by [`OAuthBearerStrategy`](/docs/auth/auth-library/strategies#oauthbearerstrategy-oauth_bearer). It requires the `openid` scope. `sub` is always returned, and the claim groups follow the granted scopes, read from the user's `Profile`:
+
+| Scope | Claims |
+|---|---|
+| `profile` | `name`, `given_name`, `family_name`, `picture`, `birthdate` |
+| `email` | `email`, `email_verified` |
+| `phone` | `phone_number`, `phone_number_verified` |
+
+### Discovery and JWKS
+
+`GET /.well-known/openid-configuration` returns the metadata document: the issuer, endpoint URLs, `scopes_supported` (from `auth:oauth_server:supportedScopes`), `response_types_supported: ["code"]`, the three supported grant types, `token_endpoint_auth_methods_supported`, `id_token_signing_alg_values_supported: ["RS256"]` and `code_challenge_methods_supported: ["S256", "plain"]`. It is cached for an hour. Discovery and JWKS are public, so both carry an endpoint-wide `@RateLimit()`.
+
+### Revocation and introspection
+
+`POST /oauth/revoke` accepts either an access token or a refresh token in `token` (with an optional `token_type_hint`) and always answers `200`, so a caller can't probe which tokens exist. Revoking an access token records its `jti` on a denylist for the rest of its life (shared through Redis when a `cache` datastore is configured, in memory otherwise). `OAuthBearerStrategy` and introspection both check that list.
+
+`POST /oauth/introspect` requires the caller to authenticate as a confidential client and returns the RFC 7662 `active` response, with `active: false` for anything invalid, expired, revoked or unrecognized.
+
+### Calling your own API with an OAuth token
+
+Your ordinary API routes use `@Auth(["jwt"])` and role checks, and an OAuth access token carries no roles, so it isn't accepted there directly. A native app that signs in through OAuth but also needs those routes calls `POST /oauth/session-token` with the access token as a bearer. The route looks up the real `User` behind the token and returns an ordinary session `AuthResult` containing their actual roles. It sets no cookie, returns no refresh token (the app keeps using its OAuth refresh token), and doesn't count as a new sign-in in the audit log.
+
+## Security notes
+
+- Client secrets, authorization codes and refresh tokens are stored only as hashes.
+- Signing key private material is encrypted at rest with AES-256-GCM, with no plaintext fallback.
+- Token endpoint attempts are rate limited per `client_id`, as are introspection and revocation, and secret regeneration has an endpoint-wide cap.
+- `client_credentials` and introspection are limited to confidential clients, because a public client can't prove its identity.

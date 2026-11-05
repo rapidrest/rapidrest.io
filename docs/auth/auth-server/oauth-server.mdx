@@ -1,0 +1,61 @@
+---
+sidebar_position: 4
+sidebar_label: OAuth 2.0 / OIDC server
+---
+
+# OAuth 2.0 / OIDC server
+
+Signing users in to this one service is the easy case. The harder one is the second app, the mobile client or a partner's product that also wants "sign in with your account". Rather than copying credentials around, those apps can send users to `auth-server` the same way they would to Google or Microsoft. `auth-server` is itself an OAuth 2.0 and OpenID Connect authorization server, so any app can register as a client and receive tokens for the people who sign in here.
+
+The protocol itself (grants, token formats, signing keys, the `OAuth*` base routes) comes from the [Auth Library](/docs/auth/auth-library). This page covers what `auth-server` mounts and how you run it. This is separate from the "Sign in with Google/Apple/Facebook/Microsoft" buttons, where `auth-server` is the client of someone else's provider.
+
+## Endpoints
+
+| Path | Purpose |
+|---|---|
+| `/oauth/authorize` | Starts an authorization code request. Redirects to the hosted consent screen at `/auth/authorize` when the user must sign in or approve. |
+| `/oauth/token` | Exchanges an authorization code or refresh token for tokens. |
+| `/oauth/introspect` | Token introspection. |
+| `/oauth/revoke` | Token revocation. |
+| `/oauth/userinfo` | OIDC UserInfo. |
+| `/.well-known/openid-configuration`, `/.well-known/oauth-authorization-server` | Discovery documents. |
+| `/.well-known/jwks.json` | Public signing keys. |
+| `/oauth/session-token` | Trades an OAuth access token for an ordinary session JWT (see below). |
+| `/api/oauth/clients` | Client registration API used by the admin console. |
+
+Authorization code and refresh token grants are supported, with PKCE.
+
+## Registering a client
+
+Clients are managed from **OAuth Clients** in the [admin console](/docs/auth/auth-server/react-ui#appsadmin). Create a client as one of two types:
+
+- **Confidential**, for server-side apps. It has a secret, which is shown once and can be regenerated or revealed later.
+- **Public**, for native apps and SPAs. It has no secret and authenticates with PKCE alone.
+
+Each client lists its redirect URIs. When an app sends a user to `/oauth/authorize`, the user signs in if needed and sees a consent screen naming the app and the scopes it asks for. Approving it redirects back to the app with an authorization code.
+
+## Configuration
+
+The server's own settings live under `auth:oauth_server` in `src/config.mongo.ts` and `src/config.sql.ts`.
+
+| Key | Default | Description |
+|---|---|---|
+| `issuer` | `http://localhost:3001` | This server's public origin. It is stamped into every token's `iss` claim and used to build the discovery URLs, so set it to your real public URL. |
+| `keys.encryption_key` | A public development key | AES-256 key (64 hex characters) that encrypts the signing keys at rest. Production refuses to start with the default. The Helm chart generates one. |
+| `keys.rotationIntervalDays` | `30` | How often a new signing key is created. |
+| `keys.retirementGraceDays` | `7` | How long a rotated-out key stays published so tokens signed with it still verify. |
+| `codeTTL` | `60s` | Authorization code lifetime. |
+| `consentTicketTTL` | `10m` | How long a pending consent request waits for the user. |
+| `accessTokenTTL` | `15m` | Access token lifetime. |
+| `idTokenTTL` | `15m` | ID token lifetime. |
+| `refreshTokenTTL` | `30d` | Refresh token lifetime. |
+| `supportedScopes` | `openid`, `profile`, `email`, `phone`, `offline_access` | Scopes a client may request. |
+
+## Native apps and `/oauth/session-token`
+
+A native app that signs in through `/oauth/authorize` and `/oauth/token` holds an OAuth access token. The rest of `auth-server`'s own `/api/...` routes authenticate with a session JWT instead and don't accept OAuth bearer tokens. `POST /oauth/session-token` bridges the two. The app presents its access token and receives an ordinary session JWT, so one sign-in covers both. A public client with no secret is the typical caller.
+
+## See also
+
+- [Auth Library](/docs/auth/auth-library) for the base routes, token formats and key handling behind these endpoints.
+- [Operations and configuration](/docs/auth/auth-server/operations) for the rest of the settings.

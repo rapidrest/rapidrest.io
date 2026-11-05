@@ -8,10 +8,12 @@ sidebar_label: Data Fetching
 A page rendered entirely on the server needs its data before it can render; there's no client-side fetch happening afterward the way a single-page app might do it. `@rapidrest/react` gives you three different places to supply that data, depending on how simple the need is or how deeply it has to reach into RapidREST's own dependency injection, and merges whatever each one returns into the page's props on every request:
 
 ```text
-props = { user, userUid, ...pageProps, ...serviceProps, ...routeProps }
+props = { userUid, user, params, ...pageProps, ...serviceProps, ...routeProps }
 ```
 
-Later sources win on overlapping keys. A route-class override can always override a service, which can always override the page itself. `user`/`userUid` come from the authenticated request, if any, before either of the sources below run.
+Later sources win on overlapping keys. A route-class override can always override a service, which can always override the page itself. `userUid`, `user` and `params` come from the request before any of the sources below run. The three sources run concurrently, so none of them can depend on another's result.
+
+The same merged props are passed to the page component, to `_layout.tsx`, and to `_shell.tsx` when client-side navigation is enabled, so a layout can render page-specific values such as an Open Graph tag without the page doing anything extra.
 
 ## Controlling which `user` fields are exposed
 
@@ -61,10 +63,8 @@ For data that needs RapidREST's own dependency injection (a database-backed serv
 
 ```ts
 // src/services/PetService.ts
-import {ReactDecorators} from '@rapidrest/react';
+import {ReactService} from '@rapidrest/react';
 import type {HttpRequest} from '@rapidrest/service-core';
-
-const {ReactService} = ReactDecorators;
 
 @ReactService('/app/pets')
 export class PetService {
@@ -74,7 +74,29 @@ export class PetService {
 }
 ```
 
-Because this is a plain class discovered by [auto-discovery](/docs/core-concepts/auto-discovery), you can `@Inject` a repository, another service, or config into it exactly as you would in a route class. RapidREST instantiates it once and calls its `fetchProps(req)` for every request to the matching path, merging the result in after the page's own `fetchProps`.
+The path is the page's public URL, mount prefix included. A route mounted at `/admin` only runs the services whose paths are under `/admin`, and a prefix only counts in whole segments (`/admin` does not cover `/administrators`). `@ReactService` also accepts an array of paths to bind one service to several pages.
+
+Because this is a plain class discovered by [auto-discovery](/docs/core-concepts/auto-discovery), you can `@Inject` a repository, another service, or config into it exactly as you would in a route class. RapidREST instantiates it once, during startup and before the first request is served, and calls its `fetchProps(req)` for every request to the matching path, merging the result in after the page's own `fetchProps`. Trailing slashes, doubled slashes and percent-encoding in the request URL are normalized before the lookup. If two service classes claim the same page, the one listed first by auto-discovery wins.
+
+### Services for dynamic routes
+
+A service path may contain `:name` tokens to bind to a [dynamic page](/docs/ssr-react/app-convention#dynamic-routes):
+
+```ts
+@ReactService('/app/pets/:id')
+export class PetDetailService {
+  @Inject(RepoUtils, {name: Pet.name, args: [Pet]})
+  private petRepo?: RepoUtils<Pet>;
+
+  async fetchProps(req: HttpRequest) {
+    return {pet: await this.petRepo?.findById(req.params.id)};
+  }
+}
+```
+
+A service belongs to the page whose route its path names, not to every URL that happens to match it. `/app/pets/:id` is `app/pets/[id].tsx`, so a literal `app/pets/featured.tsx` beside it has its own service or none. A token's name does not have to match the bracket's name (`:petId` works for `[id].tsx`), because `req.params` always uses the names from the page file. Where a literal path and a dynamic template both fit, the literal one wins.
+
+A service may also implement `getStaticPaths()` to enumerate its pages for [static export](/docs/ssr-react/static-export#dynamic-routes).
 
 ## Overriding at the route-class level
 

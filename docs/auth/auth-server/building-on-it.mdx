@@ -17,27 +17,11 @@ database you will not be using:
 
 Every example below assumes the Mongo variant; the SQL variant follows the identical pattern with `*SQL` classes instead of `*Mongo`.
 
-## Adding an OIDC provider
+## Adding a sign-in provider
 
-Every route in `src/mongo/routes/` is a one-line subclass binding a library strategy or model to an HTTP path. `AuthOIDCRoute.ts` is the pattern to copy for a second provider:
+`auth-server` already ships routes for Apple, Facebook, Google and Microsoft (`AuthAppleRoute.ts`, `AuthFacebookRoute.ts`, `AuthGoogleRoute.ts`, `AuthMicrosoftRoute.ts`). Each is a subclass of `BaseAuthOIDCRouteMongo` that supplies the provider's endpoints, a `profileMap` and its credentials from `auth:<provider>:*` config. A provider's button only appears on the sign-in page once its `auth.<provider>.clientID` is set to your real value, so there is nothing to disable for providers you don't use.
 
-```ts
-// src/mongo/routes/AuthOIDCRoute.ts (shipped)
-import { RouteDecorators } from "@rapidrest/service-core";
-import { BaseAuthOIDCRouteMongo } from "@rapidrest/auth/mongo";
-import { OIDCProvider } from "@rapidrest/auth";
-import { ObjectDecorators } from "@rapidrest/core";
-const { Config } = ObjectDecorators;
-const { ApiRoute } = RouteDecorators;
-
-@ApiRoute("/auth/oidc")
-export class AuthOIDCRoute extends BaseAuthOIDCRouteMongo {
-  @Config("auth:oidc")
-  protected providerConfig: OIDCProvider = { /* ... */ };
-}
-```
-
-`OIDCStrategy` supports multiple concurrently registered instances (see [Auth Library → Strategies](/docs/auth/auth-library/strategies#oidcstrategy-default-name-oauth-configurable)), but a second `BaseAuthOIDCRoute` subclass needs two overrides, not just a different `providerConfig`: a distinct `strategyName`, and a `login()` override with a matching `@Auth([...])` so the base class's own hardcoded `@Auth(["oauth"])` doesn't get inherited and collide with the first provider. See [Auth Library → Base Routes](/docs/auth/auth-library/routes#auth-flow-routes) for why that second override is necessary. With both in place, add a second file with its own path and config key:
+`AuthGoogleRoute.ts` is the pattern to copy for another provider:
 
 ```ts
 // src/mongo/routes/AuthGithubRoute.ts
@@ -48,41 +32,56 @@ import { ObjectDecorators } from "@rapidrest/core";
 import type { JWTUser } from "@rapidrest/core";
 import type { HttpRequest, HttpResponse } from "@rapidrest/service-core";
 const { Config } = ObjectDecorators;
-const { ApiRoute, Auth, Request, Response } = RouteDecorators;
+const { ApiRoute, Auth, Get, Post, Request, Response } = RouteDecorators;
 const AuthUser = RouteDecorators.User;
 
 @ApiRoute("/auth/github")
 export class AuthGithubRoute extends BaseAuthOIDCRouteMongo {
   protected strategyName = "github";
 
-  @Config("auth:github")
-  protected providerConfig: OIDCProvider = {
-    name: "github",
-    authorizationURL: "https://github.com/login/oauth/authorize",
-    tokenURL: "https://github.com/login/oauth/access_token",
-    clientID: "...",
-    clientSecret: "...",
-    redirectURI: "https://my-auth.example.com/auth/oidc/github",
-    protocol: "oauth2",
-    scope: ["read:user", "user:email"],
-  };
+  @Config("auth:github:clientID", "")
+  protected clientID: string = "";
+
+  @Config("auth:github:clientSecret", "")
+  protected clientSecret: string = "";
+
+  // The sign-in page, not this route: the page forwards the returned code/state back here.
+  @Config("auth:github:redirectURI", "http://localhost:3000/auth/signin")
+  protected redirectURI: string | string[] = "http://localhost:3000/auth/signin";
+
+  protected get providerConfig(): OIDCProvider {
+    return {
+      name: "github",
+      authorizationURL: "https://github.com/login/oauth/authorize",
+      tokenURL: "https://github.com/login/oauth/access_token",
+      protocol: "oauth2",
+      clientID: this.clientID,
+      clientSecret: this.clientSecret,
+      redirectURI: this.redirectURI,
+      scope: ["read:user", "user:email"],
+    };
+  }
 
   @Auth(["github"])
+  @Get()
+  @Post()
   public override async login(@AuthUser user: JWTUser, @Request req: HttpRequest, @Response res: HttpResponse) {
     return super.login(user, req, res);
   }
 }
 ```
 
-Then add the matching `auth:github` block to `src/config.mongo.ts`, following the shipped `auth:oidc` example already there.
+`OIDCStrategy` supports multiple concurrently registered instances (see [Auth Library → Strategies](/docs/auth/auth-library/strategies#oidcstrategy-default-name-oauth-configurable)), but each provider route needs a distinct `strategyName` and a `login()` override with a matching `@Auth([...])`, so the base class's own hardcoded `@Auth(["oauth"])` isn't inherited and doesn't collide. See [Auth Library → Base Routes](/docs/auth/auth-library/routes#auth-flow-routes) for why. Then add the matching `auth:github` block to `src/config.mongo.ts`, and wire the provider's button into the sign-in UI under `apps/shared/components/sign-in/`.
 
 ## Extending the data models
 
-`src/mongo/Models.ts` currently just re-exports the library's models unmodified:
+`src/mongo/Models.ts` re-exports the library's models unmodified, along with the models this project adds (site settings, message templates, messaging settings and the audit log entry):
 
 ```ts
-// src/mongo/Models.ts (shipped)
-export { UserMongo, AliasMongo, ProfileMongo, SecretMongo } from "@rapidrest/auth/mongo";
+// src/mongo/Models.ts (shipped, abridged)
+export { UserMongo, AliasMongo, ProfileMongo, SecretMongo, SystemSettingsMongo } from "@rapidrest/auth/mongo";
+export { ClientMongo, ConsentGrantMongo /* ...the OAuth server models */ } from "@rapidrest/auth/mongo";
+export { AuditLogEntryMongo } from "../models/mongo/AuditLogEntryMongo.js";
 ```
 
 That re-export exists so `ClassLoader`/`ObjectFactory` pick the classes up at startup (see [Core Concepts → Dependency Injection](/docs/core-concepts/dependency-injection)). To customize the data model, subclass it with the same name as the original export as shown in the example below:
@@ -90,7 +89,7 @@ That re-export exists so `ClassLoader`/`ObjectFactory` pick the classes up at st
 ```ts
 // src/mongo/Models.ts
 import { UserMongo as BaseUserMongo } from "@rapidrest/auth/mongo";
-export { AliasMongo, ProfileMongo, SecretMongo } from "@rapidrest/auth/mongo";
+export { AliasMongo, ProfileMongo, SecretMongo, SystemSettingsMongo } from "@rapidrest/auth/mongo";
 
 export class UserMongo extends BaseUserMongo {
   tenantId?: string;
@@ -99,14 +98,22 @@ export class UserMongo extends BaseUserMongo {
 
 ## Background jobs
 
-`src/mongo/Jobs.ts` re-exports `DefaultAccountsMongo`, the library's job that seeds the built-in accounts. Add your own scheduled jobs here the same way you would in any RapidREST project (see [Background Jobs](/docs/background-jobs)).
+`src/mongo/Jobs.ts` re-exports `DefaultAccountsMongo`, the library's job that seeds the built-in accounts. `AuditLogRetentionJob.ts` is a small daily job, in the same folder, that purges audit log entries when `audit_log:retention_days` is set. Add your own scheduled jobs here the same way you would in any RapidREST project (see [Background Jobs](/docs/background-jobs)).
 
 ## Non-auth routes
 
 `src/mongo/routes/` also has the standard service-core default routes (`AdminRoute`, `MetricsRoute`, `OpenAPIRoute`, `StatusRoute`). These are the same [Default Routes](/docs/routing/default-routes) any generated project gets. Keep them, drop them, or add your own business routes alongside the auth ones exactly as you would in any RapidREST service.
 
-`wwwRoute` and `AdminConsoleRoute` are different — they mount the two server-rendered React apps (sign-in/sign-up/account, and the admin console) that ship with `auth-server`. See [The React UI](/docs/auth/auth-server/react-ui) for what's in them and how to build on top of that layer specifically.
+`wwwRoute` and `AdminConsoleRoute` are different. They mount the two server-rendered React apps (sign-in/sign-up/account, and the admin console) that ship with `auth-server`. See [The React UI](/docs/auth/auth-server/react-ui) for what's in them and how to build on top of that layer specifically.
+
+## OAuth server, settings and audit routes
+
+The OAuth server routes (`OAuthAuthorizeRoute`, `OAuthTokenRoute`, `OAuthClientRoute` and the rest of the `OAuth*` set), the settings routes (`SiteSettingsRoute`, `SmtpSettingsRoute`, `SmsSettingsRoute`, `WhatsAppSettingsRoute`, `MessageTemplateRoute`), `AuditLogRoute`, `ImpersonateRoute` and `DiagnosticsRoute` follow the same one-line pattern. Each is a subclass of a library or `src/routes/` base class bound to a path. See [OAuth 2.0 / OIDC server](/docs/auth/auth-server/oauth-server) and [Operations and configuration](/docs/auth/auth-server/operations) for what they do.
+
+## Production secrets guard
+
+`assertProductionSecretsAreSet()` in `src/config.defaults.ts` stops the server from starting in production while `cookie_secret`, `auth:secret`, `session:secret` or `auth:oauth_server:keys:encryption_key` hold their public development defaults. If you add a secret setting of your own with a checked-in default, add it to the guard, and add its name to `src/diagnostics/hiddenSettings.ts` so the Diagnostics page doesn't display it.
 
 ## Testing
 
-`test/` pairs a `.mongo.test.ts` and `.sql.test.ts` file per feature area (e.g. `AuthMFARoute.mongo.test.ts` / `AuthMFARoute.sql.test.ts`). Follow that split for anything you add, and see [Testing](/docs/testing) for the general route/datastore testing patterns those files build on. `k6-tests/` has load tests you can adapt if you need to benchmark your fork before deploying it.
+`test/` pairs a `.mongo.test.ts` and `.sql.test.ts` file per feature area (e.g. `AuthMFARoute.mongo.test.ts` / `AuthMFARoute.sql.test.ts`). Follow that split for anything you add, and see [Testing](/docs/testing) for the general route/datastore testing patterns those files build on. The suite also renders the Helm chart, which needs `helm` on the `PATH` (those tests are skipped without it). `k6-tests/` has load tests you can adapt if you need to benchmark your fork before deploying it.

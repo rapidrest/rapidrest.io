@@ -34,6 +34,7 @@ interface HttpRequest {
   params: Record<string, string>;                     // values from the URL, like the "123" in "/pets/:id"
   query: Record<string, string | string[]>;           // ?key=value pairs
   body: any;                                           // the parsed request body, for POST/PUT/etc.
+  bodyStream?: Readable;                               // the raw body, only on @StreamingBody() routes
   cookies: Record<string, string>;
   session?: Record<string, any>;                      // see Sessions
   user?: any;                                          // set once someone is authenticated
@@ -52,7 +53,7 @@ interface HttpResponse {
 }
 ```
 
-`setHeader()` versus `appendHeader()` matters the moment more than one thing might want to set the same header, `Set-Cookie` being the common case: see [Cookies & CORS](/docs/http-engine/cookies-cors). `@Request`/`@Response` are the decorators that hand these objects to your route functions, covered properly in [Request Parameters](/docs/routing/controllers/request-parameters). The rest of this section covers what's built into this layer: [Error Handling](/docs/http-engine/error-handling), [Sessions](/docs/http-engine/sessions), [Cookies & CORS](/docs/http-engine/cookies-cors), [Streaming Responses](/docs/http-engine/streaming), [WebSockets](/docs/http-engine/websockets), and [Global Middleware](/docs/http-engine/middleware).
+`setHeader()` versus `appendHeader()` matters the moment more than one thing might want to set the same header, `Set-Cookie` being the common case: see [Cookies & CORS](/docs/http-engine/cookies-cors). `@Request`/`@Response` are the decorators that hand these objects to your route functions, covered properly in [Request Parameters](/docs/routing/controllers/request-parameters). The rest of this section covers what's built into this layer: [Error Handling](/docs/http-engine/error-handling), [Sessions](/docs/http-engine/sessions), [Cookies & CORS](/docs/http-engine/cookies-cors), [Streaming](/docs/http-engine/streaming), [WebSockets](/docs/http-engine/websockets), and [Global Middleware](/docs/http-engine/middleware).
 
 ## Basic server settings
 
@@ -79,7 +80,7 @@ conf.defaults({
 
 ## Client IP and trusted proxies
 
-Behind a load balancer or reverse proxy, the socket's own address is the proxy's, not the caller's, the real client IP shows up in a header like `X-Forwarded-For` instead. RapidREST won't trust that header by default, since anyone can set it on a direct request, it's only consulted when the connecting socket's address is itself in your configured `trusted_proxies` list:
+Behind a load balancer or reverse proxy, the socket's own address is the proxy's, not the caller's, the real client IP shows up in a header like `X-Forwarded-For` instead. RapidREST won't trust that header by default, since anyone can set it on a direct request, it's only consulted when the connecting socket's address is itself in your configured `trusted_proxies` list. Entries can be single IPv4 or IPv6 addresses or CIDR ranges:
 
 ```ts
 conf.defaults({
@@ -87,10 +88,16 @@ conf.defaults({
 });
 ```
 
-This is what a handful of framework internals (audit-log IP capture on create/update, session IP checks) use to resolve the real caller. Leave it unset and RapidREST always uses the raw socket address, which is the safe default when you aren't behind a proxy.
+When the connection does come from a trusted proxy, `X-Forwarded-For` is read from right to left, skipping every address that is itself a trusted proxy, and the first one that isn't is the client. That way a caller can't pick its own address by prepending values to the header. `X-Original-Forwarded-For` is never read, and `X-Real-IP` is only used when there is no `X-Forwarded-For`. The result is what [rate limiting](/docs/routing/controllers/rate-limiting), audit-log IP capture on create/update, and session IP checks use to resolve the real caller. `NetUtils.getClientIP(req, trustedProxies)` gives you the same answer in your own code. Leave it unset and RapidREST always uses the raw socket address, which is the safe default when you aren't behind a proxy.
 
 ## Shutting down
 
-A RapidREST server shuts down in order, not all at once: background services stop first, then the listen socket closes (no new connections accepted, in-flight ones finish), then database connections close. If any step hangs, a 30-second watchdog forces the process to exit rather than leaving it stuck. This runs automatically on `SIGINT`/`SIGTERM`, there's nothing you need to wire up yourself for a normal deployment.
+A RapidREST server shuts down in order, not all at once. Background services stop first. Then the server stops accepting new connections and gives in-flight requests up to `shutdown.drain_timeout` milliseconds (default `10000`) to finish, after which any remaining keep-alive and WebSocket connections are closed. Then the event listener subscription is torn down, and finally database connections close. If any step hangs, a 30-second watchdog forces the process to exit rather than leaving it stuck.
+
+```ts
+conf.defaults({
+  shutdown: {drain_timeout: 15000},
+});
+``` This runs automatically on `SIGINT`/`SIGTERM`, there's nothing you need to wire up yourself for a normal deployment.
 
 If you're curious exactly how much the engine choice affects real request throughput, see [Performance](/docs/performance) for numbers comparing RapidREST against Express, Fastify, and Next.js (measured on the uWS engine, there's no published Bun comparison yet).

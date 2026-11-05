@@ -95,4 +95,10 @@ Almost every other page in these docs eventually points back to one of these:
 | `session` | Server-side session settings (see [Sessions](/docs/http-engine/sessions)) |
 | `cors` | Which other websites are allowed to call your API from a browser (see [Cookies & CORS](/docs/http-engine/cookies-cors)) |
 | `headers` | Extra headers added to every response your server sends |
+| `csrf` | CSRF protection for cookie-authenticated, state-changing requests (see [Cookies & CORS](/docs/http-engine/cookies-cors)) |
+| `rateLimit` | Service-wide defaults for `@RateLimit` (see [Rate Limiting](/docs/routing/controllers/rate-limiting)) |
+| `websocket` | WebSocket Origin checks and allowed origins (see [WebSockets](/docs/http-engine/websockets)) |
+| `shutdown:drain_timeout` | How long in-flight requests get to finish during shutdown, in milliseconds (see [HTTP Engine](/docs/http-engine)) |
+| `admin:elevation_max_age` | How recent an elevation must be for state-changing admin routes, in seconds (see [Admin](/docs/routing/default-routes/admin)) |
+| `sms_config` / `whatsapp` | SMS provider (Twilio or Telnyx) and WhatsApp settings for outgoing messages (see [Messaging](/docs/events-notifications/messaging)) |
 | `logger:level` | How much detail gets written to your logs |

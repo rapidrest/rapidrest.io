@@ -866,3 +866,30 @@ Review (Sonnet) for security and performance topics.
 When releasing packages that depend on each other (rapidmx: restapi / react-shared -> web-client -> meet-plugin, booking-plugin, autodiscover, mapi, activesync, server; rapidrest: core / service-core -> auth / auth-server / react / cli and the projects built on them), the bump level of a downstream release matches the level of the upstream release it picks up: an upstream **minor** is a downstream **minor**, an upstream patch a downstream patch, major to major. Where a downstream bump crosses several upstream releases, use the highest level among them, and never choose "patch" just because the downstream's own diff is only a `package.json` bump. Betas keep their prerelease line but follow the same idea - say which level was chosen.
 
 Why: meet-plugin 0.4.2 and booking-plugin 0.5.2 were cut as patches after web-client 0.15.x -> 0.16.0 and react-shared 0.17.0 -> 0.18.0 (both minors), and autodiscover 1.1.1 after restapi 0.20.1 -> 0.21.0; the downstream versions then hid additive behaviour. JP accepted those releases as they were (2026-09-25) and asked for the rule going forward. Releases only happen when JP asks for them.
+
+### 2026-11-04 - Release-day reconciliation (auth-server 1.0.0, auth 2.0.0, Claude Code plugin)
+
+Reconciled every narrative section against the repos as of today: core 6.1.0, service-core 2.5.1, auth 2.0.0,
+auth-server 1.0.0, react 2.3.0, cli 3.2.1 (templates 1.2.0), claude-plugin 0.2.0. Uncommitted at session end.
+
+- New pages: `claude-code-plugin.mdx` (top-level, after CLI in `sidebars.ts`), `cli-reference/templates.mdx`,
+  `routing/controllers/rate-limiting.mdx`, `ssr-react/client-navigation.mdx`, `auth/auth-library/oauth-server.mdx`,
+  `auth/auth-library/account-security.mdx`, `auth/auth-server/oauth-server.mdx`, `auth/auth-server/operations.mdx`.
+  The auth-server Helm page was regenerated from the current `values.yaml` (chart was heavily refactored).
+- Supersedes earlier notes: rate limiting now exists in service-core (`@RateLimit`, `rateLimit` config; replaces
+  `auth:rateLimit`), as do CSRF (`csrf`), WebSocket origin checks (`websocket`) and `shutdown:drain_timeout`.
+  `@rapidrest/react` now supports dynamic `[id]` routes, `getStaticPaths` and a client-side router.
+  core 6.0 replaced the `twilio` config key with `sms_config` (Twilio or Telnyx) plus `whatsapp`.
+  `BaseAdminRoute` restart/clear-cache are POST and need a recent elevation. CLI 3.0 downloads templates from
+  `templates-v*` GitHub releases instead of bundling them.
+- Verified against source, worth remembering: `@RateLimit()` with no args is per-user, but `@RateLimit({...})`
+  without `perUser` is not. The rate-limit event goes through `EventUtils.record()` (Telemetry), not pub/sub Events.
+  Push change notifications strip every `@RequiresScope` field. The router falls back to full page loads on a
+  static host (it fetches JSON with `X-Rapidrest-Navigation` and gets HTML).
+- Homepage CLI band was `generate route Pet --model` (invalid: `--model` takes a value, and doesn't create a
+  model). Now four steps: `generate model Pet`, `generate route PetRoute --model Pet`.
+- Flagged, not fixed (other repos): cli templates' React Dockerfile still copies `app/`/`public/` though
+  `generate react` creates `apps/<name>/`; npm Dockerfile `CMD ["npm","rapidrest",...]` is invalid; server CI
+  template calls `test-run-mongo.sh`/`test-run-sql.sh` that aren't generated; `generate default-route --help`
+  still says `--output-dir` defaults to `./src/routes`. claude-plugin `skills/new-project/SKILL.md:44` has a
+  table row pasted into the middle of a sentence.

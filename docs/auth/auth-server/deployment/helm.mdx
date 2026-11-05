@@ -5,69 +5,83 @@ sidebar_label: Kubernetes (Helm)
 
 # Kubernetes (Helm)
 
-Running `auth-server` for real, with more than one replica, rolling upgrades, and no single host to babysit by hand, calls for something more than `docker compose up`. The `auth-server` project ships a [Helm](https://helm.sh) chart for exactly that: deploying to a [Kubernetes](https://kubernetes.io/) cluster, alongside whichever of MongoDB or PostgreSQL and Redis it needs, either bundled or pointed at instances you already run. See [Docker Compose](/docs/auth/auth-server/deployment/docker) instead for local development or a small single-host deployment.
+Running `auth-server` for real, with more than one replica, rolling upgrades, TLS and no single host to babysit by hand, calls for something more than `docker compose up`. The `auth-server` project ships a [Helm](https://helm.sh) chart for exactly that. It deploys the server to a [Kubernetes](https://kubernetes.io/) cluster alongside MongoDB or PostgreSQL and Redis, either bundled or pointed at instances you already run, and exposes it through a Gateway API `Gateway` with TLS. See [Docker Compose](/docs/auth/auth-server/deployment/docker) instead for local development or a small single-host deployment.
 
-A chart is published to [GitHub](https://github.com/orgs/rapidrest/packages) as `oci://ghcr.io/rapidrest/charts/auth-server` for every tagged release, versioned to match the release tag rather than the version checked into `helm/Chart.yaml` (CI overwrites it at package time). As of this writing no release has been tagged yet, check the packages page above for the current version once one exists.
+A chart is published to [GitHub](https://github.com/orgs/rapidrest/packages) as `oci://ghcr.io/rapidrest/charts/auth-server` for every tagged release, versioned to match the release tag. The current release is `1.0.0`.
 
 ## Architecture
 
-The chart deploys `auth-server` as a stateless Kubernetes `Deployment`, not a `StatefulSet`. Every replica is identical and runs behind a single `Service`, which is in turn exposed outside the cluster through a Gateway API `Gateway`/`HTTPRoute` rather than an `Ingress`. Each pod waits, via an init container, for its datastores to accept connections before starting.
+The chart deploys `auth-server` as a stateless Kubernetes `Deployment` behind a single `Service`. A Gateway API `Gateway` (created by the chart, Envoy Gateway by default) terminates TLS and an `HTTPRoute` forwards requests to the `Service`. Each pod waits, via init containers, for its bundled datastores to accept connections before starting.
 
 ```text
-      ------------           ---------------           -----------
-     |  Gateway   |  --->   |   HTTPRoute   |  --->   |  Service  |
-      ------------           ---------------           -----------
-                                                              |
-                     -----------------------------------------------------------
-                     |                        |                                |
-                ------------             ------------                    ------------
-               |    Pod     |           |    Pod     |        ...       |    Pod     |
-               | (replica)  |           | (replica)  |                  | (replica)  |
-                ------------             ------------                    ------------
-                     |                        |                                |
-                     -----------------------------------------------------------
-                                               |
-                                -----------------------------------
-                               |                                   |
-                          ------------                       ------------
-                         |  MongoDB   |                      |   Redis    |
-                         |     or     |                      | (optional, |
-                         | PostgreSQL |                      | standalone)|
-                         | (optional, |                       ------------
-                         | standalone)|
-                          ------------
+      ----------------------------           ---------------           -----------
+     |  Gateway (envoy)           |  --->   |   HTTPRoute   |  --->   |  Service  |
+     |  :80 redirect, :443 TLS    |          ---------------           -----------
+      ----------------------------                                          |
+             ^                                    -----------------------------------------
+             |                                   |                    |                    |
+       cert-manager                         ------------         ------------         ------------
+       (Issuer, Certificate)               |    Pod     |       |    Pod     |  ...  |    Pod     |
+                                           | (replica)  |       | (replica)  |       | (replica)  |
+                                            ------------         ------------         ------------
+                                                  |                    |                    |
+                                                  -----------------------------------------
+                                                                       |
+                                                       -------------------------------
+                                                      |                               |
+                                                 ------------                    ------------
+                                                |  MongoDB   |                  |   Redis    |
+                                                |     or     |                  | (optional, |
+                                                | PostgreSQL |                  | standalone)|
+                                                | (optional, |                   ------------
+                                                | standalone)|
+                                                 ------------
+
+   Optional: OpenBao  --(External Secrets)-->  Kubernetes Secrets loaded by the pods
 ```
 
-MongoDB, PostgreSQL, and Redis are each optional, standalone Bitnami subcharts, bundled by default (`mongodb.create`/`postgresql.create`/`redis.create`). Point the chart at datastores you already run instead by setting the corresponding `create` to `false` and providing a connection URL. `auth-server` only ever uses one primary datastore at a time; see [PostgreSQL](#postgresql) below for how the chart picks between MongoDB and PostgreSQL when both are left enabled.
+MongoDB, PostgreSQL and Redis are each optional, standalone Bitnami subcharts, bundled by default (`mongodb.create`, `postgresql.create`, `redis.create`). `auth-server` uses one primary datastore at a time, chosen by `global.database.type` (`mongo` or `sql`). Pointing the chart at datastores you already run is covered under [Datastores](#datastores).
 
 ## Prerequisites
 
-- Kubernetes 1.23+
-- Helm 3.8.0+
-- A Gateway API implementation with an `nginx` `GatewayClass` installed in the cluster (for example, [NGINX Gateway Fabric](https://github.com/nginx/nginx-gateway-fabric)). The chart deploys a `Gateway`/`HTTPRoute`, not an `Ingress`.
+- Kubernetes and Helm 3.8.0+
+- A Gateway API implementation. The chart defaults to the `envoy` `GatewayClass` provided by [Envoy Gateway](https://gateway.envoyproxy.io); set `global.gateway.className` for another. The chart deploys a `Gateway` and `HTTPRoute`, not an `Ingress`.
 - PV provisioner support in the underlying infrastructure, since the bundled MongoDB or PostgreSQL persists data to a PVC by default
-- [cert-manager](https://cert-manager.io/), if deploying with `gateway.tls` enabled (the default) against a public hostname. Skipped automatically for `localhost` or a `.local` hostname.
+- [cert-manager](https://cert-manager.io/), when `global.gateway.tls` is on (the default) and `host` is a public name. TLS is skipped for `localhost`, `*.localhost` and `*.local` hosts.
+- [External Secrets](https://external-secrets.io) and [OpenBao](https://openbao.org), only when `global.openbao.enabled` is `true`
+- [metrics-server](https://github.com/kubernetes-sigs/metrics-server), optional, for live pod CPU and memory on the admin console's Diagnostics page (k3s ships it)
 
 ## Dependencies
 
 | Dependency | Version | Description |
 |---|---|---|
-| [@bitnami/mongodb](https://github.com/bitnami/charts/blob/main/bitnami/mongodb/README.md) | `18.4.8` | When MongoDB is desired. |
-| [@bitnami/postgresql](https://github.com/bitnami/charts/blob/main/bitnami/postgresql/README.md) | `18.8.13` | When PostgreSQL is desired. |
-| [@bitnami/redis](https://github.com/bitnami/charts/blob/main/bitnami/redis/README.md) | `24.1.8` | Required for cache, push, and sessions systems |
+| [@bitnami/mongodb](https://github.com/bitnami/charts/blob/main/bitnami/mongodb/README.md) | `~18.4.4` | When MongoDB is desired. |
+| [@bitnami/postgresql](https://github.com/bitnami/charts/blob/main/bitnami/postgresql/README.md) | `~18.8.13` | When PostgreSQL is desired. |
+| [@bitnami/redis](https://github.com/bitnami/charts/blob/main/bitnami/redis/README.md) | `~24.1.3` | Required for the cache, events and log streaming. |
 
 ## Installing the Chart
 
 ```bash
 helm install --create-namespace --namespace auth-server auth-server \
   oci://ghcr.io/rapidrest/charts/auth-server \
-  --set host=auth.example.com
+  --version 1.0.0 \
+  --set global.domain=example.com
 ```
 
-Add `--version <x.y.z>` to pin a specific release; omitted here, Helm installs whatever version was published most recently. `host` and `--set` overrides at install time cover most cases. See [Parameters](#parameters) below for every configurable value.
+The server is then served at `auth.example.com`. Set `host` to use a different name. See [Parameters](#parameters) for every configurable value.
 
-:::note[Two-step install when provisioning your own datastores]
-When `mongodb.create`/`postgresql.create`/`redis.create` are left at their default, the chart reads the subcharts' generated credentials back out via a Helm `lookup` to build its own connection secrets. On a brand-new install, those subchart secrets don't exist yet at template-rendering time, so the API's pods will crash-loop immediately after install. Run `helm upgrade` once more, against the same chart reference you installed with, after the datastore pods are up, and the credentials will be picked up correctly. The chart's post-install notes cover this: run `helm get notes auth-server -n auth-server` to see them.
+To install from a checkout instead:
+
+```bash
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm dep up ./helm
+helm install --create-namespace --namespace auth-server auth-server ./helm
+```
+
+On a single Linux machine, `scripts/k3s_install.sh` in the repository sets up everything above for you. See [Single-node install with k3s](#single-node-install-with-k3s).
+
+:::note[Secrets and `helm template`]
+The chart generates its secrets on first install and reads them back from the cluster on every upgrade. Rendering without cluster access (`helm template`, a GitOps controller such as Argo CD, `--dry-run`) can't read them back, so the render fails and names the values to set. Set them explicitly, use `global.secrets.existingSecret`, or use [OpenBao](#secrets-and-openbao).
 :::
 
 ## Uninstalling the Chart
@@ -78,96 +92,198 @@ helm uninstall auth-server --namespace auth-server
 
 ## Configuration and installation details
 
-### General
+### Host and domain
 
-`host` and `environment` drive most of the chart's other defaults: `host` sets the `auth.audience`/`auth.issuer` claims, the `Gateway`/`HTTPRoute` hostname, and the TLS certificate's domain, while `environment` sets `NODE_ENV` on the deployment. The JWT, cookie, and session secrets (`auth.secret`, `cookies.secret`, `sessions.secret`) are each randomly generated at install time if left unset, and preserved across upgrades via a Helm `lookup` against the previously generated `Secret`, so a `helm upgrade` never rotates them out from under running sessions.
+`global.domain` is the one value most installs set. `host` defaults to `auth.<global.domain>` and drives the `Gateway` listener hostname, the `HTTPRoute`, the TLS certificate, the allowed CORS origins and the JWT issuer. The JWT audience defaults to the domain. `environment` is `production` and sets both `NODE_ENV` and `environment` on the pod. In production the server refuses to start while any of its development default secrets are in effect, which the chart avoids by generating its own.
 
-### Gateway
+### Gateway and TLS
 
-The chart attaches an `HTTPRoute` to a `Gateway` named by `gateway.name`/`gateway.namespace`. By default (`api-gateway` in the release's own namespace) it also creates that `Gateway` itself. Pointing `gateway.name`/`gateway.namespace` at a `Gateway` that already exists in another namespace skips creating a new one, letting multiple releases share a single Gateway. `gateway.tls` adds an HTTPS listener and requests a cert-manager certificate for `host`; `gateway.hsts` controls whether the `Strict-Transport-Security` header is left on the response, which is useful to disable for local or non-TLS testing.
+The chart creates a `Gateway` named `<release>-gateway` in the release namespace (`global.gateway.className`, `envoy` by default) with an HTTP listener and, when TLS applies, an HTTPS listener. With `global.gateway.tls` on and a public host, cert-manager issues the certificate through an ACME (Let's Encrypt) `Issuer` the chart creates, using `global.certmanager.email` for the account. Plain HTTP is then redirected (301) to HTTPS. Set `global.gateway.httpRedirect: false` when something in front of the `Gateway` already ends TLS and forwards plain HTTP to it (Cloudflare "flexible" SSL, a load balancer's TLS listener), or every request redirects to itself in a loop.
 
-### Redis
+Every response carries `X-Content-Type-Options`, `Referrer-Policy` and a baseline `Content-Security-Policy`, plus `Strict-Transport-Security` unless `global.gateway.hsts` is `false`.
 
-Redis backs the cache, event bus, and log streaming, not primary data storage, so the bundled subchart runs without persistence (`redis.master.persistence.enabled`/`redis.replica.persistence.enabled` both default to `false`). Set `redis.create` to `false` and `redis.url` to point the deployment at a Redis instance you already run instead of the bundled one.
+To share a `Gateway` that already exists, set `global.gateway.name` and `global.gateway.namespace` to it. The chart then creates no `Gateway`, attaches its `HTTPRoute` to yours, and adds a `ReferenceGrant` so that `Gateway` can read the certificate `Secret` in the release namespace. The `Issuer` is likewise only created when `global.certmanager.name` and `namespace` are left at their defaults.
 
-### MongoDB
+### Secrets
 
-The application keeps its own data and its ACL data in two separate MongoDB databases (`service.mongodb.mongo.name` and `service.mongodb.acl.name`), which can point at the same server or different ones. As with Redis, set `mongodb.create` to `false` and `mongodb.url` (or the per-database `service.mongodb.*.host`/`*.url` overrides, if the ACL and application databases live on different servers) to use MongoDB instances you already run.
+The cookie, session and JWT signing secrets, and the two AES-256 encryption keys (`auth__oauth_server__keys__encryption_key`, which protects the OAuth server's signing keys and stored messaging credentials, and `auth__totp__encryption_key`, which protects every user's TOTP secret), are each generated once on install and kept in the release's Secrets. Upgrades read them back, so sessions stay valid and encrypted data stays readable. Set your own with `global.secrets.cookies`, `global.secrets.sessions`, `global.jwt.secret`, and the two keys under `service.config`. Point `global.secrets.existingSecret` at a Secret you manage to skip generation.
 
-### PostgreSQL
+Once data has been encrypted, the two encryption keys can't change casually, because anything encrypted with the old key becomes unreadable.
 
-`postgresql.create` is the SQL-backed alternative to `mongodb.create`, off by default. The chart's datastore wiring checks `mongodb.create` first, so if you turn `postgresql.create` on you also need to turn `mongodb.create` off, otherwise the app is configured for MongoDB regardless of the PostgreSQL subchart also being deployed alongside it unused:
+### Default accounts
 
-```bash
---set mongodb.create=false --set postgresql.create=true
+`global.defaultAccounts` lists the accounts created on first start. An empty `password` is generated at install, stored in the release's `-service-secrets` Secret and printed in the chart's notes (`helm get notes auth-server -n auth-server`). The default is a single `admin` account with the `admin` role.
+
+### Datastores
+
+`global.database.type` is `mongo` or `sql` and selects which server entry point the pod runs and which subchart settings apply. For PostgreSQL, set `--set global.database.type=sql --set mongodb.create=false --set postgresql.create=true`.
+
+MongoDB keeps application data and ACL data in two databases (`service.datastores.mongodb.mongo.name`, `service.datastores.mongodb.acl.name`). PostgreSQL provisions one database (`postgresql.auth.database`) and, by default, reuses its built-in `postgres` database for ACL data (`service.datastores.postgresql.name`). The bundled MongoDB uses the `Recreate` update strategy because one `mongod` owns the data directory at a time. Redis backs the cache, event bus and log streaming and runs without persistence.
+
+To use datastores you already run, set the matching `create` to `false` and either set `service.datastores.<db>.*.host` or supply full URLs through `global.database.url` (rendered as a template with `mongoProtocol`, `host`, `user` and `password` available) and `global.cache.url`. When `global.cache.enabled` is `false` no cache, events or log datastore is configured.
+
+### Resources and pod security
+
+Neither the server nor the bundled datastores set resource limits, only requests. A limit throttles a pod's CPU or kills it for memory even when the node has room to spare, and MongoDB's liveness probe was timing out at its CPU cap. The Bitnami `resourcesPreset` is therefore `none` for each subchart. The server runs as a non-root user with a restricted profile (`allowPrivilegeEscalation: false`, all capabilities dropped, `RuntimeDefault` seccomp), and a `preStop` sleep plus `terminationGracePeriodSeconds` let it drain behind the `Gateway`.
+
+### Service account and Diagnostics
+
+`global.serviceAccount.create` makes a `ServiceAccount` for the pod. Annotate it through `global.serviceAccount.annotations`, for example with an AWS IRSA role ARN so SES mail and S3 storage get credentials. `global.diagnostics.rbac.create` adds a read-only, namespace-scoped `Role` and `RoleBinding` on that account so the admin console's [Diagnostics](/docs/auth/auth-server/operations#diagnostics) page can read the namespace's pods, volume claims and pod metrics. Turn it off to keep the server from reading the Kubernetes API.
+
+### Passkeys
+
+WebAuthn refuses to work unless the relying party ID and origin match the real domain. The chart sets `auth__passkey__rpID`, `auth__passkey__origin` and the `auth__fido2__*` equivalents to the server's own host and origin. Override any of them under `service.config`.
+
+### Extra configuration
+
+`service.config` merges key/value pairs into the pod's environment, using the same `__` nesting as [Docker](/docs/auth/auth-server/deployment/docker#environment-variable-overrides) (for example `smtp_config__host`). A key set here replaces a value the chart would derive itself. `service.extraEnv` takes full Kubernetes `env` entries, which is the place for secret references such as the SMTP password:
+
+```yaml
+service:
+  extraEnv:
+    - name: smtp_config__auth__pass
+      valueFrom: { secretKeyRef: { name: smtp-credentials, key: password } }
 ```
 
-Unlike MongoDB, PostgreSQL doesn't create a database the first time something connects to it, so only one database is auto-provisioned by the bundled subchart (`postgresql.auth.database`, `rrst_auth` by default) and used for the application data (`service.postgresql.sql.name`). The ACL datastore defaults to reusing the server's own built-in `postgres` database (`service.postgresql.acl.name`) rather than a dedicated one; provision a real database for it out-of-band and point `service.postgresql.acl.name` at it if you'd rather keep ACL data separate. As with MongoDB and Redis, set `postgresql.create` to `false` and `postgresql.url` (or the per-database `service.postgresql.*.host`/`*.url` overrides) to use a PostgreSQL instance you already run.
+`service.spec` merges arbitrary fields into the pod spec, for example `nodeSelector` or `tolerations`.
 
-### Service
+### Secrets and OpenBao
 
-`service.image.registry`/`service.image.repository`/`service.image.tag` select the container image; `service.image.tag` defaults to the chart's own `appVersion` field when left empty, which CI sets to match the release tag (the same one the chart itself is versioned and published under) at package time, so an unpinned install pulls the image matching whichever chart version you installed. `service.resources` and `service.replicas` are sized for a reference deployment, not production load, and should be tuned before real traffic. `service.config` and `service.spec` are escape hatches for anything the chart doesn't expose as its own parameter: `service.config` merges arbitrary key/value pairs into the service's environment configuration, and `service.spec` merges arbitrary fields into the pod spec (for example, `nodeSelector` or `tolerations`).
+With `global.openbao.enabled`, the JWT, cookie and session secrets and the two encryption keys live in [OpenBao](https://openbao.org), and External Secrets copies them into the Kubernetes Secrets the pod loads. Each value is written once and never rewritten, so upgrades don't invalidate tokens, cookies or sessions.
+
+OpenBao and External Secrets are prerequisites, like cert-manager, and the chart installs neither. The render fails with the install command when the External Secrets CRDs are missing. The vault must hold `auth_secret`, `cookie_secret`, `session__secret`, `oauth_server_encryption_key` and `totp_encryption_key` (the last two as 64-character hex strings) under `global.openbao.kvMount` at `global.openbao.secretsPath` (`<release>/secrets` by default). `global.openbao.auth.method` is `token` (a Secret named by `auth.tokenSecret`) or `kubernetes` (authenticates with a ServiceAccount, requires `auth.kubernetes.role`). If the vault's listener certificate is signed by a private CA, set `global.openbao.caConfigMap` to a ConfigMap in the release namespace that holds the CA under `ca.crt`.
+
+### Single-node install with k3s
+
+`scripts/k3s_install.sh` installs k3s, Envoy Gateway, cert-manager, External Secrets and OpenBao, then the chart. Run it on any Linux machine:
+
+```bash
+./scripts/k3s_install.sh --domain example.com
+```
+
+Its options include `--domain`, `--auth-host`, `--version` (the chart version), `--tls`, `--email` (for the ACME account), `--openbao true|false`, `--skip-k3s` (use the cluster already there) and `--uninstall`. Run it with `--help` for the full list.
 
 ## Parameters
 
 | Name | Description | Value |
 |---|---|---|
-| `host` | Public hostname the `Gateway`, `HTTPRoute`, and TLS certificate are issued for | `localhost` |
-| `environment` | Sets `NODE_ENV` for the deployment | `dev` |
-| `auth.audience` | JWT audience claim | `'{{ .Values.host }}'` |
-| `auth.issuer` | JWT issuer claim | `'api.{{ .Values.host }}'` |
-| `auth.expiresIn` | Access token lifetime | `1 hour` |
-| `auth.secret` | JWT signing secret. Randomly generated at install time and preserved across upgrades | `'{{ randAlphaNum 32 }}'` |
-| `cookies.secret` | Cookie signing secret. Randomly generated at install time and preserved across upgrades | `'{{ randAlphaNum 32 }}'` |
-| `sessions.secret` | Session secret. Randomly generated at install time and preserved across upgrades | `'{{ randAlphaNum 32 }}'` |
-| `gateway.name` | Name of the `Gateway` the `HTTPRoute` attaches to. The chart only creates this `Gateway` itself when the name and namespace are both left at their defaults; point it at an existing `Gateway` to share one across releases | `api-gateway` |
-| `gateway.namespace` | Namespace of that `Gateway` | `'{{ .Release.Namespace }}'` |
-| `gateway.tls` | Add an HTTPS listener and request a cert-manager certificate for `host`. Skipped automatically when `host` is `localhost` or ends in `.local` | `true` |
-| `gateway.hsts` | Keep the `Strict-Transport-Security` response header. Set to `false` to strip it, for local or non-TLS testing | `true` |
-| `redis.create` | Deploy a Redis instance via the Bitnami subchart | `true` |
-| `redis.url` | Redis connection URL. Override when `redis.create` is `false` to point at an external Redis | `redis://db-redis-master` |
-| `redis.architecture` | Redis architecture, passed through to the Bitnami subchart | `standalone` |
-| `redis.auth.enabled` | Require a password on the bundled Redis | `true` |
-| `redis.fullnameOverride` | Resource name prefix for the bundled Redis subchart | `db-redis` |
+| `host` | Public hostname of the server. Used for the `Gateway` listener, `HTTPRoute`, TLS certificate, CORS origins and passkey relying party | `auth.{{ dig "domain" "localhost" (.Values.global \| default dict) }}` |
+| `environment` | Sets `NODE_ENV` and `environment` on the pod. Anything other than `production` also enables the Node inspector on `127.0.0.1:9229` | `production` |
+| `global.cache.enabled` | Configure the cache, events and log datastores against Redis | `true` |
+| `global.cache.url` | Redis connection URL | `redis://redis-master` |
+| `global.certmanager.email` | ACME account email for the chart's `Issuer` | `admin@{{ tpl $.Values.global.domain . }}` |
+| `global.certmanager.name` | Name of the cert-manager `Issuer`. The chart creates it only when this is its own default and the namespace matches | `'{{ include "rrst.fullname" . }}-issuer'` |
+| `global.certmanager.namespace` | Namespace of the `Issuer` | `'{{ .Release.Namespace }}'` |
+| `global.corsHosts` | Extra hosts allowed as CORS origins, in addition to `host`. Each is expanded to its `http`/`https` origins | `["localhost:3000"]` |
+| `global.database.type` | Primary datastore the server runs against, `mongo` or `sql` | `mongo` |
+| `global.domain` | Base domain. `host` and the JWT audience derive from it | `domain.local` |
+| `global.defaultAccounts[0].name` | Name of the account created on first start | `admin` |
+| `global.defaultAccounts[0].roles` | Roles granted to the account | `["admin"]` |
+| `global.defaultAccounts[0].password` | Account password. Generated at install and kept when empty | `""` |
+| `global.gateway.name` | Name of the `Gateway` the `HTTPRoute` attaches to. The chart creates it only when this is its own default and the namespace matches | `'{{ include "rrst.fullname" . }}-gateway'` |
+| `global.gateway.namespace` | Namespace of that `Gateway` | `'{{ .Release.Namespace }}'` |
+| `global.gateway.className` | `GatewayClass` of the `Gateway` the chart creates | `envoy` |
+| `global.gateway.hsts` | Send the `Strict-Transport-Security` response header. Set to `false` to strip it | `true` |
+| `global.gateway.tls` | Add an HTTPS listener and request a cert-manager certificate for `host`. Skipped for `localhost`, `*.localhost` and `*.local` hosts | `true` |
+| `global.gateway.httpRedirect` | Redirect plain HTTP to HTTPS with a 301. Set to `false` when something in front of the `Gateway` ends TLS and forwards plain HTTP | `true` |
+| `global.jwt.audience` | JWT audience claim | `'{{ include "rrst.render" (dict "value" .Values.global.domain "context" .) }}'` |
+| `global.jwt.issuer` | JWT issuer claim | `'{{ include "rrst.render" (dict "value" .Values.host "context" .) }}'` |
+| `global.jwt.expiresIn` | Access token lifetime | `1 hour` |
+| `global.jwt.secret` | JWT signing secret. Generated at install and kept when empty | `""` |
+| `global.externalSecrets.enabled` | Allow External Secrets to manage secrets from OpenBao | `true` |
+| `global.externalSecrets.refreshInterval` | How often External Secrets re-reads the vault | `1m` |
+| `global.logs.level` | Log level shared with a parent chart | `info` |
+| `global.openbao.enabled` | Keep the secrets in OpenBao, copied into Kubernetes Secrets by External Secrets | `false` |
+| `global.openbao.address` | OpenBao server address | `http://openbao.openbao.svc:8200` |
+| `global.openbao.kvMount` | KV v2 mount holding the secrets | `secret` |
+| `global.openbao.secretsPath` | Path under the mount. Defaults to `<release>/secrets` when empty | `""` |
+| `global.openbao.caConfigMap` | ConfigMap in the release namespace holding, under `ca.crt`, the CA that signed OpenBao's listener certificate. Empty uses the system trust store | `""` |
+| `global.openbao.auth.method` | How External Secrets authenticates, `token` or `kubernetes` | `token` |
+| `global.openbao.auth.tokenSecret` | Secret holding the token. Defaults to `<release>-openbao-eso` when empty | `""` |
+| `global.openbao.auth.tokenSecretKey` | Key of the token in that Secret | `token` |
+| `global.openbao.auth.kubernetes.mountPath` | Mount path of the Kubernetes auth method | `kubernetes` |
+| `global.openbao.auth.kubernetes.role` | OpenBao role bound to the ServiceAccount. Required for the `kubernetes` method | `""` |
+| `global.openbao.auth.kubernetes.serviceAccount` | ServiceAccount used to authenticate | `default` |
+| `global.secrets.existingSecret` | Name of a Secret you manage, used instead of generating cookie, session and encryption secrets | `""` |
+| `global.secrets.cookies` | Cookie signing secret. Generated at install and kept when empty | `""` |
+| `global.secrets.sessions` | Session secret. Generated at install and kept when empty | `""` |
+| `global.diagnostics.rbac.create` | Create the read-only namespace `Role` and `RoleBinding` the Diagnostics page needs | `true` |
+| `global.serviceAccount.create` | Create a `ServiceAccount` for the pod | `true` |
+| `global.serviceAccount.name` | Name of the `ServiceAccount`. Defaults to the release's full name when empty | `""` |
+| `global.serviceAccount.annotations` | Annotations for the `ServiceAccount`, such as an AWS IRSA role ARN | `{}` |
+| `global.storageClass` | Storage class passed through to the subcharts | `""` |
+| `global.trustedProxies` | Proxy address ranges trusted to set `X-Forwarded-For` | `["10.0.0.0/8","172.16.0.0/12","192.168.0.0/16","fc00::/7"]` |
+| `mongodb.create` | Deploy MongoDB via the Bitnami subchart | `true` |
+| `mongodb.architecture` | MongoDB architecture | `standalone` |
+| `mongodb.fullnameOverride` | Resource name prefix, and the host the server connects to | `mongodb` |
+| `mongodb.auth.enabled` | Require credentials on the bundled MongoDB | `false` |
+| `mongodb.resourcesPreset` | Bitnami resources preset. `none` leaves only the requests below | `none` |
+| `mongodb.resources.requests.cpu` | CPU request | `500m` |
+| `mongodb.resources.requests.memory` | Memory request | `512Mi` |
+| `mongodb.resources.requests.ephemeral-storage` | Ephemeral storage request | `50Mi` |
+| `mongodb.updateStrategy.type` | Update strategy. `Recreate` stops the old pod first, since one `mongod` owns the data directory | `Recreate` |
+| `postgresql.create` | Deploy PostgreSQL via the Bitnami subchart | `false` |
+| `postgresql.architecture` | PostgreSQL architecture | `standalone` |
+| `postgresql.fullnameOverride` | Resource name prefix, and the host the server connects to | `postgresql` |
+| `postgresql.auth.enablePostgresUser` | Require the `postgres` user's password on the bundled PostgreSQL | `false` |
+| `postgresql.auth.database` | Database the subchart provisions on first start | `rrst_auth` |
+| `postgresql.primary.resourcesPreset` | Bitnami resources preset. `none` leaves only the requests below | `none` |
+| `postgresql.primary.resources.requests.cpu` | CPU request | `100m` |
+| `postgresql.primary.resources.requests.memory` | Memory request | `128Mi` |
+| `postgresql.primary.resources.requests.ephemeral-storage` | Ephemeral storage request | `50Mi` |
+| `redis.create` | Deploy Redis via the Bitnami subchart | `true` |
+| `redis.architecture` | Redis architecture | `standalone` |
+| `redis.auth.enabled` | Require a password on the bundled Redis | `false` |
+| `redis.fullnameOverride` | Resource name prefix for the bundled Redis | `redis` |
+| `redis.master.resourcesPreset` | Bitnami resources preset. `none` leaves only the requests below | `none` |
+| `redis.master.resources.requests.cpu` | CPU request | `100m` |
+| `redis.master.resources.requests.memory` | Memory request | `128Mi` |
+| `redis.master.resources.requests.ephemeral-storage` | Ephemeral storage request | `50Mi` |
 | `redis.master.persistence.enabled` | Enable persistence on the Redis master | `false` |
 | `redis.replica.persistence.enabled` | Enable persistence on Redis replicas | `false` |
 | `redis.networkPolicy.enabled` | Create a `NetworkPolicy` restricting access to Redis | `true` |
-| `redis.networkPolicy.allowExternal` | Allow traffic from outside the cluster when `networkPolicy.enabled` is `true` | `false` |
-| `mongodb.create` | Deploy a MongoDB instance via the Bitnami subchart | `true` |
-| `mongodb.url` | MongoDB connection URL, used only when `mongodb.create` is `false` | `""` |
-| `mongodb.architecture` | MongoDB architecture, passed through to the Bitnami subchart | `standalone` |
-| `mongodb.auth.enabled` | Require credentials on the bundled MongoDB | `true` |
-| `mongodb.fullnameOverride` | Resource name prefix for the bundled MongoDB subchart | `mongodb` |
-| `postgresql.create` | Deploy a PostgreSQL instance via the Bitnami subchart, as an alternative to `mongodb.create` | `false` |
-| `postgresql.url` | PostgreSQL connection URL, used only when `postgresql.create` is `false` | `""` |
-| `postgresql.architecture` | PostgreSQL architecture, passed through to the Bitnami subchart | `standalone` |
-| `postgresql.fullnameOverride` | Resource name prefix for the bundled PostgreSQL subchart | `postgresql` |
-| `postgresql.auth.enablePostgresUser` | Require credentials on the bundled PostgreSQL | `true` |
-| `postgresql.auth.database` | Name of the one database the bundled subchart auto-provisions on first start | `rrst_auth` |
+| `redis.networkPolicy.allowExternal` | Allow traffic from pods that don't carry the Redis client label | `false` |
 | `service.image.registry` | Container image registry | `ghcr.io` |
 | `service.image.repository` | Container image repository | `rapidrest/auth-server` |
-| `service.image.tag` | Container image tag. Defaults to the chart's `appVersion` when empty | `""` |
-| `service.imagePullSecret` | Name of an existing image pull secret | `""` |
+| `service.image.tag` | Container image tag. Defaults to the chart's `appVersion` when empty | `1.0.0` |
 | `service.replicas` | Number of replicas | `1` |
+| `service.probeImage` | Image of the init containers that wait for the datastores and of `helm test`'s pod | `busybox:1.37.0` |
 | `service.resources.requests.cpu` | CPU request | `100m` |
-| `service.resources.requests.memory` | Memory request | `256Mi` |
-| `service.resources.limits.memory` | Memory limit | `512Mi` |
-| `service.mongodb.acl.name` | Database name for the ACL datastore | `access_control_lists` |
-| `service.mongodb.acl.host` | Host override for the ACL datastore | `""` |
-| `service.mongodb.acl.url` | Full connection URL override for the ACL datastore | `""` |
-| `service.mongodb.mongo.name` | Database name for the application datastore | `rrst_auth` |
-| `service.mongodb.mongo.host` | Host override for the application datastore | `""` |
-| `service.mongodb.mongo.url` | Full connection URL override for the application datastore | `""` |
-| `service.postgresql.acl.name` | Database name for the ACL datastore | `postgres` |
-| `service.postgresql.acl.host` | Host override for the ACL datastore | `""` |
-| `service.postgresql.acl.url` | Full connection URL override for the ACL datastore | `""` |
-| `service.postgresql.sql.name` | Database name for the application datastore | `rrst_auth` |
-| `service.postgresql.sql.host` | Host override for the application datastore | `""` |
-| `service.postgresql.sql.url` | Full connection URL override for the application datastore | `""` |
-| `service.config` | Arbitrary key/value pairs merged into the service's environment configuration | `{logs: true, metrics: true, releaseNotes: true}` |
-| `service.spec` | Arbitrary key/value pairs merged into the pod spec, for settings such as `nodeSelector` or `tolerations` | `{}` |
+| `service.resources.requests.memory` | Memory request | `384Mi` |
+| `service.datastores.mongodb.acl.name` | Database name for the ACL datastore | `rrst_acls` |
+| `service.datastores.mongodb.acl.host` | Host override for the ACL datastore. Defaults to `mongodb.fullnameOverride` | `null` |
+| `service.datastores.mongodb.mongo.name` | Database name for the application datastore | `rrst_auth` |
+| `service.datastores.mongodb.mongo.host` | Host override for the application datastore. Defaults to `mongodb.fullnameOverride` | `null` |
+| `service.datastores.postgresql.name` | Database name for the ACL datastore | `postgres` |
+| `service.datastores.postgresql.host` | Host override for PostgreSQL. Defaults to `postgresql.fullnameOverride` | `""` |
+| `service.config.logs` | Enable log streaming to the `logs` datastore | `true` |
+| `service.config.metrics` | Enable the Prometheus metrics endpoint | `true` |
+| `service.config.releaseNotes` | Enable release notes | `true` |
+| `service.extraEnv` | Extra Kubernetes `env` entries for the server container | `[]` |
+| `service.terminationGracePeriodSeconds` | Time the pod gets to shut down. The `preStop` sleep and the server's own shutdown must fit in it | `60` |
+| `service.preStopSleepSeconds` | Seconds to keep serving while the pod is removed from the `Gateway`'s endpoints. `0` disables | `10` |
+| `service.podSecurityContext.runAsNonRoot` | Refuse to run as root | `true` |
+| `service.podSecurityContext.runAsUser` | User ID | `1000` |
+| `service.podSecurityContext.runAsGroup` | Group ID | `1000` |
+| `service.podSecurityContext.fsGroup` | Group ID applied to mounted volumes | `1000` |
+| `service.podSecurityContext.fsGroupChangePolicy` | When volume ownership is changed | `OnRootMismatch` |
+| `service.podSecurityContext.seccompProfile.type` | Seccomp profile | `RuntimeDefault` |
+| `service.securityContext.allowPrivilegeEscalation` | Allow privilege escalation | `false` |
+| `service.securityContext.capabilities.drop` | Linux capabilities dropped from the container | `["ALL"]` |
+| `service.startupProbe.httpGet.path` | Startup probe path | `/api/status` |
+| `service.startupProbe.httpGet.port` | Startup probe port | `3000` |
+| `service.startupProbe.periodSeconds` | Startup probe period | `10` |
+| `service.startupProbe.failureThreshold` | Startup probe failures tolerated before the pod is restarted | `90` |
+| `service.livenessProbe.httpGet.path` | Liveness probe path | `/api/status` |
+| `service.livenessProbe.httpGet.port` | Liveness probe port | `3000` |
+| `service.livenessProbe.periodSeconds` | Liveness probe period | `30` |
+| `service.livenessProbe.timeoutSeconds` | Liveness probe timeout | `5` |
+| `service.livenessProbe.failureThreshold` | Liveness probe failures tolerated before the pod is restarted | `22` |
+
+The chart also reads a few optional keys that `values.yaml` leaves unset: `global.database.url` (a connection URL template for the primary datastore), `service.imagePullSecret` (an image pull secret name) and `service.spec` (extra pod spec fields).
 
 ## See also
 
+- [Operations and configuration](/docs/auth/auth-server/operations) for the settings the server reads and the admin console's Diagnostics page.
 - [Configuration](/docs/auth/auth-library/configuration) for the full `auth:*`/`session` config tree.
 - [Strategies → Security Features](/docs/auth/auth-library/strategies#security-features) for what to double-check before exposing a deployment publicly.

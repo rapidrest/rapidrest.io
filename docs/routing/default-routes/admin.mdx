@@ -22,13 +22,20 @@ The CLI scaffold generates exactly this at `src/routes/AdminRoute.ts`, mounted a
 
 | Function | HTTP Method + Path | What it does |
 |---|---|---|
-| `clearCache` | `GET /admin/clear-cache` | Flushes the Redis-based second-level cache. |
+| `clearCache` | `POST /admin/clear-cache` | Flushes the Redis-based second-level cache. |
 | `logs` | `UPGRADE /admin/logs` | Opens a WebSocket that live-tails the service's log output. |
 | `getReleaseNotes` | `GET /admin/release-notes` | Returns the service's release notes. |
-| `restart` | `GET /admin/restart` | Signals the service to restart. |
+| `restart` | `POST /admin/restart` | Signals the service to restart. |
 
-Every endpoint requires `@Auth(["jwt"])`, and `clearCache`, `getReleaseNotes` and `restart` additionally require the caller to hold one of the roles
-listed in `trusted_roles`. There is no way to reach them anonymously.
+Every endpoint requires `@Auth(["jwt"])`, and `clearCache`, `getReleaseNotes`, `restart` and `logs` additionally require the caller to hold one of the roles
+listed in `trusted_roles`. The class itself is also marked `@RequiresElevation()`, so every endpoint needs an active elevated session, and `clearCache` and `restart` tighten that to the recency window below. There is no way to reach them anonymously.
+
+`clearCache` and `restart` change server state, so they are `POST` only and carry two extra requirements:
+
+- **Recent elevation.** The caller's most recent [elevation](/docs/routing/controllers/lifecycle-validation#guard-decorators) must be no older than `admin:elevation_max_age` seconds (default `600`). Otherwise the request is rejected with `403`.
+- **CSRF check.** A `POST` authenticated by the `jwt` cookie must send the CSRF header, see [CSRF protection](/docs/http-engine/cookies-cors#csrf-protection). Bearer-token and API callers are unaffected.
+
+The old `GET /admin/clear-cache` and `GET /admin/restart` paths no longer do anything. They answer `405 Method Not Allowed` with `Allow: POST` and a message naming the replacement, so a stale script fails loudly instead of silently doing nothing. A browser GET was the reason for the change: a link opened by a signed-in admin could otherwise restart every pod.
 
 ## Configuration
 
@@ -36,6 +43,7 @@ listed in `trusted_roles`. There is no way to reach them anonymously.
 conf.defaults({
   service_name: 'petstore',
   trusted_roles: ['admin'],
+  admin: {elevation_max_age: 600}, // seconds, default
   datastores: {
     cache: {type: 'redis', host: 'localhost', port: 6379},
     logs: {type: 'redis', host: 'localhost', port: 6379},
@@ -43,7 +51,7 @@ conf.defaults({
 });
 ```
 
-- **`clearCache`** only does anything useful if a `cache` datastore is configured. It scans and deletes keys matching `db.cache.*` on that
+- **`clearCache`** only does anything useful if a `cache` datastore is configured. It scans and deletes keys matching `cache.*` on that
   connection.
 - **`logs`** requires a `logs` datastore. On startup, `BaseAdminRoute` attaches a Winston transport (`RedisTransport`) that publishes every log line
   to a `<service_name>-logs` Redis channel; the WebSocket endpoint subscribes to that same channel and forwards messages to the connected client. If
@@ -51,7 +59,7 @@ conf.defaults({
 - **`restart`** publishes a `RESTART` message on a `<service_name>` (or `service_admin`, if `service_name` is unset) channel over the `cache`
   connection. `BaseAdminRoute` also subscribes to that same channel on startup, so any instance sharing that Redis connection (including the one
   that issued the request) will receive the signal and call `process.kill(process.pid, "SIGINT")` on itself. In a multi-instance deployment behind
-  a shared Redis, a single `/admin/restart` call restarts every instance listening on that channel.
+  a shared Redis, a single `POST /admin/restart` call restarts every instance listening on that channel.
 
 ## Locking it down further
 

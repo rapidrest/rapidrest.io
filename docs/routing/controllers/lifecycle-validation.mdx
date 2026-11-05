@@ -8,7 +8,7 @@ sidebar_label: Lifecycle & Validation
 Every request runs through a fixed pipeline before your handler executes, and again afterward before the response goes out:
 
 ```text
-auth strategies → @RequiresElevation → @RequiresTrustedRole → @RequiresRole → @RequiresScope → ACL check → @Validate → @Before → handler → @After
+auth strategies → @RateLimit → @RequiresElevation → CSRF check → @RequiresTrustedRole → @RequiresRole → @RequiresScope → ACL check → @Validate → @Before → handler → @After
 ```
 
 Each stage can reject the request before the next one runs, and before your handler ever sees it, a thrown error at any point turns into a response the same way a thrown error in the handler itself would, see [Error Handling](/docs/http-engine/error-handling). Authentication strategies and the ACL permission check are covered in [Authentication & Authorization](/docs/auth/rbac).
@@ -19,10 +19,25 @@ These gate access to a handler before it runs, in the order shown above:
 
 | Decorator | What it does |
 |---|---|
-| `@RequiresElevation(seconds?)` | Requires a recently confirmed elevated session (a re-authentication step), within the last `seconds`. Omit it and elevation just needs to still be active. |
+| `@RateLimit(options?)` | Caps how often an endpoint can be called, answering `429` over the limit. See [Rate Limiting](/docs/routing/controllers/rate-limiting). |
+| `@RequiresElevation(window?)` | Requires a recently confirmed elevated session (a re-authentication step). `window` is a number of seconds, or `{ config, default }` to read the seconds from a configuration key on every request. Omit it and any active elevation is enough. |
 | `@RequiresTrustedRole()` | Requires the user to have at least one role marked trusted. |
 | `@RequiresRole(roles)` | Requires the user to have at least one of the given role(s). |
 | `@RequiresScope(scopes)` | Requires the token to carry at least one of the given OAuth-style scope(s), a coarse, token-level check that runs before the per-resource ACL check. |
+
+`@RequiresElevation` with a configuration-backed window looks like this, the same form `BaseAdminRoute` uses for its restart and cache endpoints:
+
+```ts
+@RequiresElevation({ config: 'admin:elevation_max_age', default: 600 })
+@Post('/danger')
+async dangerous() {
+  /* ... */
+}
+```
+
+A missing or out-of-date elevation is rejected with `403`, `AUTH_REQUIRES_ELEVATION`. `@RateLimit` and `@RequiresElevation` can sit on a class as well as a method, and a method-level one wins.
+
+The CSRF check is not a decorator. It is installed on every route automatically and only applies to requests authenticated by the `jwt` cookie, see [CSRF protection](/docs/http-engine/cookies-cors#csrf-protection).
 
 ## `@Validate(func)`
 

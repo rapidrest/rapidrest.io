@@ -56,5 +56,7 @@ See [Access Control Lists](/docs/auth/rbac/access-control-lists) for the current
 
 RapidREST regenerates a `default_<uid>` record from your `@Protect` decorators on every server startup (see `ACLUtils.saveDefaultACL` in
 [Access Control Lists](/docs/auth/rbac/access-control-lists)). These seed the user-editable override record and are never meant to be edited directly, since
-changes to them are discarded on the next restart. `update` and `delete` both reject any `id` starting with `default_`, even for a trusted-role
-caller, to prevent that confusion.
+changes to them are discarded on the next restart. `update`, `updateProperty`, `delete` and bulk updates all reject any `id` starting with `default_`, even for a trusted-role
+caller, to prevent that confusion. The other half of the pair, the user-editable record the `@Protect` decorator registers for a class or route, is
+a protected ACL: you can edit its records here, and every change takes effect immediately, but it can't be taken over by a newly created record or
+removed by deleting or truncating the records it guards. See [Reserved and protected ACLs](/docs/auth/rbac/access-control-lists#reserved-and-protected-acls).

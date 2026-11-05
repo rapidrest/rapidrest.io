@@ -23,11 +23,14 @@ async getPet(@Param('id') id: string, @Query('version') version: string, @User u
 | `@Param(name?)` | `req.params[name]`, or the whole `params` object if `name` is omitted |
 | `@Query(name?)` | `req.query[name]`, or the whole `query` object if `name` is omitted |
 | `@Header(name)` | `req.headers[name]` |
+| `@BodyStream` | the raw request body as a Node `Readable`, on a route marked `@StreamingBody()` (no parentheses), see [Streaming](/docs/http-engine/streaming#streaming-request-bodies) |
 | `@Request` | the whole `HttpRequest` object (no parentheses) |
 | `@Response` | the whole `HttpResponse` object (no parentheses) |
 | `@Socket` | the WebSocket connection, for `@WebSocket` handlers (no parentheses), see [WebSockets](/docs/http-engine/websockets) |
 | `@User` | the authenticated user, if any (no parentheses) |
 | `@AuthResult` | the full auth result (the strategy name, payload, and user together, no parentheses) |
+
+Path parameters are percent-decoded before they reach you, so `GET /pets/my%20pet` gives `@Param('id')` the value `my pet`. A malformed encoding is passed through as the raw segment instead of failing the request. `@Param` works on [`@WebSocket`](/docs/http-engine/websockets) routes too.
 
 `@Request` also carries `req.cookies` and, if [sessions](/docs/http-engine/sessions) are configured, `req.session`.
 

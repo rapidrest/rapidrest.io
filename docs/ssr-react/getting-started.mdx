@@ -11,7 +11,7 @@ sidebar_label: Getting Started
 yarn add @rapidrest/react
 ```
 
-`@rapidrest/react` requires `@rapidrest/core`, `@rapidrest/service-core`, React 19, and React DOM 19 as peer dependencies. `vite`, `@vitejs/plugin-react`, and `tsx` are optional peers, only needed if you use client-side hydration or the dev CLI.
+`@rapidrest/react` requires Node.js 24 or newer and is published as an ESM-only package. Its peer dependencies are `@rapidrest/core` 6.x, `@rapidrest/service-core` 2.x, React 19 and React DOM 19. `vite`, `@vitejs/plugin-react`, `tsx` and `nodemon` are optional peers: Vite and its React plugin are needed for client-side hydration and navigation, and `tsx` and `nodemon` for the dev CLI.
 
 If you generated your project with `rapidrest generate server` and selected the React feature, all of this is already wired up. Skip to [App Directory Convention](/docs/ssr-react/app-convention).
 
@@ -83,5 +83,7 @@ export class AppRouter extends ReactRoute {
 }
 ```
 :::
+
+To make the pages interactive in the browser see [Hydration & Production Builds](/docs/ssr-react/hydration), and to navigate between them without full page loads see [Client-Side Navigation](/docs/ssr-react/client-navigation).
 
 If you're mounting more than one React app in the same project (e.g. a public app and an admin app, each with its own `appDir`), see [Multiple Apps](/docs/ssr-react/hydration#multiple-apps) in the Hydration guide.

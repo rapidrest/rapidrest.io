@@ -24,7 +24,8 @@ rapidrest generate server my-api --output-dir ~/projects/my-api
 | `--description <text>` | Short description of the project |
 | `-a`, `--author <name>` | Falls back to your Git config, then prompts |
 | `--pkg-manager <name>` | One of `npm`, `yarn` |
-| `--db <name>` | A database feature to enable. One of `mongodb`, `postgresql`, `redis`, `sqlite`. Repeatable |
+| `--db <name>` | A database feature to enable. One of `mongodb`, `postgresql`, `redis`, `sqlite`. Repeatable. Cannot be combined with `--no-db` |
+| `--no-db` | Create the project with no databases, without prompting. Models and the `acl` route need a datastore added later (`generate model` sets one up) |
 | `--route <name>` | A default route to include. One of `acl`, `admin`, `metrics`, `openapi`, `push`, `status` (see [Default Routes](/docs/routing/default-routes)). Repeatable |
 | `--react` / `--no-react` | Include React frontend support |
 | `--docker` / `--no-docker` | Include Docker support |
@@ -33,12 +34,17 @@ rapidrest generate server my-api --output-dir ~/projects/my-api
 | `--api-version <value>` | API version segment when `--api-route` is set (e.g. `1` for `/api/v1`) |
 | `--scm <name>` | Source control manager. One of `github`, `gitlab`, `git`, `p4`, `svn`, `none` |
 | `--no-install` | Skip running the package manager install after generating |
+| `--templates <value>` | Templates to use: a templates release version (e.g. `1.2.0`), or a local templates directory or `.zip`. Defaults to the newest compatible release. Also settable with `RAPIDREST_TEMPLATES` (see [Templates](/docs/cli-reference/templates)) |
 
 Run it bare and you're walked through every choice above as an interactive prompt, the same experience as `npm create vite@latest` or similar scaffolding tools if you've used one before. Pass any of the flags to skip that specific prompt; pass all of them (or an `--answers` file) and the command runs start to finish with no prompts at all, useful in a script or CI job that needs to spin up a throwaway project unattended.
 
 `--route`/`--react`/`--docker`/`--k8s` all stand in for one interactive "additional features" checkbox, so they're treated as a group: passing **any one** of them (or its `--answers` equivalent) skips that checkbox entirely, and whichever of the four you didn't specify falls back to that checkbox's own default (`--route` → none, `--react` → off, `--docker` → **on**, `--k8s` → off) rather than prompting for just the rest.
 
 Any default routes you selected are generated via [`generate default-route`](/docs/cli-reference/addons#rapidrest-generate-default-route) immediately afterward, using the same author and API prefix chosen here, so `generate server --route admin` and `generate server` followed by a separate `generate default-route --type admin` produce the identical result.
+
+The scaffold also includes a `.claude/settings.json` that registers the RapidREST Claude Code plugin's marketplace and enables the plugin, so anyone who opens the project in Claude Code is offered the RapidREST skills. See [Claude Code Plugin](/docs/claude-code-plugin).
+
+Dependency versions come from the [templates](/docs/cli-reference/templates) and start on the newest release of each major they target (for example `@rapidrest/core` `^6.1.0`), looked up when you scaffold. The project's `package.json` records the templates version it was made from (`"rapidrest": { "templates": "1.2.0" }`), and its `@rapidrest/cli` devDependency is the CLI that scaffolded it.
 
 **`--answers <file>`** takes a JSON file with any of the flags above as camelCase keys, every key optional:
 
@@ -80,14 +86,20 @@ rapidrest generate model Product --datastore mongo --cache 120 --protect
 | Flag | Description |
 |---|---|
 | `-f`, `--force` | Overwrite existing files |
-| `-o`, `--output-dir <path>` | Defaults to `./src/models` |
+| `-o`, `--output-dir <path>` | Project directory to write into (the model lands in its `src/models`). Defaults to the current directory |
 | `-a`, `--author <name>` | |
 | `-d`, `--description <text>` | |
-| `--datastore <name>` | The configured datastore this model binds to |
+| `--datastore <name>` | The datastore this model binds to. Also accepted as `--ds`. A name that isn't configured yet sets up a new datastore of that name (see `--datastore-type`). Names that aren't valid identifiers are rejected |
+| `--datastore-type <type>` | One of `mongodb`, `postgres`, `sqlite`. The type of the new datastore to set up when `--datastore` names one that isn't configured. Without `--datastore`, sets up (or reuses) a datastore named after the type |
 | `-c`, `--cache [ttl]` | Enables `@Cache`. Bare `--cache` defaults to a TTL of `60` |
-| `-p`, `--protect` | Enables RBAC protection on the model. Interactively defaults to **on** |
+| `--no-cache` | Don't enable caching, without prompting. Cannot be combined with `--cache` |
+| `-p`, `--protect` / `--no-protect` | Enables or disables RBAC protection on the model. Interactively defaults to **on** |
 | `--property <name:type>` | Add a typed property to the model, as `name:type` (e.g. `quantity:number`). Append `?` to the type to make it optional (e.g. `bio:string?`). Repeatable |
+| `--no-properties` | Add no properties beyond the inherited ones, without prompting. Cannot be combined with `--property` |
+| `--update-docker` / `--no-update-docker` | When a new datastore is set up and the project has Docker support, whether to regenerate the Docker files. Prompted for if omitted |
+| `--update-k8s` / `--no-update-k8s` | The same for the Helm chart |
 | `--no-install` | Skip running the package manager install after generating (only runs at all if adding this model created a brand-new datastore that needs a new driver dependency) |
+| `--templates <value>` | A templates release version, or a local templates directory or `.zip` (see [Templates](/docs/cli-reference/templates)) |
 
 Every model already has a `name: string` field (its `@Identifier`), `--property`/the interactive prompt add further data properties alongside it, not instead of it. An optional property (`type?`) is declared as `type | undefined` with `@Nullable` and defaults to `undefined`; a required property gets a type-appropriate zero value (`""`, `0`, `false`, `[]`, `new Date()`), so the generated class always compiles even before you fill in real defaults.
 
@@ -96,7 +108,7 @@ rapidrest generate model Product --datastore mongo --cache --protect \
   --property quantity:number --property tags:string[] --property "bio:string?"
 ```
 
-If you configure a brand-new datastore while adding a model, and Docker or Helm add-ons already exist in the project, you're prompted to regenerate them so the new datastore shows up there too, otherwise a real datastore your model depends on could silently be missing from the deployment configs.
+If you configure a brand-new datastore while adding a model, the datastore is added to both `src/config.ts` and `test/config.ts` (an in-memory SQLite database for SQL, the test MongoDB for MongoDB), along with its driver dependency. If Docker or Helm add-ons already exist in the project, you're prompted to regenerate them so the new datastore shows up there too (including after a project's first datastore), otherwise a real datastore your model depends on could silently be missing from the deployment configs. Pass `--update-docker`/`--update-k8s` (or their `--no-` forms) to answer those prompts up front.
 
 ## `rapidrest generate route NAME`
 
@@ -111,16 +123,20 @@ rapidrest generate route ProductRoute --api 2
 | Flag | Description |
 |---|---|
 | `-f`, `--force` | Overwrite existing files |
-| `--output-dir <path>` | Defaults to `./src/routes` |
+| `--output-dir <path>` | Project directory to write into (the route lands in its `src/routes`, its test in `test/routes`). Defaults to the current directory |
 | `-a`, `--author <name>` | |
 | `-d`, `--description <text>` | |
 | `--path <route-path>` | Base path, e.g. `/api/v1/products` |
 | `-m`, `--model <name>` | Bind to a model, generates a `CRUDRoute` (see [Auto CRUD Routes](/docs/routing/auto-crud-routes)) |
 | `--no-model` | Skip all prompts about associating a model |
-| `--api <version>` | Use `@ApiRoute` instead of `@Route` (see [Routing → Controllers](/docs/routing/controllers/defining-routes#api-versioned-routes)). Pass a version to prefix the path with `/api/v<version>`. **Requires a value** — a bare `--api` fails with `Flag --api expects a value`; to get an unversioned `/api` prefix, omit the flag and answer the interactive prompts (confirm "Is this an API route?", then leave the version blank) |
-| `-p`, `--protect` | Enables RBAC protection. Interactively defaults to **off** (opposite of `generate model`) |
+| `--api <version>` | Use `@ApiRoute` instead of `@Route` (see [Routing → Controllers](/docs/routing/controllers/defining-routes#api-versioned-routes)). Pass a version to prefix the path with `/api/v<version>`. **Requires a value**: a bare `--api` fails with `Flag --api expects a value`. To get an unversioned `/api` prefix, omit the flag and answer the interactive prompts (confirm "Is this an API route?", then leave the version blank) |
+| `--no-api` | Use `@Route` instead of `@ApiRoute`, without prompting. Cannot be combined with `--api` |
+| `-p`, `--protect` / `--no-protect` | Enables or disables RBAC protection. Interactively defaults to **off** (opposite of `generate model`) |
+| `--templates <value>` | A templates release version, or a local templates directory or `.zip` (see [Templates](/docs/cli-reference/templates)) |
 
 Skip `--model` (or pass `--no-model`) and you get a plain route class with none of the CRUD scaffolding, a blank slate for a handler that doesn't map to standard create/read/update/delete over one model.
+
+A test file is generated alongside every route. For a model-bound route it authenticates as the record's owner, and it works in projects where the model's datastore and the `acl` datastore are different kinds (a SQL model with MongoDB ACLs).
 
 ## `rapidrest generate job NAME`
 
@@ -134,9 +150,12 @@ rapidrest generate job MetricsCollector --schedule "*/5 * * * *"
 | Flag | Description |
 |---|---|
 | `-f`, `--force` | Overwrite existing files |
-| `-o`, `--output-dir <path>` | Defaults to `./src/jobs` |
+| `-o`, `--output-dir <path>` | Project directory to write into (the job lands in its `src/jobs`, its test in `test/jobs`). Defaults to the current directory |
 | `-a`, `--author <name>` | |
 | `-d`, `--description <text>` | |
 | `-s`, `--schedule <cron>` | Crontab-style schedule |
+| `--templates <value>` | A templates release version, or a local templates directory or `.zip` (see [Templates](/docs/cli-reference/templates)) |
+
+A test file is generated alongside the job, exercising its schedule, `start()`, `run()` and `stop()`.
 
 Leave `--schedule` unset and you get a job with an empty schedule to fill in yourself, still a valid starting point if you'd rather write the cron expression directly in the generated file than get it right on the command line.

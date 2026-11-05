@@ -32,7 +32,7 @@ public endpointFunc() {
 }
 ```
 
-`@Auth` takes a list of strategy names to attempt, at least one has to succeed for the request to be considered authenticated. Fail every strategy on an endpoint that requires auth, and the request never reaches your handler at all, it's rejected with `401` before that, the same [error response shape](/docs/http-engine/error-handling) any other `ApiError` produces, `{ message: "Invalid or missing authentication token.", status: 401, code: "api-101" }`. That message doesn't distinguish a missing token from an invalid or expired one, on purpose, giving an attacker a different error for "no token" versus "wrong token" is a small but real information leak.
+`@Auth` takes a list of strategy names to attempt (or a single name, `@Auth('jwt')`), every one is tried before giving up, and at least one has to succeed for the request to be considered authenticated. Fail every strategy on an endpoint that requires auth, and the request never reaches your handler at all, it's rejected with `401` before that, the same [error response shape](/docs/http-engine/error-handling) any other `ApiError` produces, `{ message: "Invalid or missing authentication token.", status: 401, code: "api-101" }`. That message doesn't distinguish a missing token from an invalid or expired one, on purpose, giving an attacker a different error for "no token" versus "wrong token" is a small but real information leak.
 
 ### Optional authentication
 
@@ -54,7 +54,7 @@ This is the right shape for an endpoint that behaves differently for a logged-in
 
 1. **Query parameter** (`auth_token`): only if `allowQueryParam` is enabled, since passing tokens in URLs is discouraged by default.
 2. **Authorization header** — matching `jwt` or `bearer` schemes, case-insensitive.
-3. **Cookie** (`jwt` by default; signed cookies if `cookieSecure` is set).
+3. **Cookie** (`jwt` by default; signed cookies if `cookieSecure` is set). A request authenticated this way is the only kind subject to [CSRF protection](/docs/http-engine/cookies-cors#csrf-protection).
 
 ```ts
 class JWTStrategyOptions {

@@ -1,0 +1,319 @@
+---
+sidebar_position: 7
+sidebar_label: Client-Side Navigation
+---
+
+# Client-Side Navigation
+
+By default every link in a server-rendered app loads a whole new document. That is simple and robust, but it throws away everything on screen between pages: a navigation rail re-renders, a half-written message is lost, scroll and focus reset. Client-side navigation keeps the server rendering exactly as before and adds a router on top. After the first load, a click on a link to another page of the app fetches that page's props as JSON, loads its module and stylesheets, and swaps it in place, without loading a document.
+
+Every URL is still answered with complete server-rendered HTML, so first loads, reloads, crawlers and browsers without JavaScript see no difference. Whenever the router cannot be sure it can navigate faithfully, it hands the navigation back to the browser, so the worst case is the behavior you had without it.
+
+Client-side navigation is opt-in and builds on [hydration](/docs/ssr-react/hydration). There is no separate route table and no router dependency: the client routes are generated from the same file convention the server resolves.
+
+## Enabling it
+
+Set `router = true` on the route (this implies `hydrate`), and build the client with the router:
+
+```ts
+@Route('/app')
+export class AppRouter extends ReactRoute {
+  protected override readonly router: boolean = true;
+}
+```
+
+```ts
+// vite.config.ts
+import { createViteConfig } from '@rapidrest/react/vite';
+
+export default createViteConfig({ appDir: 'app', router: true });
+```
+
+`createViteConfig`'s `router` option takes `true` (every `appDir`), an array of `appDir`s to route, or an object with `appDirs` (default: all) plus the [router settings](#router-options). `createViteConfig` still builds a hydration entry per page under the router. The browser does not load them; the build manifest records tell the server which stylesheets and chunks each page needs.
+
+How a navigation works:
+
+1. The router hydrates the page the server rendered, as `hydrate` alone would.
+2. A click on a link to another page of the same app requests that URL again with an `X-Rapidrest-Navigation` header. The server answers with JSON: the page's props, its route, its stylesheets and its title.
+3. The router loads the page module, applies the stylesheets, and renders the page. History, scroll restoration and the document title follow.
+
+The JSON comes from the same three levels of `fetchProps` as the HTML, is cached with the same TTL in production, and is sent with `Vary: X-Rapidrest-Navigation` so caches and CDNs keep it apart from the document. Only the latest of overlapping navigations is applied.
+
+`_layout.tsx` is part of the server-rendered document and is not re-rendered by the router, with one exception: the page's `title` export (or, failing that, the layout's `<title>`) is rendered by the server for each page and sent along, so the tab title follows the page. Anything else the layout renders from page props, such as an active nav item, stays as the first page showed it. Keep that in the page, or in an [app shell](#the-app-shell).
+
+## Links
+
+Use `Link` for internal links. It renders an ordinary `<a href>`, so it works on the server, for crawlers and before hydration, and warms the destination page when it is hovered or focused.
+
+```tsx
+import { Link, useRouter } from '@rapidrest/react/client';
+
+export default function Pet() {
+  const router = useRouter();
+  return (
+    <>
+      <Link href="/pets">All pets</Link>
+      <button onClick={() => router.navigate('/pets', { replace: true })}>Done</button>
+    </>
+  );
+}
+```
+
+Plain `<a href>` links are taken over by the router too, so existing markup and server-rendered content need no changes. Every `href` and path here includes the mount prefix, so a route mounted at `/app` links to `/app/pets`.
+
+| `Link` prop | Default | What it does |
+|---|---|---|
+| `href` | required | Where the link goes. |
+| `replace` | `false` | Replace the history entry instead of adding one. |
+| `scroll` | `true` | Set `false` to keep the scroll position. |
+| `prefetch` | `true` | Set `false` to not warm the page on hover or focus. |
+| `shallow` | `false` | Keep the page instance when the link goes to another URL of the page on screen. See [Shallow navigation](#shallow-navigation-and-search-params). |
+| `refetch` | `false` | With `shallow`, fetch the page's props for the new URL. |
+
+All other props are passed to the `<a>`. Plain links can be tuned with data attributes:
+
+| Attribute | Effect |
+|---|---|
+| `data-router-ignore` | Leave the link to the browser. |
+| `data-router-replace` | Replace the history entry. |
+| `data-router-shallow` | Make the navigation shallow. |
+| `data-router-prefetch="false"` | Do not warm the page (what `<Link prefetch={false}>` sets). |
+
+### When the router steps aside
+
+These are handed back to the browser as an ordinary navigation: links with a modifier key, `target`, `download` or `rel="external"`, another origin or another app's mount prefix, URLs that match no page, a page that redirects, answers with an error status, or whose module or data fails to load. A page that throws while rendering after a navigation is reloaded the ordinary way once, guarded so it cannot loop. A change of only the `#fragment` is left to the browser and never remounts the page. Two apps do not share a router, so a link from one app's prefix to another's is a full page load.
+
+## Hooks and components
+
+All of these are exported from `@rapidrest/react/client` and render the same on the server as in the browser.
+
+| Export | Returns | Description |
+|---|---|---|
+| `useRouter()` | `{ pathname, search, hash, params, route, pending, navigate, prefetch, canHandle }` | The page's location and the ways to go elsewhere. |
+| `usePathname()` | `string` | The URL path, mount prefix included. |
+| `useParams()` | `Record<string, string>` | The values captured by the route's `:params`. |
+| `useLocation()` | `{ pathname, search, hash }` | The location, with `?` and `#` kept on `search` and `hash`. |
+| `useSearchParams()` | `[URLSearchParams, setSearchParams]` | Read and change the query. |
+| `useMatch(pattern, { end? })` | `{ params, pathname } \| null` | Match the current path against literal segments, `:name` segments and a trailing `*`. |
+| `useNavigationEffects(effects)` | `void` | Configure focus, scroll and announcements. |
+| `useBlocker(when, message?)` | `void` | Ask before leaving the page. |
+| `Link` | element | An internal link. |
+| `NavLink` | element | A `Link` that knows when it is active. |
+
+`useRouter()` members:
+
+| Member | Description |
+|---|---|
+| `pathname`, `search`, `hash` | The URL, with the mount prefix in `pathname`. `hash` is empty on the server and during the first hydrating render, then follows. |
+| `params` | The values captured by the route's `:params`. |
+| `route` | The current route's template, such as `/pets/:id`. |
+| `pending` | `true` while a navigation is in flight, with the old page still on screen. Always `false` on the server. |
+| `navigate(to, options?)` | Navigates. Resolves `true` if no full page load was needed, `false` if the browser took over or a blocker refused. |
+| `prefetch(href, options?)` | Starts loading a page so a later navigation is quick. `{ data: false }` warms only its code. |
+| `canHandle(href)` | Whether navigating to `href` would avoid a full page load. |
+
+`navigate` options:
+
+| Option | Default | Description |
+|---|---|---|
+| `replace` | `false` | Replace the history entry. |
+| `scroll` | `true` | Set `false` to leave the scroll position alone. |
+| `shallow` | `false` | Keep the page instance (see below). `remount: false` is equivalent. |
+| `refetch` | `false` | With `shallow`, fetch the page's props again. |
+
+In a page rendered without a router, `useRouter()` reports no location and `navigate()` falls back to a normal browser navigation to http(s) URLs.
+
+## Shallow navigation and search params
+
+Moving between `/pets/1` and `/pets/2`, or between `?tab=a` and `?tab=b`, normally fetches the props and remounts the page. A shallow navigation keeps the page instance, with its state, focus and scroll position, and changes only the location that `useRouter()` and its dependents read. It applies only when the destination is another URL of the route already on screen. The page's `params` prop follows the URL, and its other props are not fetched again unless `refetch` is set.
+
+`useSearchParams()` is built for the common case of filters and tabs:
+
+```tsx
+import { Link, useSearchParams } from '@rapidrest/react/client';
+
+export default function Inbox() {
+  const [params, setParams] = useSearchParams();
+  const folder = params.get('folder') ?? 'inbox';
+  return (
+    <>
+      <Link href="/?folder=sent" shallow>Sent</Link>
+      <button onClick={() => setParams({ folder: 'drafts' })}>Drafts</button>
+      <button onClick={() => setParams((prev) => ({ ...Object.fromEntries(prev), unread: '1' }), { replace: true })}>
+        Unread only
+      </button>
+      <MessageList folder={folder} />
+    </>
+  );
+}
+```
+
+The setter accepts anything `URLSearchParams` accepts, an object (array values repeat the key, `undefined` leaves it out), or a function of the current query. It keeps the path and the `#fragment`, and several updates in a row each build on the one before. Unlike a plain navigation it is shallow by default; pass `{ shallow: false }` for an ordinary one. Its other options are `replace`, `refetch` and `scroll`. Going back or forward over shallow navigations is shallow too.
+
+## Active links
+
+A `NavLink` is a `Link` that, while it points at the current page, gets `aria-current="page"` and an optional class.
+
+```tsx
+import { NavLink, useMatch } from '@rapidrest/react/client';
+
+<NavLink href="/settings" className={({ active }) => (active ? 'nav on' : 'nav')}>Settings</NavLink>
+<NavLink href="/mail?folder=inbox" matchQuery activeClassName="on">Inbox</NavLink>
+<NavLink href="/" end>Home</NavLink>
+
+const inSettings = useMatch('/settings/*'); // { params: { '*': 'profile' }, pathname } | null
+const pet = useMatch('/pets/:id');          // { params: { id: '7' }, pathname: '/pets/7' } | null
+```
+
+| `NavLink` prop | Description |
+|---|---|
+| `end` | Active only on exactly the link's path, not on the pages below it. |
+| `matchQuery` | Also require the link's query parameters to be in the current query. The query is ignored otherwise. |
+| `activeClassName` | Added to the class names while active. |
+| `className` | A string, or a function of `{ active }` returning one. |
+
+Without `end`, a link is active on its path and on pages below it, in whole segments (`/settings` is active on `/settings/profile`, not on `/settings-old`). `/` is only ever active on itself. The fragment is always ignored. Activity is computed from the router's location, so server-rendered markup and hydration agree. `useMatch` needs the whole path to match unless `end: false`.
+
+## The app shell
+
+Without a shell, every navigation replaces the whole page. A shell is a client-side layout that is not replaced. Put `_shell.tsx` next to `_layout.tsx`, and its default export is rendered inside the hydration root around the page, staying mounted while pages swap in and out inside it. Use it for a navigation rail, an open dialog, or a draft that must survive navigation.
+
+```text
+app/
+├── _layout.tsx    ← the HTML document, rendered by the server only
+├── _shell.tsx     ← the app around the page, mounted once and kept mounted
+├── index.tsx
+└── calendar.tsx
+```
+
+```tsx
+// app/_shell.tsx
+import { useState, type ReactNode } from 'react';
+import { NavLink, useRouter } from '@rapidrest/react/client';
+import Compose from './_components/Compose.js';
+
+export default function Shell({ children }: { children: ReactNode }) {
+  const { pending } = useRouter();
+  const [draft, setDraft] = useState<string | null>(null); // survives navigation
+  return (
+    <div className="app" aria-busy={pending || undefined}>
+      <nav>
+        <NavLink href="/" end>Mail</NavLink>
+        <NavLink href="/calendar">Calendar</NavLink>
+        <button onClick={() => setDraft('')}>Compose</button>
+      </nav>
+      <main id="content">{children}</main>
+      {draft !== null && <Compose draft={draft} onChange={setDraft} onClose={() => setDraft(null)} />}
+    </div>
+  );
+}
+```
+
+No Vite configuration is needed. An app with a `_shell.tsx` has it built into its router entry. Adding or removing the file needs the client build restarted, as adding a page does.
+
+- **Props.** The shell receives `{ children, ...props }`, where `children` is the current page and the rest are the current page's merged props. They change on every navigation, so state that must outlive a page belongs in the shell's own state. Anything shared by all pages, such as the user, should come from the route-level `fetchProps()`.
+- **One root.** The server renders the shell around the page inside the hydration root and the client hydrates the same tree, so first loads are unchanged. On a navigation only the page is a new instance.
+- **Scope.** The shell belongs to the app directory, and only `_shell.tsx` or `_shell/index.tsx` at its top counts. There is no per-page opt-out. Use a second `appDir` for pages that should not have it. `_404` and `_500` are never inside it.
+- **Only under the router.** With `hydrate` alone there is nothing to keep mounted, so the shell is ignored.
+- **Failures.** A page that throws in the browser is caught by a boundary inside the shell: the shell stays, the page's slot is empty, and the router asks the server to render the URL once. A shell that throws is treated as a failure of the whole document. On the server, either one is a 500.
+- **Static export.** The exported HTML has the shell around the page.
+
+## Pending state, focus, scroll and announcements
+
+After a navigation the router does what a page load would have done. It moves focus so a screen reader starts at the new page, scrolls to the top or to the URL's `#fragment` (back and forward restore the entry's position), and can announce the page. These are configured with `NavigationEffects`:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `focus` | `string \| (() => HTMLElement \| null) \| false` | the router's root | A CSS selector, or a function that finds the element, to move focus to. `false` leaves focus alone. The element gets `tabindex="-1"` if it has none. If nothing matches, the root is used. |
+| `scroll` | `"top" \| "preserve" \| false` | `"top"` | `"preserve"` leaves a new page where the scroll position is, with fragments and back/forward restoring still working. `false` leaves scrolling entirely alone, for apps whose shell scrolls an element of its own. |
+| `announce` | `({ title, pathname }) => string \| false` | nothing | Text for a polite, visually hidden `role="status"` live region. Return the page title to have it spoken. Shallow navigations and fragments never announce. |
+
+Set them for the whole app in the shell, or for one page, with a hook. When both set the same option, the one that rendered later (the page) wins, and it stops applying when it unmounts:
+
+```tsx
+import { useNavigationEffects } from '@rapidrest/react/client';
+
+export default function Shell({ children }) {
+  useNavigationEffects({ focus: '#content', announce: ({ title }) => title });
+  return <main id="content">{children}</main>;
+}
+```
+
+`useRouter().pending` is `true` while a navigation is in flight. For CSS and assistive technology, set `pendingAttributes: true` to have the root marked with `data-router-pending` and `aria-busy="true"` for as long.
+
+## Prefetching
+
+`Link` warms its page when pointed at or focused. Beyond that:
+
+- **Code only.** `router.prefetch(href, { data: false })` warms the page's module and stylesheets but not its data, for pages whose props come from elsewhere.
+- **Idle prefetch.** `prefetch.idle` lists URLs to warm once the page has loaded and the browser is idle. It is skipped when the user has asked to save data or is on a 2G-class connection. Add `prefetch.data: true` to fetch their data too. `shouldSaveData()` and `whenIdle(callback)` are exported for your own speculative work.
+- **Plain links.** `prefetch.links: true` warms the page of any plain `<a href>` the router would take over when it is pointed at, pressed or focused. It is opt-in because it has the server compute props for every link the pointer passes over.
+
+Prefetching only applies to the app's own pages, never to a route that only a root-level `[slug]` page matches (another route may serve a URL like `/logout`, which must not be fetched on hover). Prefetched entries expire after 30 seconds and at most 32 are kept.
+
+## Navigation blockers
+
+`useBlocker(when, message?)` asks before leaving a page with unsaved work.
+
+```tsx
+import { useBlocker } from '@rapidrest/react/client';
+
+export default function Editor() {
+  const [dirty, setDirty] = useState(false);
+  useBlocker(dirty, 'Discard your changes?');
+  // or: useBlocker(() => form.isDirty(), { onBlock: ({ to }) => showDialog(to) })
+  // ...
+}
+```
+
+While `when` is `true` (or returns `true`), a `Link`, plain link, `navigate()` or back/forward shows `window.confirm(message)`. Pass `{ message, onBlock }` instead to ask your own way: `onBlock({ to })` may be async and resolves `true` to let the navigation go. A refused navigation is dropped and `navigate()` resolves `false`. A refused back or forward is undone so the address bar and the page agree. Closing the tab, reloading, and following a link the router cannot handle bring up the browser's own prompt, which cannot be given text. Shallow navigations and fragments are never asked about. A blocker whose `onBlock` throws blocks. Several blockers are asked in turn.
+
+## Router options
+
+These settings can be built into each routed app's entry by passing an object to `createViteConfig({ router: { ... } })`:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `appDirs` | `string[]` | all | The `appDir`s that get a router. |
+| `focus` | `string \| false` | the router's root | A selector, or `false`. |
+| `scroll` | `"top" \| "preserve" \| false` | `"top"` | `false` given here also leaves the browser's own scroll restoration on. |
+| `pendingAttributes` | `boolean` | `false` | Mark the root while a navigation is in flight. |
+| `prefetch.idle` | `string[]` | `[]` | URLs to warm when idle, mount prefix included. |
+| `prefetch.data` | `boolean` | `false` | Also fetch the data of idle-prefetched pages. |
+| `prefetch.links` | `boolean` | `false` | Warm plain links on pointer or focus. |
+
+Only options that can be written as JSON go through the build. `announce` is a function, so set it with `useNavigationEffects()`. The shell is found on its own.
+
+## Client-only bootstrap with `mountRouter()`
+
+The generated router entry calls `startRouter()`, which hydrates markup the server rendered. `mountRouter()` is the same router for a host with no server rendering at all, such as an app shell loading `@rapidrest/react` pages in a native webview. It matches `window.location` against the routes you give it, renders into an empty element with `createRoot`, and returns the `Router`, with the same `NavLink`, blockers, shallow navigation and prefetching as the server-rendered variant.
+
+```ts
+import { mountRouter } from '@rapidrest/react/client';
+import Shell from './_shell.js';
+
+await mountRouter(
+  [
+    { template: '/', load: () => import('./index.js') },
+    { template: '/pets/:id', load: () => import('./pets/[id].js') },
+  ],
+  {
+    rootId: 'root',
+    prefix: '/app',
+    shell: Shell,
+    resolveProps: async (route, params) => ({ petId: params.id }),
+  },
+);
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `rootId` | `string` | required | Id of the empty element to render into. |
+| `prefix` | `string` | `""` | The mount prefix route templates are relative to. |
+| `shell` | `ComponentType` | none | A persistent shell, rendered around every page from the first render. |
+| `resolveProps` | `(route, params) => Promise<unknown>` | none | Supplies the first page's props, since there is no serialized payload to read. Called once, before the page module loads. Without it the page renders with no props. |
+| `effects` | `NavigationEffects` | none | Focus, scroll and announcements, as above. |
+| `pendingAttributes` | `boolean` | `false` | Mark the root while a navigation is in flight. |
+| `prefetch` | `{ idle?, data?, links? }` | none | Prefetching, as above. |
+
+It resolves to `undefined`, after logging an error, when there is no DOM, no element with `rootId`, or the URL matches none of the routes. A page that crashes in the browser reloads once, as there is no server to render it instead.

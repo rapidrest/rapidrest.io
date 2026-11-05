@@ -42,8 +42,10 @@ This adds a multi-stage `Dockerfile`, a `docker-compose.yml`, and two Compose ov
 
 ## The image
 
-The `Dockerfile` builds in two stages: a `builder` stage that installs dependencies and runs the project's own `build` script, and a `runner` stage that copies over just the compiled output and `node_modules`. That `build` script is just `rapidrest build`, the same command `yarn build`/`npm run build` already runs locally: lint, then `tsc`, then a `vite build` client bundle too if the project uses [SSR React](/docs/ssr-react) (see [CLI → Dev Workflow](/docs/cli-reference/dev-workflow#rapidrest-build) for the exact steps), so the image is never running code compiled by a different path than what you already test locally. The final image:
+The `Dockerfile` builds in two stages, both on `node:lts-trixie-slim`: a `builder` stage that installs dependencies and runs the project's own `build` script, and a `runner` stage that copies over just the compiled output and `node_modules`. That `build` script is just `rapidrest build`, the same command `yarn build`/`npm run build` already runs locally: lint, then `tsc`, then a `vite build` client bundle too if the project uses [SSR React](/docs/ssr-react) (see [CLI → Dev Workflow](/docs/cli-reference/dev-workflow#rapidrest-build) for the exact steps), so the image is never running code compiled by a different path than what you already test locally. The final image:
 
+- Runs as the unprivileged `node` user rather than root, limiting the damage of a container breakout or arbitrary file write. Application files are owned by that user, and every step that needs root (package installs, `chmod`) happens before the switch.
+- Installs corepack with `npm install --global corepack` before enabling it, for projects using Yarn. Node 25 and later no longer bundle corepack, and `node:lts` images are on those versions.
 - Exposes port `3000` (the app) and `9229` (the Node inspector, for attaching a debugger).
 - Runs `rapidrest start --docker --no-build` as its entrypoint. `--docker` skips RapidREST's usual in-memory database bootstrap, since real datastores are provided by Compose; `--no-build` skips re-running the build step that already happened in the `builder` stage (see [Dev Workflow](/docs/cli-reference/dev-workflow)).
 - Has a built-in `HEALTHCHECK` polling `/` every 10 seconds. Deliberately not `curl -f`: `-f` treats any non-2xx response as failed, but `/` legitimately 404s on a project generated without `--react` (no page claims the root route), which still proves the server is up and routing requests correctly. Only an actual connection failure counts as unhealthy here.
@@ -89,7 +91,7 @@ docker compose up
 
 ## Debugging inside the container
 
-`docker-compose.debug.yml` overrides the server's command to `dev --inspect --docker` and bind-mounts `./src` and `./app` into the container, so source changes trigger a reload without rebuilding the image, with the Node inspector already listening on the container's port `9229`:
+`docker-compose.debug.yml` overrides the server's command to the project's `debug` script (`rapidrest dev --inspect --docker`) and bind-mounts `./src` and `./app` into the container, so source changes trigger a reload without rebuilding the image, with the Node inspector already listening on the container's port `9229`:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.debug.yml up

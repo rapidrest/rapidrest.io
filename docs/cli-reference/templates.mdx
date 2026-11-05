@@ -1,0 +1,49 @@
+---
+sidebar_position: 8
+sidebar_label: Templates
+---
+
+# Templates
+
+Every file `generate`, `upgrade` and `doctor` write comes from a template, including the dependency versions a new project starts with. Since CLI 3.0.0 the templates are not part of the `@rapidrest/cli` npm package. They are released on their own, as GitHub releases of the [`rapidrest/cli`](https://github.com/rapidrest/cli) repository tagged `templates-v<version>`, so a fix to generated code or a bump to a framework dependency ships without a CLI release.
+
+The CLI downloads the newest templates it can use the first time a command needs them, verifies the download against its SHA-256, and caches it in `~/.rapidrest/templates/` (or `$RAPIDREST_HOME/templates/` if set). That means the first `generate` needs network access. Offline, the cached copy is used.
+
+## Which templates a command uses
+
+- **A new project** (`generate server`) gets the newest templates this CLI can render. The project records that version in its `package.json`:
+
+  ```json
+  "rapidrest": { "templates": "1.2.0" }
+  ```
+
+- **Inside an existing project**, only templates from the same major as that recorded version are used, and only if they target the `@rapidrest` majors the project has installed. A project keeps receiving template fixes, and is never moved to templates written for framework versions it doesn't use.
+- **Moving to a newer major** is deliberate: after upgrading the project's `@rapidrest` dependencies, run [`rapidrest upgrade --latest`](/docs/cli-reference/maintenance-commands#rapidrest-upgrade).
+
+Each templates release declares the `@rapidrest` majors it targets. Templates `1.2.0` target `@rapidrest/core` 6, `@rapidrest/service-core` 2, `@rapidrest/auth` 2 and `@rapidrest/react` 2.
+
+## Dependency versions
+
+Dependency ranges in the templates are written as `^<major>` and resolved to the newest matching published release when you scaffold, so a new project starts on current versions. If the registry can't be reached, the range is written as is.
+
+## Choosing templates explicitly
+
+Every command that renders templates (`generate *`, `upgrade`, `doctor`) accepts `--templates <value>`, or reads the `RAPIDREST_TEMPLATES` environment variable. The value is one of:
+
+| Value | Meaning |
+|---|---|
+| A version such as `1.2.0` | That templates release, downloaded and cached |
+| A directory | A local copy of the templates, for example a checkout of the CLI repository's `templates/` |
+| A `.zip` | A packaged templates release |
+
+## Environment
+
+| Variable | Purpose |
+|---|---|
+| `RAPIDREST_TEMPLATES` | Default for `--templates` |
+| `RAPIDREST_HOME` | Replaces `~/.rapidrest` as the directory the templates cache lives in (`$RAPIDREST_HOME/templates/`). The Bun runtime cache used by `start --bun` stays under `~/.rapidrest/bun/` |
+| `GITHUB_TOKEN` (or `GH_TOKEN`) | Raises the GitHub API rate limit. The release list is fetched at most once an hour, but unauthenticated requests are limited to 60 an hour per network |
+
+## Upgrading from CLI 2.x
+
+A project scaffolded by CLI 2.x or earlier has no `rapidrest.templates` entry, so the CLI chooses templates by the `@rapidrest` majors the project has installed. Run `rapidrest upgrade --write` inside it to pick up compatible template fixes and record the templates version. Run `rapidrest upgrade --latest --write` once you have moved its `@rapidrest` dependencies to the majors the newest templates target.

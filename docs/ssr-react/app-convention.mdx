@@ -5,15 +5,21 @@ sidebar_label: App Directory Convention
 
 # App Directory Convention
 
-All React UI code lives under a single app directory (`app` by default, see [Getting Started](/docs/ssr-react/getting-started) for how to change it).
+Instead of registering a route per page, you describe your site's URLs with the file layout of a single app directory (`app` by default, see [Getting Started](/docs/ssr-react/getting-started) for how to change it). `ReactRoute` resolves each request path to a file in that directory, loads it, and renders it inside your layout. Adding a page is adding a file.
 
 ```text
 app/
 ├── _layout.tsx        ← global HTML wrapper (required)
+├── _shell.tsx         ← persistent client layout (optional, client-side navigation only)
 ├── _404.tsx           ← 404 page (optional)
 ├── _500.tsx           ← 500 page (optional)
+├── _components/       ← not routed, shared components
+│   └── Button.tsx
 ├── index.tsx          ← route: GET /
 ├── pets.tsx           ← route: GET /pets
+├── pets/
+│   ├── featured.tsx   ← route: GET /pets/featured
+│   └── [id].tsx       ← route: GET /pets/:id
 └── auth/
     └── login/
         └── index.tsx  ← route: GET /auth/login
@@ -21,7 +27,7 @@ app/
 
 ## Special files
 
-**`_layout.tsx`** - required. Wraps every page. Must export a default component accepting `children`:
+**`_layout.tsx`** - required. Wraps every page. Must export a default component accepting `children`. It also receives the page's merged props (see [Data Fetching](/docs/ssr-react/data-fetching)), so a layout can render something page-specific, such as a `<title>`, from them:
 
 ```tsx
 export default function Layout({children}: PropsWithChildren) {
@@ -34,17 +40,26 @@ export default function Layout({children}: PropsWithChildren) {
 }
 ```
 
+**`_shell.tsx`** - optional. A client-side layout that stays mounted while the router swaps pages inside it. Only used when client-side navigation is enabled. See [Client-Side Navigation](/docs/ssr-react/client-navigation#the-app-shell).
+
 **`_404.tsx`** - optional. Rendered, with a real HTTP 404 status, when no page file matches the request path. Without one, a bare `<h1>404 Not Found</h1>` is returned instead.
 
-**`_500.tsx`** - optional. Rendered, with a real HTTP 500 status, when an unhandled exception occurs during rendering. Receives the thrown value as an `error` prop. Without one, a bare `<h1>500 Internal Server Error</h1>` is returned instead.
+**`_500.tsx`** - optional. Rendered, with a real HTTP 500 status, when an unhandled exception occurs during rendering. Receives the thrown value as an `error` prop, which is redacted to a generic message whenever the server is not in dev mode. Without one, a bare `<h1>500 Internal Server Error</h1>` is returned instead.
 
-:::note[Underscore-prefixed files aren't a hard server-side exclusion]
-Files starting with `_` are skipped when Vite scans for client hydration bundle entries, but the server itself doesn't refuse to render them if requested directly by path. Don't rely on the leading underscore alone to keep a file unreachable; it's a naming convention for "not a page," not an access control mechanism.
-:::
+## Files and directories starting with `_` are never pages
+
+A file or directory whose name starts with `_` is not a route, at any depth. A request for `/_layout` or `/_components/Button` returns your 404 page, and the client build never creates an entry for it. Use the prefix to colocate shared components with the pages that use them:
+
+```text
+app/pets/_PetCard.tsx   ← NOT routed
+app/pets/index.tsx      ← routed as GET /pets
+```
+
+The framework's own `_layout`, `_shell`, `_404` and `_500` are looked up by their literal names, so a root-level dynamic page such as `app/[slug].tsx` can never stand in for one of them.
 
 ## Page files
 
-Every other `.tsx`, `.jsx`, or `.js` file is a page. It exports a default component, and optionally an async `fetchProps` function. See [Data Fetching](/docs/ssr-react/data-fetching).
+Every other `.tsx`, `.jsx`, or `.js` file, at any depth, is a page. It exports a default component and, optionally, `fetchProps` ([Data Fetching](/docs/ssr-react/data-fetching)), `title`, and `getStaticPaths` ([Static Export](/docs/ssr-react/static-export#dynamic-routes)).
 
 ```tsx
 // app/pets.tsx
@@ -61,9 +76,24 @@ export default function PetsPage({pets}: Props) {
 }
 ```
 
+### Setting the page title
+
+A page can export `title` as a string, or as a function of the props the page renders with (it may be async). It sets the document's `<title>` in the server's HTML, replacing the one the layout renders, or adding one if the layout has none. With client-side navigation the tab's title follows the page as well.
+
+```tsx
+export const title = 'Pets';
+
+// or
+export function title({pet}: {pet: Pet}) {
+  return `${pet.name} | Pets`;
+}
+```
+
+The page's `title` wins over the `<title>` the layout renders for the page's props. A `title` function that throws is an error of the page, and responds with a 500.
+
 ## URL-to-file resolution
 
-A request path is resolved by trying these suffixes in order, stopping at the first match:
+A request path is resolved one segment at a time. For the last segment, these suffixes are tried in order, stopping at the first match:
 
 ```text
 <path>.tsx  →  <path>/index.tsx  →  <path>.jsx  →  <path>/index.jsx  →  <path>.js  →  <path>/index.js
@@ -80,9 +110,43 @@ app/auth/login/index.tsx  →  GET /auth/login
 app/auth/login.tsx        →  GET /auth/login   (equivalent)
 ```
 
-Prefer the `index.tsx` form once a route needs more than one file in the same directory. Non-`index` files inside a subdirectory are not routed automatically, so they're safe to use as private sub-components:
+Both forms work at any depth. Prefer the `index.tsx` form once a route needs more than one file in the same directory.
+
+## Dynamic routes
+
+A file or directory named in square brackets captures one URL segment as a string:
 
 ```text
-app/pets/PetCard.tsx   ← NOT routed, import it from pets/index.tsx
-app/pets/index.tsx     ← routed as GET /pets
+app/
+└── pets/
+    ├── [id].tsx             ← GET /pets/:id
+    ├── [id]/index.tsx       ← the same route, either form works
+    └── [id]/
+        └── reviews/
+            └── [reviewId].tsx  ← GET /pets/:id/reviews/:reviewId
 ```
+
+The captured values are available as `req.params` inside `fetchProps` and as the `params` prop on the page component:
+
+```tsx
+// app/pets/[id].tsx
+export async function fetchProps(req: HttpRequest) {
+  return {pet: await loadPet(req.params.id)};
+}
+
+export default function PetPage({params, pet}: {params: {id: string}; pet: Pet}) {
+  return <h1>{pet.name} (#{params.id})</h1>;
+}
+```
+
+Captured values are URL-decoded. A few rules keep resolution predictable:
+
+| Rule | Behavior |
+|---|---|
+| Static beats dynamic | `app/pets/featured.tsx` wins over `app/pets/[id].tsx` for the request `/pets/featured`. |
+| No backtracking | Once a literal directory matches at a level, a failure further down that path fails outright. It never retries a sibling bracket at that level. |
+| One dynamic segment per directory | Sibling brackets (`[id]` and `[slug]` in one directory) are a misconfiguration. The alphabetically first name wins and a warning is logged on every request that hits the ambiguity. |
+| Single segments only | There are no catch-all (`[...slug]`) or optional (`[[id]]`) segments. |
+| Never a file name | A decoded slash or backslash in a request (`%2f`) can only ever be captured as a parameter value. It is never used to look for a file, so a request can't reach a module outside the app directory. |
+
+The Vite client build sanitizes brackets in its output names, which `createViteConfig` and `ReactRoute` account for on their own. You don't need to handle it.
